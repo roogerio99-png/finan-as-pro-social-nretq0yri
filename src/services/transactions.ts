@@ -66,6 +66,35 @@ export const transactionsService = {
     })
   },
 
+  // Transferência entre contas: sai de uma conta e entra na outra — sem
+  // receita nem despesa. Feita no backend (POST /backend/v1/transfers) para
+  // debitar/creditar os saldos das duas contas numa única transação.
+  async transfer(input: {
+    sourceAccountId: string
+    targetAccountId: string
+    amount: number
+    date: string
+    description?: string
+    notes?: string
+  }): Promise<{ id: string; amount: number }> {
+    const { getErrorMessage } = await import('@/lib/pocketbase/errors')
+    try {
+      return await pb.send<{ id: string; amount: number }>('/backend/v1/transfers', {
+        method: 'POST',
+        body: {
+          source_account_id: input.sourceAccountId,
+          target_account_id: input.targetAccountId,
+          amount: input.amount,
+          date: input.date,
+          description: input.description,
+          notes: input.notes,
+        },
+      })
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
   async delete(id: string): Promise<boolean> {
     return await pb.collection('transactions').delete(id)
   },

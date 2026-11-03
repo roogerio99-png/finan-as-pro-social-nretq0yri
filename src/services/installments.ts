@@ -30,6 +30,10 @@ export const cashValueForMonth = (
   month: string,
   accounts: { id: string; closing_day?: number; due_day?: number }[],
 ): number => {
+  // Transferência entre contas e pagamento de fatura não são fluxo de
+  // receita/despesa: não entram no caixa nem na competência do mês.
+  if (tx.type === 'transfer' || tx.type === 'invoice_payment') return 0
+
   const isExpense = tx.type === 'expense'
   const installments = isExpense ? (tx.installments_total ?? 0) : 0
 

@@ -1,5 +1,7 @@
 export type AccountType = 'checking' | 'savings' | 'credit_card' | 'investment' | 'cash'
-export type TransactionType = 'income' | 'expense' | 'transfer'
+// Quatro situações próprias do movimento bancário: despesa, receita,
+// transferência entre contas e pagamento de fatura.
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'invoice_payment'
 export type DebtStatus = 'active' | 'renegotiating' | 'paid'
 export type DreamStatus = 'in_progress' | 'achieved' | 'paused'
 
@@ -89,6 +91,10 @@ export interface TransactionRecord {
   cash_month: string // YYYY-MM
   installments_total?: number // total de parcelas (vazio/0/1 = à vista)
   installments_paid?: number // parcelas já pagas (informativo)
+  // Conta de destino da transferência entre contas (type = 'transfer').
+  transfer_account_id?: string
+  // Fatura quitada por este movimento (type = 'invoice_payment').
+  invoice_id?: string
   is_reconciled?: boolean
   import_batch_id?: string
   notes?: string
@@ -99,6 +105,38 @@ export interface TransactionRecord {
     account_id?: AccountRecord
     category_id?: CategoryRecord
     user_id?: UserRecord
+    transfer_account_id?: AccountRecord
+    invoice_id?: InvoiceRecord
+  }
+}
+
+// Fatura do cartão como registro: agrupa as compras/parcelas do mês de
+// fechamento, com valor total, status (aberta/paga) e vínculo com o pagamento.
+export interface InvoiceItemEntry {
+  transaction_id: string
+  index: number // 0 = à vista, 1..N = parcela
+  value: number
+  description: string
+}
+
+export interface InvoiceRecord {
+  id: string
+  user_id: string
+  family_id?: string
+  card_account_id: string
+  reference_month: string // YYYY-MM (fechamento/vencimento)
+  total_amount: number
+  status: 'open' | 'paid'
+  paid_date?: string // YYYY-MM-DD
+  payment_account_id?: string
+  transactions?: string[]
+  items?: InvoiceItemEntry[]
+  notes?: string
+  created: string
+  updated: string
+  expand?: {
+    card_account_id?: AccountRecord
+    payment_account_id?: AccountRecord
   }
 }
 
