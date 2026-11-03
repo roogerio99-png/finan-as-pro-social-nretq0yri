@@ -25,6 +25,8 @@ import {
   RefreshCw,
   Plus,
   FileText,
+  CreditCard,
+  Building2,
   Loader2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -41,7 +43,8 @@ export const ReconciliationPage: React.FC = () => {
   const [importLines, setImportLines] = useState<StatementImportLine[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [parsingPdf, setParsingPdf] = useState<boolean>(false)
-  const [detectedBank, setDetectedBank] = useState<string | null>(null)
+  const [detectedBadge, setDetectedBadge] = useState<string | null>(null)
+  const [detectedDocType, setDetectedDocType] = useState<'invoice' | 'statement' | null>(null)
   const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
 
@@ -72,47 +75,63 @@ export const ReconciliationPage: React.FC = () => {
     loadData()
   }, [])
 
-  // Exemplo de extrato pré-carregado inteligente para o usuário testar ou carregar seu arquivo
+  // Exemplo de demonstração pré-carregado (Fatura com parcelas e compras)
   const handleLoadSampleStatement = () => {
     const today = new Date()
     const currMonth = today.toISOString().slice(0, 7)
 
-    const sampleRaw = [
+    setDetectedBadge('Fatura Nubank (Exemplo)')
+    setDetectedDocType('invoice')
+
+    const cardAcc = accounts.find((a) => a.type === 'credit_card' && a.status !== 'archived')
+    if (cardAcc) {
+      setSelectedAccountId(cardAcc.id)
+    }
+
+    const sampleRaw: ParsedStatementTransaction[] = [
       {
         date: `${currMonth}-03`,
         desc: 'IFOOD *RESTAURANTE SAO PAULO',
         amount: 68.9,
-        type: 'expense' as const,
+        type: 'expense',
       },
       {
         date: `${currMonth}-05`,
         desc: 'UBER *TRIP HELP SP',
         amount: 28.4,
-        type: 'expense' as const,
+        type: 'expense',
       },
       {
         date: `${currMonth}-08`,
         desc: 'SUPERMERCADO CARREFOUR SP',
         amount: 412.3,
-        type: 'expense' as const,
+        type: 'expense',
       },
       {
         date: `${currMonth}-10`,
-        desc: 'NETFLIX.COM MENSALIDADE',
-        amount: 55.9,
-        type: 'expense' as const,
+        desc: 'MAGAZINE LUIZA - SMARTPHONE 03/10',
+        amount: 199.9,
+        type: 'expense',
+        installments_total: 10,
+        installment_index: 3,
       },
       {
         date: `${currMonth}-12`,
-        desc: 'PIX RECEBIDO CLIENTE TECH',
-        amount: 1200.0,
-        type: 'income' as const,
+        desc: 'NETFLIX.COM MENSALIDADE',
+        amount: 55.9,
+        type: 'expense',
+      },
+      {
+        date: `${currMonth}-14`,
+        desc: 'ESTORNO COMPRA CANCELADA',
+        amount: 75.0,
+        type: 'income',
       },
       {
         date: `${currMonth}-08`,
         desc: 'SUPERMERCADO CARREFOUR SP',
         amount: 412.3,
-        type: 'expense' as const,
+        type: 'expense',
       }, // Duplicata proposital
     ]
 
@@ -122,21 +141,37 @@ export const ReconciliationPage: React.FC = () => {
   // Processamento genérico de arquivo (PDF, CSV, XLSX, TXT)
   const processIncomingFile = async (file: File) => {
     const fileName = file.name.toLowerCase()
-    setDetectedBank(null)
+    setDetectedBadge(null)
+    setDetectedDocType(null)
 
     if (fileName.endsWith('.pdf')) {
       setParsingPdf(true)
       try {
         const result = await statementParserService.parsePdf(file)
-        if (result.bank) setDetectedBank(result.bank)
+        const badge =
+          result.badge ||
+          (result.bank
+            ? `${result.document_type === 'invoice' ? 'Fatura' : 'Extrato'} ${result.bank}`
+            : 'Documento PDF')
+        setDetectedBadge(badge)
+        setDetectedDocType(result.document_type || 'statement')
+
+        // Se detectou fatura de cartão, tenta pré-selecionar a primeira conta do tipo cartão de crédito
+        if (result.document_type === 'invoice') {
+          const cardAcc = accounts.find((a) => a.type === 'credit_card' && a.status !== 'archived')
+          if (cardAcc) {
+            setSelectedAccountId(cardAcc.id)
+          }
+        }
+
         processExtractedLines(result.transactions)
         toast({
-          title: result.bank ? `Extrato ${result.bank} importado!` : 'Extrato PDF importado!',
-          description: `${result.transactions.length} movimentações extraídas com sucesso.`,
+          title: `${badge} importado!`,
+          description: `${result.transactions.length} lançamentos extraídos com sucesso.`,
         })
       } catch (err: any) {
         toast({
-          title: 'Não foi possível ler este extrato',
+          title: 'Não foi possível ler este arquivo',
           description: err.message || 'Verifique se o arquivo PDF contém texto selecionável.',
           variant: 'destructive',
         })
@@ -153,16 +188,18 @@ export const ReconciliationPage: React.FC = () => {
       const parsed = statementParserService.parseCsv(text)
 
       if (parsed.length > 0) {
+        setDetectedBadge('Arquivo CSV / Planilha')
+        setDetectedDocType('statement')
         processExtractedLines(parsed)
         toast({
           title: 'Arquivo de planilha lido!',
           description: `${parsed.length} linhas extraídas com sucesso.`,
         })
       } else {
-        handleLoadSampleStatement()
         toast({
-          title: 'Aviso',
-          description: 'Formato não reconhecido, carregando lote de demonstração com deduplicação.',
+          title: 'Formato não reconhecido',
+          description: 'Não foi possível identificar linhas com data e valor no arquivo enviado.',
+          variant: 'destructive',
         })
       }
     }
@@ -195,13 +232,13 @@ export const ReconciliationPage: React.FC = () => {
     setIsDragOver(false)
   }
 
-  const processExtractedLines = (
-    raw: { date: string; desc: string; amount: number; type: 'income' | 'expense' }[],
-  ) => {
+  const processExtractedLines = (raw: ParsedStatementTransaction[]) => {
     const seen = new Set<string>()
 
     const processed: StatementImportLine[] = raw.map((item, idx) => {
-      const key = `${item.date}_${item.desc.trim().toUpperCase()}_${item.amount}`
+      // Normaliza descrição removendo múltiplos espaços para chave única de deduplicação
+      const normDesc = item.desc.trim().toUpperCase().replace(/\s+/g, ' ')
+      const key = `${item.date}_${normDesc}_${item.amount}`
       const isDuplicate = seen.has(key)
       seen.add(key)
 
@@ -214,6 +251,8 @@ export const ReconciliationPage: React.FC = () => {
         description: item.desc,
         amount: item.amount,
         type: item.type,
+        installments_total: item.installments_total,
+        installment_index: item.installment_index,
         suggested_category_id: suggestedCatId,
         selected_category_id: suggestedCatId || '',
         competence_month: item.date.slice(0, 7),
@@ -259,6 +298,8 @@ export const ReconciliationPage: React.FC = () => {
         date: l.date,
         competence_month: l.competence_month,
         cash_month: l.cash_month,
+        installments_total: l.installments_total,
+        installments_paid: l.installment_index ?? (l.installments_total ? 1 : undefined),
         category_id: l.selected_category_id || undefined,
         is_reconciled: true,
         import_batch_id: batchId,
@@ -310,17 +351,30 @@ export const ReconciliationPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Conciliação Bancária & De-Para
+              Conciliação & De-Para
             </h1>
-            {detectedBank && (
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                Extrato {detectedBank}
+            {detectedBadge && (
+              <span
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full border shadow-xs ${
+                  detectedDocType === 'invoice'
+                    ? 'bg-purple-100 text-purple-900 border-purple-200'
+                    : 'bg-emerald-100 text-emerald-900 border-emerald-200'
+                }`}
+              >
+                {detectedDocType === 'invoice' ? (
+                  <CreditCard className="w-3.5 h-3.5 text-purple-700" />
+                ) : (
+                  <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                )}
+                {detectedBadge}
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Importe extratos bancários em <strong>PDF</strong> (Nubank, Banco do Brasil, Mercado Pago, Itaú...) ou planilhas (.csv / .xlsx). O leitor genérico extrai movimentações sem precisar configurar nada.
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+            Importe <strong>Faturas de Cartão de Crédito</strong> ou{' '}
+            <strong>Extratos Bancários</strong> em PDF (Nubank, Banco do Brasil, Itaú, Bradesco,
+            Santander, Mercado Pago...) ou arquivos CSV/planilha. Detecção automática do tipo de
+            documento, parcelas e compras.
           </p>
         </div>
 
@@ -346,11 +400,11 @@ export const ReconciliationPage: React.FC = () => {
             <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors">
               {parsingPdf ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Processando PDF...
+                  <Loader2 className="w-4 h-4 animate-spin" /> Lendo documento...
                 </>
               ) : (
                 <>
-                  <FileText className="w-4 h-4" /> Importar Extrato (PDF / CSV)
+                  <FileText className="w-4 h-4" /> Importar Fatura / Extrato
                 </>
               )}
             </div>
@@ -408,7 +462,8 @@ export const ReconciliationPage: React.FC = () => {
               <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
                   <th className="py-2.5 px-3">Data</th>
-                  <th className="py-2.5 px-3">Descrição no Extrato</th>
+                  <th className="py-2.5 px-3">Descrição / Estabelecimento</th>
+                  <th className="py-2.5 px-3">Parcelas</th>
                   <th className="py-2.5 px-3">Valor</th>
                   <th className="py-2.5 px-3">Categoria Sugerida (De-Para)</th>
                   <th className="py-2.5 px-3">Status / Duplicidade</th>
@@ -429,6 +484,18 @@ export const ReconciliationPage: React.FC = () => {
 
                     <td className="py-2.5 px-3 font-semibold text-slate-900 text-xs">
                       {line.description}
+                    </td>
+
+                    <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                      {line.installments_total ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-[11px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                          {line.installment_index
+                            ? `${line.installment_index}/${line.installments_total}`
+                            : `${line.installments_total}x`}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">À vista</span>
+                      )}
                     </td>
 
                     <td className="py-2.5 px-3 font-bold text-xs whitespace-nowrap">

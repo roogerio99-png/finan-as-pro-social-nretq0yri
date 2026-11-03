@@ -201,6 +201,8 @@ export interface StatementImportLine {
   description: string
   amount: number
   type: 'income' | 'expense'
+  installments_total?: number
+  installment_index?: number
   suggested_category_id?: string
   selected_category_id?: string
   competence_month: string

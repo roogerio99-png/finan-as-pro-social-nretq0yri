@@ -5,11 +5,15 @@ export interface ParsedStatementTransaction {
   desc: string
   amount: number
   type: 'income' | 'expense'
+  installments_total?: number
+  installment_index?: number
 }
 
 export interface ParsePdfResult {
   ok: boolean
+  document_type?: 'invoice' | 'statement'
   bank?: string
+  badge?: string // Ex: "Fatura Nubank", "Extrato Banco do Brasil"
   transactions: ParsedStatementTransaction[]
   count: number
 }
@@ -66,7 +70,7 @@ export const statementParserService = {
       if (parts.length >= 2) {
         let rawDate = parts[0]?.trim() || `${currMonth}-01`
         // Normaliza dd/mm/aaaa para aaaa-mm-dd se necessário
-        const m = rawDate.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+        const m = rawDate.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
         if (m) {
           rawDate = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
         }
