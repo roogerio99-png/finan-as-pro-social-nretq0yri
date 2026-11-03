@@ -73,12 +73,14 @@ export const familyService = {
   },
 
   /**
-   * Cadastra um membro do lar. Se o e-mail já existir como usuário, apenas o
-   * adiciona à família; senão cria a conta (senha padrão, trocável depois).
+   * Cadastra um membro do lar com e-mail e senha previamente definidos pelo gerente.
+   * Se o e-mail já existir como usuário, vincula ao núcleo familiar.
    */
   async createMember(input: {
     name: string
     email: string
+    password: string
+    passwordConfirm?: string
     family_role?: string
   }): Promise<UserRecord> {
     let created: UserRecord | null = null
@@ -86,9 +88,10 @@ export const familyService = {
       created = await pb.collection('users').create<UserRecord>({
         name: input.name,
         email: input.email,
-        password: 'Financas@2024',
-        passwordConfirm: 'Financas@2024',
+        password: input.password,
+        passwordConfirm: input.passwordConfirm || input.password,
         family_role: input.family_role || 'member',
+        emailVisibility: true,
       })
     } catch (err) {
       const message = getErrorMessage(err)
@@ -108,13 +111,29 @@ export const familyService = {
     return created as UserRecord
   },
 
-  /** Atualiza nome, e-mail e papel de um membro do lar. */
+  /**
+   * Atualiza dados de um membro do lar (nome, e-mail, papel e/ou redefinição de senha).
+   */
   async updateMember(
     id: string,
-    data: { name?: string; email?: string; family_role?: string },
+    data: {
+      name?: string
+      email?: string
+      family_role?: string
+      password?: string
+      passwordConfirm?: string
+    },
   ): Promise<UserRecord> {
     try {
-      return await pb.collection('users').update<UserRecord>(id, data)
+      const payload: Record<string, unknown> = {}
+      if (data.name !== undefined) payload.name = data.name
+      if (data.email !== undefined) payload.email = data.email
+      if (data.family_role !== undefined) payload.family_role = data.family_role
+      if (data.password) {
+        payload.password = data.password
+        payload.passwordConfirm = data.passwordConfirm || data.password
+      }
+      return await pb.collection('users').update<UserRecord>(id, payload)
     } catch (err) {
       throw new Error(getErrorMessage(err))
     }

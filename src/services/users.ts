@@ -19,24 +19,44 @@ export const usersService = {
     return records
   },
 
-  /** Cria o cadastro de um novo usuário/membro do lar (convite). */
-  async create(email: string, name: string, familyRole: string): Promise<UserRecord> {
+  /** Cria o cadastro de um novo usuário/membro do lar com senha fornecida. */
+  async create(
+    email: string,
+    name: string,
+    familyRole: string,
+    password: string,
+    passwordConfirm?: string,
+  ): Promise<UserRecord> {
     return await pb.collection('users').create<UserRecord>({
       email,
       name,
       family_role: familyRole,
-      password: 'Financas@2024',
-      passwordConfirm: 'Financas@2024',
+      password,
+      passwordConfirm: passwordConfirm || password,
       emailVisibility: true,
     })
   },
 
-  /** Atualiza nome, e-mail (se permitido) e papel na família. */
+  /** Atualiza nome, e-mail, papel na família e/ou senha. */
   async update(
     id: string,
-    data: { name?: string; email?: string; family_role?: string },
+    data: {
+      name?: string
+      email?: string
+      family_role?: string
+      password?: string
+      passwordConfirm?: string
+    },
   ): Promise<UserRecord> {
-    return await pb.collection('users').update<UserRecord>(id, data)
+    const payload: Record<string, unknown> = {}
+    if (data.name !== undefined) payload.name = data.name
+    if (data.email !== undefined) payload.email = data.email
+    if (data.family_role !== undefined) payload.family_role = data.family_role
+    if (data.password) {
+      payload.password = data.password
+      payload.passwordConfirm = data.passwordConfirm || data.password
+    }
+    return await pb.collection('users').update<UserRecord>(id, payload)
   },
 
   /** Insere o usuário no núcleo familiar (lista `members` da família). */

@@ -10,7 +10,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { UserPlus, Pencil, Users, ShieldCheck, User } from 'lucide-react'
+import {
+  UserPlus,
+  Pencil,
+  Users,
+  ShieldCheck,
+  User,
+  KeyRound,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { familyService } from '@/services/family'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -18,15 +29,24 @@ import { UserRecord, FamilyRecord } from '@/types/finance'
 import { FamilyRole, familyRoleLabels } from '@/types/cadastros'
 
 const FAMILY_ROLES: FamilyRole[] = ['admin', 'member']
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 interface MemberForm {
   id?: string
   name: string
   email: string
   role: FamilyRole
+  password?: string
+  passwordConfirm?: string
 }
 
-const emptyForm = (): MemberForm => ({ name: '', email: '', role: 'member' })
+const emptyForm = (): MemberForm => ({
+  name: '',
+  email: '',
+  role: 'member',
+  password: '',
+  passwordConfirm: '',
+})
 
 export const UsersTab: React.FC = () => {
   const { toast } = useToast()
@@ -37,6 +57,8 @@ export const UsersTab: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<MemberForm>(emptyForm())
   const [emailError, setEmailError] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -63,6 +85,8 @@ export const UsersTab: React.FC = () => {
   const openCreate = () => {
     setForm(emptyForm())
     setEmailError(null)
+    setPasswordError(null)
+    setShowPassword(false)
     setDialogOpen(true)
   }
 
@@ -72,36 +96,98 @@ export const UsersTab: React.FC = () => {
       name: m.name,
       email: m.email,
       role: (m.family_role as FamilyRole) || 'member',
+      password: '',
+      passwordConfirm: '',
     })
     setEmailError(null)
+    setPasswordError(null)
+    setShowPassword(false)
     setDialogOpen(true)
+  }
+
+  const validateCredentials = (): boolean => {
+    const trimmedEmail = form.email.trim()
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setEmailError('Informe um e-mail válido (ex.: usuario@email.com).')
+      return false
+    }
+
+    // Criação: senha é obrigatória (mínimo 8 caracteres)
+    if (!form.id) {
+      const pwd = form.password || ''
+      if (pwd.length < 8) {
+        setPasswordError('A senha deve ter no mínimo 8 caracteres.')
+        return false
+      }
+      if (form.passwordConfirm && form.passwordConfirm !== pwd) {
+        setPasswordError('As senhas digitadas não coincidem.')
+        return false
+      }
+    } else {
+      // Edição: se digitou senha para redefinir, valida mínimo 8
+      const pwd = form.password || ''
+      if (pwd.length > 0) {
+        if (pwd.length < 8) {
+          setPasswordError('A nova senha deve ter no mínimo 8 caracteres.')
+          return false
+        }
+        if (form.passwordConfirm && form.passwordConfirm !== pwd) {
+          setPasswordError('A confirmação da nova senha não coincide.')
+          return false
+        }
+      }
+    }
+
+    return true
   }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim()) return
-    setSaving(true)
+
     setEmailError(null)
+    setPasswordError(null)
+
+    if (!validateCredentials()) return
+
+    setSaving(true)
     try {
       if (form.id) {
-        await familyService.updateMember(form.id, {
+        const updatePayload: {
+          name: string
+          email: string
+          family_role: FamilyRole
+          password?: string
+          passwordConfirm?: string
+        } = {
           name: form.name.trim(),
           email: form.email.trim(),
           family_role: form.role,
-        })
+        }
+        if (form.password && form.password.trim().length >= 8) {
+          updatePayload.password = form.password.trim()
+          updatePayload.passwordConfirm = (form.passwordConfirm || form.password).trim()
+        }
+
+        await familyService.updateMember(form.id, updatePayload)
         toast({
           title: 'Usuário atualizado!',
-          description: `${form.name} foi atualizado com sucesso.`,
+          description: form.password
+            ? `${form.name} foi atualizado e a nova senha já está ativa para login.`
+            : `${form.name} foi atualizado com sucesso.`,
         })
       } else {
+        const pwd = (form.password || '').trim()
         await familyService.createMember({
           name: form.name.trim(),
           email: form.email.trim(),
+          password: pwd,
+          passwordConfirm: (form.passwordConfirm || pwd).trim(),
           family_role: form.role,
         })
         toast({
           title: 'Usuário cadastrado!',
-          description: `${form.name} entrou no seu núcleo familiar.`,
+          description: `${form.name} entrou no núcleo familiar e já pode acessar o aplicativo com o e-mail e senha definidos.`,
         })
       }
       setDialogOpen(false)
@@ -110,6 +196,11 @@ export const UsersTab: React.FC = () => {
       const message = getErrorMessage(err)
       if (message.toLowerCase().includes('email')) {
         setEmailError(message)
+      } else if (
+        message.toLowerCase().includes('password') ||
+        message.toLowerCase().includes('senha')
+      ) {
+        setPasswordError(message)
       } else {
         toast({ title: 'Erro ao salvar usuário', description: message, variant: 'destructive' })
       }
@@ -215,14 +306,14 @@ export const UsersTab: React.FC = () => {
             </DialogTitle>
             <DialogDescription>
               {form.id
-                ? 'Atualize o nome, o e-mail ou o papel na família.'
-                : 'Cadastre um membro do seu núcleo familiar.'}
+                ? 'Atualize os dados ou redefina a senha de acesso do membro ao app.'
+                : 'Defina o e-mail e a senha de acesso para o novo membro entrar no app.'}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="usrName">Nome</Label>
+              <Label htmlFor="usrName">Nome completo</Label>
               <Input
                 id="usrName"
                 value={form.name}
@@ -233,16 +324,107 @@ export const UsersTab: React.FC = () => {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="usrEmail">E-mail</Label>
+              <Label htmlFor="usrEmail">E-mail de acesso ao aplicativo</Label>
               <Input
                 id="usrEmail"
                 type="email"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value })
+                  if (emailError) setEmailError(null)
+                }}
                 placeholder="maria@email.com"
                 required
               />
-              {emailError && <p className="text-xs font-semibold text-rose-600">{emailError}</p>}
+              {emailError && (
+                <p className="text-xs font-semibold text-rose-600 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {emailError}
+                </p>
+              )}
+            </div>
+
+            {/* Bloco de Credenciais (Senha) */}
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="usrPass"
+                  className="text-xs font-bold text-slate-800 flex items-center gap-1.5"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                  {form.id ? 'Redefinir senha de acesso (opcional)' : 'Senha de acesso ao app'}
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium"
+                >
+                  {showPassword ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" /> Ocultar
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" /> Mostrar
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <Input
+                  id="usrPass"
+                  type={showPassword ? 'text' : 'password'}
+                  value={form.password || ''}
+                  onChange={(e) => {
+                    setForm({ ...form, password: e.target.value })
+                    if (passwordError) setPasswordError(null)
+                  }}
+                  placeholder={
+                    form.id
+                      ? 'Deixe em branco para manter a senha atual'
+                      : 'Digite uma senha segura (mín. 8 caracteres)'
+                  }
+                  required={!form.id}
+                  minLength={form.id && !form.password ? undefined : 8}
+                  autoComplete="new-password"
+                />
+              </div>
+
+              {/* Confirmação de senha (quando preenchendo senha) */}
+              {(!form.id || (form.password && form.password.length > 0)) && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="usrPassConf" className="text-xs text-slate-600">
+                    Confirmar senha
+                  </Label>
+                  <Input
+                    id="usrPassConf"
+                    type={showPassword ? 'text' : 'password'}
+                    value={form.passwordConfirm || ''}
+                    onChange={(e) => {
+                      setForm({ ...form, passwordConfirm: e.target.value })
+                      if (passwordError) setPasswordError(null)
+                    }}
+                    placeholder="Repita a senha"
+                    required={!form.id || Boolean(form.password)}
+                    autoComplete="new-password"
+                  />
+                </div>
+              )}
+
+              {passwordError && (
+                <p className="text-xs font-semibold text-rose-600 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {passwordError}
+                </p>
+              )}
+
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                {form.id
+                  ? 'O membro passará a acessar o app com a nova senha assim que você salvar.'
+                  : 'Mínimo de 8 caracteres. O membro usará esse e-mail e senha para entrar no app.'}
+              </p>
             </div>
 
             <div className="space-y-1.5">
