@@ -24,8 +24,11 @@ import {
   ShieldCheck,
   RefreshCw,
   Plus,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { statementParserService, ParsedStatementTransaction } from '@/services/statementParser'
 
 export const ReconciliationPage: React.FC = () => {
   const { toast } = useToast()
@@ -37,6 +40,9 @@ export const ReconciliationPage: React.FC = () => {
   // Linhas importadas em processamento
   const [importLines, setImportLines] = useState<StatementImportLine[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [parsingPdf, setParsingPdf] = useState<boolean>(false)
+  const [detectedBank, setDetectedBank] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
 
   // Modal/Form de Nova Regra De-Para
@@ -113,50 +119,46 @@ export const ReconciliationPage: React.FC = () => {
     processExtractedLines(sampleRaw)
   }
 
-  // Simulação / Leitura de arquivo CSV ou XLSX
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // Processamento genérico de arquivo (PDF, CSV, XLSX, TXT)
+  const processIncomingFile = async (file: File) => {
+    const fileName = file.name.toLowerCase()
+    setDetectedBank(null)
 
+    if (fileName.endsWith('.pdf')) {
+      setParsingPdf(true)
+      try {
+        const result = await statementParserService.parsePdf(file)
+        if (result.bank) setDetectedBank(result.bank)
+        processExtractedLines(result.transactions)
+        toast({
+          title: result.bank ? `Extrato ${result.bank} importado!` : 'Extrato PDF importado!',
+          description: `${result.transactions.length} movimentações extraídas com sucesso.`,
+        })
+      } catch (err: any) {
+        toast({
+          title: 'Não foi possível ler este extrato',
+          description: err.message || 'Verifique se o arquivo PDF contém texto selecionável.',
+          variant: 'destructive',
+        })
+      } finally {
+        setParsingPdf(false)
+      }
+      return
+    }
+
+    // Leitura CSV / Texto
     const reader = new FileReader()
     reader.onload = (event) => {
       const text = event.target?.result as string
-      const lines = text.split('\n').filter((l) => l.trim().length > 0)
-
-      const parsed: { date: string; desc: string; amount: number; type: 'income' | 'expense' }[] =
-        []
-      const currMonth = new Date().toISOString().slice(0, 7)
-
-      for (let i = 0; i < lines.length; i++) {
-        // Ignora cabeçalhos comuns
-        if (
-          i === 0 &&
-          (lines[i].toLowerCase().includes('data') || lines[i].toLowerCase().includes('date'))
-        )
-          continue
-
-        const parts = lines[i].split(/[;,]/)
-        if (parts.length >= 2) {
-          const date = parts[0]?.trim() || `${currMonth}-01`
-          const desc = parts[1]?.trim() || 'Lançamento Importado'
-          const rawAmount = parts[2]
-            ? parseFloat(parts[2].replace(/[R$\s]/g, '').replace(',', '.'))
-            : 50
-          const amount = isNaN(rawAmount) ? 50 : Math.abs(rawAmount)
-          const type = (parts[2] && parts[2].includes('-')) || rawAmount < 0 ? 'expense' : 'income'
-
-          parsed.push({ date, desc, amount, type })
-        }
-      }
+      const parsed = statementParserService.parseCsv(text)
 
       if (parsed.length > 0) {
         processExtractedLines(parsed)
         toast({
-          title: 'Arquivo lido!',
+          title: 'Arquivo de planilha lido!',
           description: `${parsed.length} linhas extraídas com sucesso.`,
         })
       } else {
-        // Se arquivo não formatado, carrega extrato demonstrativo
         handleLoadSampleStatement()
         toast({
           title: 'Aviso',
@@ -164,8 +166,33 @@ export const ReconciliationPage: React.FC = () => {
         })
       }
     }
-
     reader.readAsText(file)
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    processIncomingFile(file)
+    // Limpa o input para permitir selecionar o mesmo arquivo novamente se desejar
+    e.target.value = ''
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) {
+      processIncomingFile(file)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false)
   }
 
   const processExtractedLines = (
@@ -269,37 +296,63 @@ export const ReconciliationPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      {/* Top Header & Drop Zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border transition-all ${
+          isDragOver
+            ? 'border-emerald-500 bg-emerald-50/40 ring-4 ring-emerald-100 shadow-md'
+            : 'border-slate-200 shadow-xs'
+        }`}
+      >
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Conciliação Bancária & De-Para
-          </h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Conciliação Bancária & De-Para
+            </h1>
+            {detectedBank && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                Extrato {detectedBank}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-slate-500 mt-1">
-            Importe planilhas (.csv / .xlsx), elimine duplicatas e classifique automaticamente com
-            inteligência de histórico.
+            Importe extratos bancários em <strong>PDF</strong> (Nubank, Banco do Brasil, Mercado Pago, Itaú...) ou planilhas (.csv / .xlsx). O leitor genérico extrai movimentações sem precisar configurar nada.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
           <Button
             variant="outline"
             onClick={handleLoadSampleStatement}
+            disabled={parsingPdf}
             className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5"
           >
             <Sparkles className="w-4 h-4 text-emerald-600" />
-            Carregar Exemplo de Extrato
+            Carregar Exemplo
           </Button>
 
-          <label className="cursor-pointer">
+          <label className={`cursor-pointer ${parsingPdf ? 'pointer-events-none opacity-60' : ''}`}>
             <input
               type="file"
-              accept=".csv,.xlsx,.xls,.txt"
+              accept=".pdf,.csv,.xlsx,.xls,.txt"
               onChange={handleFileUpload}
               className="hidden"
+              disabled={parsingPdf}
             />
             <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors">
-              <Upload className="w-4 h-4" /> Importar Planilha
+              {parsingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Processando PDF...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" /> Importar Extrato (PDF / CSV)
+                </>
+              )}
             </div>
           </label>
         </div>
