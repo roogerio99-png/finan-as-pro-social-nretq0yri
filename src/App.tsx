@@ -15,6 +15,7 @@ import { BudgetPage } from './pages/BudgetPage'
 import { DebtsPage } from './pages/DebtsPage'
 import { DreamsPage } from './pages/DreamsPage'
 import { FamilyPage } from './pages/FamilyPage'
+import { CadastrosPage } from './pages/CadastrosPage'
 
 const App = () => (
   <BrowserRouter>

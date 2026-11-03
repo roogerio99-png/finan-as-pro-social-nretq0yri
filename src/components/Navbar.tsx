@@ -16,6 +16,7 @@ import {
   X,
   CreditCard,
   UserCheck,
+  Database,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { financeGlossary } from '@/services/microlearning'
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = () => {
     { to: '/dividas', label: 'Dívidas', icon: BadgeAlert },
     { to: '/sonhos', label: 'Sonhos', icon: Sparkles },
     { to: '/familia', label: 'Família', icon: Users },
+    { to: '/cadastros', label: 'Cadastros', icon: Database },
   ]
 
   return (

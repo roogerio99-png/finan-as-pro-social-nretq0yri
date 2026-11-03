@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T18:58:59.889Z",
+  "generatedAt": "2026-11-03T19:20:36.966Z",
   "collections": [
     {
       "name": "users",
@@ -37,6 +37,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "family_role",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["admin", "member"]
         }
       ],
       "indexes": [
@@ -180,6 +187,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "current_balance",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
