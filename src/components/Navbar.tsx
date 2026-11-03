@@ -41,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = () => {
   const navItems = [
     { to: '/painel', label: 'Painel', icon: LayoutDashboard },
     { to: '/lancamentos', label: 'Lançamentos', icon: Receipt },
+    { to: '/faturas', label: 'Faturas', icon: CreditCard },
     { to: '/conciliacao', label: 'Conciliação', icon: FileSpreadsheet },
     { to: '/orcamento', label: 'Orçamento', icon: Target },
     { to: '/dividas', label: 'Dívidas', icon: BadgeAlert },

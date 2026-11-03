@@ -84,10 +84,10 @@ export const DashboardPage: React.FC = () => {
 
   const netBalance = totalIncome - totalExpense
 
-  // Saldo geral em contas (contas ativas de saldo positivo)
+  // Saldo geral em contas (contas ativas de saldo positivo, usando current_balance quando definido)
   const totalAvailableBalance = accounts
     .filter((a) => a.type !== 'credit_card' && a.status !== 'archived')
-    .reduce((acc, a) => acc + (a.initial_balance || 0), 0)
+    .reduce((acc, a) => acc + (a.current_balance ?? a.initial_balance ?? 0), 0)
 
   // Sobra para faturas futuras: saldo das contas menos o caixa comprometido
   // nos próximos meses (parcelas que ainda vão desembolsar) — quitadas não contam.

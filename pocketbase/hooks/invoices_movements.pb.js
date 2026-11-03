@@ -129,9 +129,7 @@ routerAdd(
       }
 
       if (items.length === 0) {
-        throw new BadRequestError(
-          'Nenhuma compra com parcela vencendo nesta fatura para agrupar.',
-        )
+        throw new BadRequestError('Nenhuma compra com parcela vencendo nesta fatura para agrupar.')
       }
 
       total = round2(total)
@@ -186,8 +184,8 @@ routerAdd(
   $apis.requireAuth(),
 )
 
- // ---------------------------------------------------------------------------
- // POST /backend/v1/invoice-movements — pagar fatura como movimento bancário
+// ---------------------------------------------------------------------------
+// POST /backend/v1/invoice-movements — pagar fatura como movimento bancário
 // ---------------------------------------------------------------------------
 routerAdd(
   'POST',
@@ -446,7 +444,10 @@ routerAdd(
       if (target.getString('user_id') !== e.auth.id) {
         throw new ForbiddenError('A conta de destino não pertence a você.')
       }
-      if (source.getString('type') === 'credit_card' || target.getString('type') === 'credit_card') {
+      if (
+        source.getString('type') === 'credit_card' ||
+        target.getString('type') === 'credit_card'
+      ) {
         throw new BadRequestError('Transferência entre contas não envolve cartão de crédito.')
       }
 

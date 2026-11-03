@@ -2,28 +2,26 @@ import React, { useState, useEffect } from 'react'
 import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
 import { categoriesService } from '@/services/categories'
-import { TransactionRecord, AccountRecord, CategoryRecord } from '@/types/finance'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { invoicesService } from '@/services/invoices'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+  TransactionRecord,
+  AccountRecord,
+  CategoryRecord,
+  TransactionType,
+  InvoiceRecord,
+} from '@/types/finance'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   PlusCircle,
   TrendingUp,
   TrendingDown,
+  ArrowRightLeft,
+  Receipt,
   Calendar,
   Filter,
   Trash2,
-  CheckCircle,
   Clock,
-  Sparkles,
   CreditCard,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -33,6 +31,7 @@ import {
   cashValueForMonth,
   firstCashMonth,
 } from '@/services/installments'
+import { TransactionDialog } from '@/components/transactions/TransactionDialog'
 
 export const TransactionsPage: React.FC = () => {
   const { toast } = useToast()
@@ -41,19 +40,22 @@ export const TransactionsPage: React.FC = () => {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr)
   const [regime, setRegime] = useState<'competence' | 'cash'>('competence')
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all')
+  const [filterType, setFilterType] = useState<string>('all')
 
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [openInvoices, setOpenInvoices] = useState<InvoiceRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
 
   // Modal de criação
   const [dialogOpen, setDialogOpen] = useState<boolean>(false)
   const [description, setDescription] = useState<string>('')
   const [amount, setAmount] = useState<string>('')
-  const [type, setType] = useState<'income' | 'expense'>('expense')
+  const [type, setType] = useState<TransactionType>('expense')
   const [accountId, setAccountId] = useState<string>('')
+  const [targetAccountId, setTargetAccountId] = useState<string>('')
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('')
   const [categoryId, setCategoryId] = useState<string>('')
   const [date, setDate] = useState<string>(todayStr)
   const [notes, setNotes] = useState<string>('')
@@ -67,16 +69,21 @@ export const TransactionsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [txs, accs, cats] = await Promise.all([
+      const [txs, accs, cats, invs] = await Promise.all([
         transactionsService.list({ month: selectedMonth, regime }),
         accountsService.list(),
         categoriesService.list(),
+        invoicesService.list({ status: 'open' }),
       ])
       setTransactions(txs)
       setAccounts(accs)
       setCategories(cats)
+      setOpenInvoices(invs)
+
       if (accs.length > 0 && !accountId) setAccountId(accs[0].id)
+      if (accs.length > 1 && !targetAccountId) setTargetAccountId(accs[1].id)
       if (cats.length > 0 && !categoryId) setCategoryId(cats[0].id)
+      if (invs.length > 0 && !selectedInvoiceId) setSelectedInvoiceId(invs[0].id)
     } catch (err) {
       console.error(err)
     } finally {
@@ -90,15 +97,79 @@ export const TransactionsPage: React.FC = () => {
 
   const handleCreateTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!description || !amount || !accountId) return
+    if (!amount || !accountId) return
 
     setSaving(true)
     try {
-      const selectedAcc = accounts.find((a) => a.id === accountId)
       const parsedAmount = Math.abs(parseFloat(amount))
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw new Error('Informe um valor válido maior que zero.')
+      }
+
+      // CASO 1: Transferência entre contas
+      if (type === 'transfer') {
+        if (!targetAccountId) {
+          throw new Error('Selecione a conta de destino da transferência.')
+        }
+        if (accountId === targetAccountId) {
+          throw new Error('A conta de origem e destino devem ser diferentes.')
+        }
+
+        await transactionsService.transfer({
+          sourceAccountId: accountId,
+          targetAccountId: targetAccountId,
+          amount: parsedAmount,
+          date,
+          description: description || 'Transferência entre contas',
+          notes: notes || undefined,
+        })
+
+        toast({
+          title: 'Transferência realizada com sucesso!',
+          description: `Valor de ${formatCurrency(parsedAmount)} transferido entre contas (movimentação neutra, não afeta despesas/receitas).`,
+        })
+
+        setDialogOpen(false)
+        resetForm()
+        loadData()
+        return
+      }
+
+      // CASO 2: Pagamento de fatura de cartão
+      if (type === 'invoice_payment') {
+        if (!selectedInvoiceId) {
+          throw new Error(
+            'Selecione a fatura que está sendo quitada ou crie a fatura na tela de Faturas.',
+          )
+        }
+
+        await invoicesService.payViaMovement({
+          invoiceId: selectedInvoiceId,
+          paymentAccountId: accountId,
+          paidDate: date,
+          amount: parsedAmount,
+          notes: notes || undefined,
+        })
+
+        toast({
+          title: 'Pagamento de fatura registrado!',
+          description: `O saldo da conta pagadora foi debitado em ${formatCurrency(parsedAmount)} sem gerar despesa duplicada.`,
+        })
+
+        setDialogOpen(false)
+        resetForm()
+        loadData()
+        return
+      }
+
+      // CASO 3: Despesa ou Receita normal
+      if (!description) {
+        throw new Error('Informe uma descrição para o lançamento.')
+      }
+
+      const selectedAcc = accounts.find((a) => a.id === accountId)
       const competenceMonth = date.slice(0, 7)
 
-      // Cálculo automático de competência vs caixa para cartões de crédito
       let cashMonth = competenceMonth
       if (
         selectedAcc &&
@@ -113,7 +184,6 @@ export const TransactionsPage: React.FC = () => {
         )
       }
 
-      // Parcelamento: só para despesa em cartão de crédito.
       const installments =
         type === 'expense' && isCreditCard ? Math.max(1, parseInt(installmentsTotal, 10) || 1) : 1
 
@@ -147,11 +217,7 @@ export const TransactionsPage: React.FC = () => {
       })
 
       setDialogOpen(false)
-      setDescription('')
-      setAmount('')
-      setNotes('')
-      setInstallmentsTotal('')
-      setInstallmentsPaid('')
+      resetForm()
       loadData()
     } catch (err: any) {
       toast({
@@ -162,6 +228,14 @@ export const TransactionsPage: React.FC = () => {
     } finally {
       setSaving(false)
     }
+  }
+
+  const resetForm = () => {
+    setDescription('')
+    setAmount('')
+    setNotes('')
+    setInstallmentsTotal('')
+    setInstallmentsPaid('')
   }
 
   const handleDelete = async (id: string) => {
@@ -175,7 +249,7 @@ export const TransactionsPage: React.FC = () => {
     }
   }
 
-  // O filtro por mês considera o regime: no caixa, cada parcela aparece no mês do desembolso.
+  // Filtragem
   const filteredTransactions = transactions.filter((t) => {
     if (filterType !== 'all' && t.type !== filterType) return false
     if (regime === 'cash') {
@@ -187,10 +261,38 @@ export const TransactionsPage: React.FC = () => {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
-  // Mês do primeiro desembolso de caixa de uma transação parcelada (fechamento/vencimento).
   const firstCashMonthFor = (tx: TransactionRecord, accs: AccountRecord[]): string => {
     const acc = accs.find((a) => a.id === tx.account_id)
     return firstCashMonth(tx.date, acc?.closing_day, acc?.due_day)
+  }
+
+  const renderTypeBadge = (t: TransactionType) => {
+    switch (t) {
+      case 'income':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <TrendingUp className="w-3 h-3 text-emerald-600" /> Receita
+          </span>
+        )
+      case 'expense':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+            <TrendingDown className="w-3 h-3 text-rose-600" /> Despesa
+          </span>
+        )
+      case 'transfer':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-800 border border-blue-200">
+            <ArrowRightLeft className="w-3 h-3 text-blue-600" /> Transferência
+          </span>
+        )
+      case 'invoice_payment':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+            <Receipt className="w-3 h-3 text-purple-600" /> Pagamento de Fatura
+          </span>
+        )
+    }
   }
 
   return (
@@ -201,7 +303,7 @@ export const TransactionsPage: React.FC = () => {
             Lançamentos Financeiros
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Controle de receitas e despesas por mês de competência e desembolso de caixa.
+            Controle de despesas, receitas, transferências entre contas e pagamentos de fatura.
           </p>
         </div>
 
@@ -244,7 +346,7 @@ export const TransactionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Totais do mês no regime selecionado */}
+      {/* Totais do mês no regime selecionado — Neutro para transferência e pagamento de fatura */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
           <CardContent className="p-4">
@@ -286,6 +388,9 @@ export const TransactionsPage: React.FC = () => {
                   ),
               )}
             </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Não inclui transferências nem quitações de fatura
+            </p>
           </CardContent>
         </Card>
         <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
@@ -295,23 +400,25 @@ export const TransactionsPage: React.FC = () => {
             </span>
             <div className="text-xl font-black text-slate-900 mt-1">
               {formatCurrency(
-                filteredTransactions.reduce(
-                  (acc, t) =>
-                    acc +
-                    (t.type === 'income' ? 1 : -1) *
-                      (regime === 'cash'
-                        ? cashValueForMonth(t, selectedMonth, accounts)
-                        : t.amount),
-                  0,
-                ),
+                filteredTransactions
+                  .filter((t) => t.type === 'income' || t.type === 'expense')
+                  .reduce(
+                    (acc, t) =>
+                      acc +
+                      (t.type === 'income' ? 1 : -1) *
+                        (regime === 'cash'
+                          ? cashValueForMonth(t, selectedMonth, accounts)
+                          : t.amount),
+                    0,
+                  ),
               )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filtros por tipo */}
-      <div className="flex items-center space-x-2">
+      {/* Filtros por tipo de movimento */}
+      <div className="flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-slate-400" />
         <span className="text-xs font-bold text-slate-500 mr-2">Filtrar:</span>
         <button
@@ -344,6 +451,26 @@ export const TransactionsPage: React.FC = () => {
         >
           Despesas ({transactions.filter((t) => t.type === 'expense').length})
         </button>
+        <button
+          onClick={() => setFilterType('transfer')}
+          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+            filterType === 'transfer'
+              ? 'bg-blue-600 text-white'
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+          }`}
+        >
+          Transferências ({transactions.filter((t) => t.type === 'transfer').length})
+        </button>
+        <button
+          onClick={() => setFilterType('invoice_payment')}
+          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+            filterType === 'invoice_payment'
+              ? 'bg-purple-600 text-white'
+              : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+          }`}
+        >
+          Pagamento Fatura ({transactions.filter((t) => t.type === 'invoice_payment').length})
+        </button>
       </div>
 
       {/* Lista de Transações */}
@@ -353,6 +480,7 @@ export const TransactionsPage: React.FC = () => {
             <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-4">Data / Mês</th>
+                <th className="py-3 px-4">Tipo</th>
                 <th className="py-3 px-4">Descrição</th>
                 <th className="py-3 px-4">Conta / Cartão</th>
                 <th className="py-3 px-4">Categoria / Subgrupo</th>
@@ -364,15 +492,18 @@ export const TransactionsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500 text-sm">
+                  <td colSpan={8} className="py-8 text-center text-slate-500 text-sm">
                     Nenhum lançamento encontrado para os filtros selecionados.
                   </td>
                 </tr>
               ) : (
                 filteredTransactions.map((tx) => {
                   const isExpense = tx.type === 'expense'
+                  const isIncome = tx.type === 'income'
+                  const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
                   const account =
                     tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
+                  const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
                   const category =
                     tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
 
@@ -393,6 +524,8 @@ export const TransactionsPage: React.FC = () => {
                         )}
                       </td>
 
+                      <td className="py-3 px-4 whitespace-nowrap">{renderTypeBadge(tx.type)}</td>
+
                       <td className="py-3 px-4 font-semibold text-slate-900">
                         {tx.description}
                         {tx.notes && (
@@ -408,16 +541,27 @@ export const TransactionsPage: React.FC = () => {
                             <Clock className="w-3.5 h-3.5 text-slate-500" />
                           )}
                           {account?.name || 'Conta'}
+                          {tx.type === 'transfer' && targetAcc && (
+                            <span className="text-blue-700 font-bold flex items-center gap-1">
+                              → {targetAcc.name}
+                            </span>
+                          )}
                         </span>
                       </td>
 
                       <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        <div className="text-xs font-bold text-slate-800">
-                          {category?.name || 'Sem Categoria'}
-                        </div>
-                        <div className="text-[11px] text-slate-400">
-                          {category?.group_level1} • {category?.group_level2}
-                        </div>
+                        {isNeutral ? (
+                          <span className="text-xs text-slate-400 italic">Movimento Neutro</span>
+                        ) : (
+                          <>
+                            <div className="text-xs font-bold text-slate-800">
+                              {category?.name || 'Sem Categoria'}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              {category?.group_level1} • {category?.group_level2}
+                            </div>
+                          </>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 whitespace-nowrap">
@@ -449,8 +593,16 @@ export const TransactionsPage: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 text-right whitespace-nowrap font-black">
-                        <span className={isExpense ? 'text-rose-600' : 'text-emerald-600'}>
-                          {isExpense ? '-' : '+'}{' '}
+                        <span
+                          className={
+                            isIncome
+                              ? 'text-emerald-600'
+                              : isExpense
+                                ? 'text-rose-600'
+                                : 'text-slate-700'
+                          }
+                        >
+                          {isIncome ? '+ ' : isExpense ? '- ' : ''}
                           {regime === 'cash' && isInstallmentTransaction(tx)
                             ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
                             : formatCurrency(tx.amount)}
@@ -475,193 +627,37 @@ export const TransactionsPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Modal de Criação de Lançamento */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-900">Novo Lançamento</DialogTitle>
-            <DialogDescription>
-              Cadastre sua receita ou despesa. O mês de desembolso é calculado automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateTransaction} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setType('expense')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                  type === 'expense'
-                    ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-2xs'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <TrendingDown className="w-4 h-4 text-rose-600" /> Despesa
-              </button>
-              <button
-                type="button"
-                onClick={() => setType('income')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                  type === 'income'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-2xs'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <TrendingUp className="w-4 h-4 text-emerald-600" /> Receita
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="desc">Descrição</Label>
-              <Input
-                id="desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ex: Supermercado, Aluguel, Salário..."
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="amt">Valor (R$)</Label>
-                <Input
-                  id="amt"
-                  type="number"
-                  step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="dt">Data da Operação</Label>
-                <Input
-                  id="dt"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="acc">Conta / Cartão</Label>
-              <select
-                id="acc"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-                required
-              >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} ({a.type === 'credit_card' ? 'Cartão de Crédito' : 'Conta/Dinheiro'})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="cat">Categoria (Plano de Contas)</Label>
-              <select
-                id="cat"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">Selecione uma categoria...</option>
-                {categories
-                  .filter((c) => (type === 'income' ? c.type === 'income' : c.type === 'expense'))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.group_level1} &gt; {c.group_level2} &gt; {c.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {type === 'expense' && isCreditCard && (
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-purple-50 border border-purple-200">
-                <div className="col-span-2 flex items-center gap-1.5 text-[11px] font-bold text-purple-800">
-                  <CreditCard className="w-3.5 h-3.5" /> Parcelamento no cartão
-                  <span className="font-normal text-purple-600">
-                    — o valor total entra na competência deste mês; o caixa mostra 1 parcela por mês
-                    até quitar.
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="inst">Em quantas parcelas?</Label>
-                  <Input
-                    id="inst"
-                    type="number"
-                    min={1}
-                    max={48}
-                    value={installmentsTotal}
-                    onChange={(e) => setInstallmentsTotal(e.target.value)}
-                    placeholder="1 = à vista"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="instPaid">Quantas já foram pagas?</Label>
-                  <Input
-                    id="instPaid"
-                    type="number"
-                    min={0}
-                    value={installmentsPaid}
-                    onChange={(e) => setInstallmentsPaid(e.target.value)}
-                    placeholder="0"
-                    disabled={!installmentsTotal || parseInt(installmentsTotal, 10) <= 1}
-                  />
-                </div>
-
-                {installmentsTotal && parseInt(installmentsTotal, 10) > 1 && amount && (
-                  <p className="col-span-2 text-[11px] font-semibold text-purple-700">
-                    {formatCurrency(parseFloat(amount) || 0)} na competência de {date.slice(0, 7)} •{' '}
-                    {installmentsTotal}x de{' '}
-                    {formatCurrency(
-                      installmentValue(parseFloat(amount) || 0, parseInt(installmentsTotal, 10)),
-                    )}{' '}
-                    no caixa, começando em{' '}
-                    {selectedAccount?.closing_day && selectedAccount?.due_day
-                      ? firstCashMonth(date, selectedAccount.closing_day, selectedAccount.due_day)
-                      : date.slice(0, 7)}
-                    .
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label htmlFor="nt">Observações (opcional)</Label>
-              <Input
-                id="nt"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex: Compra parcelada em 3x..."
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {saving ? 'Salvando...' : 'Salvar Lançamento'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <TransactionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        type={type}
+        setType={setType}
+        description={description}
+        setDescription={setDescription}
+        amount={amount}
+        setAmount={setAmount}
+        date={date}
+        setDate={setDate}
+        accountId={accountId}
+        setAccountId={setAccountId}
+        targetAccountId={targetAccountId}
+        setTargetAccountId={setTargetAccountId}
+        selectedInvoiceId={selectedInvoiceId}
+        setSelectedInvoiceId={setSelectedInvoiceId}
+        categoryId={categoryId}
+        setCategoryId={setCategoryId}
+        notes={notes}
+        setNotes={setNotes}
+        installmentsTotal={installmentsTotal}
+        setInstallmentsTotal={setInstallmentsTotal}
+        installmentsPaid={installmentsPaid}
+        setInstallmentsPaid={setInstallmentsPaid}
+        accounts={accounts}
+        categories={categories}
+        openInvoices={openInvoices}
+        saving={saving}
+        onSubmit={handleCreateTransaction}
+      />
     </div>
   )
 }

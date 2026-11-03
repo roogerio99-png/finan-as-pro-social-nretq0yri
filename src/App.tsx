@@ -16,6 +16,7 @@ import { DebtsPage } from './pages/DebtsPage'
 import { DreamsPage } from './pages/DreamsPage'
 import { FamilyPage } from './pages/FamilyPage'
 import { CadastrosPage } from './pages/CadastrosPage'
+import { InvoicesPage } from './pages/InvoicesPage'
 
 const App = () => (
   <BrowserRouter>
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/boas-vindas" element={<WelcomePage />} />
             <Route path="/painel" element={<DashboardPage />} />
             <Route path="/lancamentos" element={<TransactionsPage />} />
+            <Route path="/faturas" element={<InvoicesPage />} />
             <Route path="/conciliacao" element={<ReconciliationPage />} />
             <Route path="/orcamento" element={<BudgetPage />} />
             <Route path="/dividas" element={<DebtsPage />} />
