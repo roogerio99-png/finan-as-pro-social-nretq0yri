@@ -106,40 +106,40 @@ export const FamilyPage: React.FC = () => {
     .reduce((acc, t) => acc + t.amount, 0)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Modo Família & Gastos Compartilhados
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Alterne entre sua visão individual e a visão consolidada da casa com total transparência
             e harmonia.
           </p>
         </div>
 
         {/* Alternância Individual vs Consolidada */}
-        <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center border border-slate-200 text-xs font-bold">
+        <div className="bg-slate-100 p-1 rounded-2xl flex items-center border border-slate-200 text-xs font-bold w-full sm:w-auto">
           <button
             onClick={() => setViewMode('individual')}
-            className={`px-4 py-2 rounded-xl transition-all ${
+            className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl transition-all text-center ${
               viewMode === 'individual'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Visão Individual ({user?.name?.split(' ')[0] || 'Eu'})
+            Individual ({user?.name?.split(' ')[0] || 'Eu'})
           </button>
           <button
             onClick={() => setViewMode('consolidated')}
-            className={`px-4 py-2 rounded-xl transition-all ${
+            className={`flex-1 sm:flex-initial px-3 sm:px-4 py-2 rounded-xl transition-all text-center ${
               viewMode === 'consolidated'
                 ? 'bg-white text-emerald-800 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Visão Consolidada ({family?.name || 'Família'})
+            Consolidada ({family?.name || 'Família'})
           </button>
         </div>
       </div>

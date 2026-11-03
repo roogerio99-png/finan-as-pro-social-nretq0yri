@@ -296,22 +296,22 @@ export const TransactionsPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Lançamentos Financeiros
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Controle de despesas, receitas, transferências entre contas e pagamentos de fatura.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold w-full sm:w-auto justify-center sm:justify-start">
             <button
               onClick={() => setRegime('competence')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all ${
                 regime === 'competence' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600'
               }`}
             >
@@ -319,7 +319,7 @@ export const TransactionsPage: React.FC = () => {
             </button>
             <button
               onClick={() => setRegime('cash')}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all ${
                 regime === 'cash' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600'
               }`}
             >
@@ -327,19 +327,19 @@ export const TransactionsPage: React.FC = () => {
             </button>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-4 h-4 text-slate-500" />
+          <div className="flex items-center space-x-2 flex-1 sm:flex-initial">
+            <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
             />
           </div>
 
           <Button
             onClick={() => setDialogOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl"
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl h-10 font-bold"
           >
             <PlusCircle className="w-4 h-4" /> Novo Lançamento
           </Button>
@@ -417,13 +417,15 @@ export const TransactionsPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Filtros por tipo de movimento */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter className="w-4 h-4 text-slate-400" />
-        <span className="text-xs font-bold text-slate-500 mr-2">Filtrar:</span>
+      {/* Filtros por tipo de movimento — scroll horizontal suave em mobile */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
+        <div className="flex items-center gap-1 flex-shrink-0 text-slate-400">
+          <Filter className="w-4 h-4" />
+          <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Filtrar:</span>
+        </div>
         <button
           onClick={() => setFilterType('all')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+          className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${
             filterType === 'all'
               ? 'bg-slate-900 text-white'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -473,8 +475,115 @@ export const TransactionsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Lista de Transações */}
-      <Card className="border-slate-200 shadow-xs rounded-2xl overflow-hidden bg-white">
+      {/* Visualização Mobile: Cards empilhados (md:hidden) */}
+      <div className="md:hidden space-y-3">
+        {filteredTransactions.length === 0 ? (
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-slate-500 text-sm">
+            Nenhum lançamento encontrado para os filtros selecionados.
+          </div>
+        ) : (
+          filteredTransactions.map((tx) => {
+            const isExpense = tx.type === 'expense'
+            const isIncome = tx.type === 'income'
+            const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
+            const account = tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
+            const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
+            const category =
+              tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
+
+            return (
+              <div
+                key={tx.id}
+                className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {renderTypeBadge(tx.type)}
+                      <span className="text-[11px] font-bold text-slate-400">{tx.date}</span>
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-base leading-snug break-words">
+                      {tx.description}
+                    </h3>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <span
+                      className={`text-base font-black tracking-tight ${
+                        isIncome
+                          ? 'text-emerald-600'
+                          : isExpense
+                            ? 'text-rose-600'
+                            : 'text-slate-700'
+                      }`}
+                    >
+                      {isIncome ? '+ ' : isExpense ? '- ' : ''}
+                      {regime === 'cash' && isInstallmentTransaction(tx)
+                        ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
+                        : formatCurrency(tx.amount)}
+                    </span>
+                    {regime === 'cash' && isInstallmentTransaction(tx) && (
+                      <div className="text-[10px] text-purple-600 font-semibold">
+                        (de {formatCurrency(tx.amount)})
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {tx.notes && (
+                  <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                    {tx.notes}
+                  </p>
+                )}
+
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium">
+                      {account?.type === 'credit_card' ? (
+                        <CreditCard className="w-3 h-3 text-purple-600" />
+                      ) : (
+                        <Clock className="w-3 h-3 text-slate-500" />
+                      )}
+                      <span className="max-w-[120px] truncate">{account?.name || 'Conta'}</span>
+                      {tx.type === 'transfer' && targetAcc && (
+                        <span className="text-blue-700 font-bold">→ {targetAcc.name}</span>
+                      )}
+                    </span>
+
+                    {!isNeutral && category && (
+                      <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 text-[11px] font-medium max-w-[140px] truncate">
+                        {category.name}
+                      </span>
+                    )}
+
+                    {isInstallmentTransaction(tx) ? (
+                      <span className="px-2 py-0.5 rounded-md font-bold bg-purple-50 text-purple-700 border border-purple-200 text-[10px]">
+                        {tx.installments_total}x
+                        {(tx.installments_paid ?? 0) > 0 ? ` (${tx.installments_paid}p)` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        Comp: {tx.competence_month}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => handleDelete(tx.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-auto"
+                    title="Excluir lançamento"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Tabela Desktop (md:block) — Preservada sem alterações */}
+      <Card className="hidden md:block border-slate-200 shadow-xs rounded-2xl overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">

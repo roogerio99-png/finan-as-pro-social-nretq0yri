@@ -123,14 +123,14 @@ export const DreamsPage: React.FC = () => {
   const parsedCut = parseFloat(expenseCutAmount) || 0
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Metas & Sonhos de Longo Prazo
           </h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
             Acompanhe seus aportes, meça prazos e veja como cortes conscientes de gastos aceleram a
             realização do que realmente importa.
           </p>
@@ -138,7 +138,7 @@ export const DreamsPage: React.FC = () => {
 
         <Button
           onClick={() => setDialogOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold h-10"
         >
           <PlusCircle className="w-4 h-4" /> Criar Novo Sonho
         </Button>

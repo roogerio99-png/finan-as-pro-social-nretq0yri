@@ -119,19 +119,19 @@ export const DebtsPage: React.FC = () => {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
       {/* Header com Acolhimento */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Quitação de Dívidas com Acolhimento
             </h1>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex-shrink-0">
               Sem Julgamentos
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
             Sair das dívidas não é sobre culpa do passado: é sobre estratégia clara para os próximos
             meses. Simule os métodos Bola de Neve e Avalanche.
           </p>
@@ -139,7 +139,7 @@ export const DebtsPage: React.FC = () => {
 
         <Button
           onClick={() => setDialogOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold h-10"
         >
           <PlusCircle className="w-4 h-4" /> Cadastrar Dívida
         </Button>

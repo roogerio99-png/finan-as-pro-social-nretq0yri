@@ -336,13 +336,13 @@ export const ReconciliationPage: React.FC = () => {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8">
       {/* Top Header & Drop Zone */}
       <div
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border transition-all ${
+        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border transition-all ${
           isDragOver
             ? 'border-emerald-500 bg-emerald-50/40 ring-4 ring-emerald-100 shadow-md'
             : 'border-slate-200 shadow-xs'
@@ -457,7 +457,93 @@ export const ReconciliationPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Visualização Mobile do Lote: Cards empilhados */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {importLines.map((line) => (
+              <div
+                key={line.id}
+                className={`p-3.5 space-y-2.5 ${line.is_duplicate ? 'bg-rose-50/60' : 'bg-white'}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-500">{line.date}</span>
+                      {line.installments_total && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                          {line.installment_index
+                            ? `${line.installment_index}/${line.installments_total}`
+                            : `${line.installments_total}x`}
+                        </span>
+                      )}
+                      {line.is_duplicate ? (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                          Duplicata
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Pronto
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-bold text-slate-900 text-sm mt-0.5 break-words">
+                      {line.description}
+                    </p>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <p
+                      className={`text-sm font-black ${
+                        line.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                      }`}
+                    >
+                      {line.type === 'expense' ? '-' : '+'} {formatCurrency(line.amount)}
+                    </p>
+                    <button
+                      onClick={() =>
+                        setImportLines((prev) => prev.filter((item) => item.id !== line.id))
+                      }
+                      className="text-slate-400 hover:text-rose-600 p-1 mt-1 inline-block"
+                      title="Descartar linha"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Categoria (De-Para):
+                  </label>
+                  <select
+                    value={line.selected_category_id}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setImportLines((prev) =>
+                        prev.map((item) =>
+                          item.id === line.id ? { ...item, selected_category_id: val } : item,
+                        ),
+                      )
+                    }}
+                    className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 w-full"
+                  >
+                    <option value="">Selecione categoria...</option>
+                    {categories
+                      .filter((c) =>
+                        line.type === 'income' ? c.type === 'income' : c.type === 'expense',
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.group_level2})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela Desktop */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <tr>

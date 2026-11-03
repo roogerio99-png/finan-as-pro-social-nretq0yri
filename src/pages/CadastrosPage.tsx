@@ -35,20 +35,20 @@ export const CadastrosPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-6">
       {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Cadastros
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Pessoas do lar, contas/cartões e o plano de contas que alimentam lançamentos, orçamento
             e sonhos.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-          <Users className="w-4 h-4 text-emerald-600" />
+          <Users className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span className="font-medium">
             Tudo criado aqui aparece automaticamente nas outras telas do app.
           </span>
@@ -57,12 +57,12 @@ export const CadastrosPage: React.FC = () => {
 
       {/* Abas */}
       <Tabs value={tabValue} onValueChange={handleTabChange}>
-        <TabsList className="h-11 bg-white border border-slate-200 rounded-2xl p-1 shadow-xs w-full sm:w-auto">
+        <TabsList className="h-11 bg-white border border-slate-200 rounded-2xl p-1 shadow-xs w-full grid grid-cols-3 sm:w-auto sm:inline-flex">
           {TABS.map((t) => (
             <TabsTrigger
               key={t.value}
               value={t.value}
-              className="rounded-xl px-4 py-2 text-xs font-bold data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none"
+              className="rounded-xl px-2 sm:px-4 py-2 text-xs font-bold data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none truncate"
             >
               {t.label}
             </TabsTrigger>

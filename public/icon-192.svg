@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="pwa-bg-sm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="pwa-card-sm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="192" height="192" rx="42" fill="url(#pwa-bg-sm)" />
+  <rect x="6" y="6" width="180" height="180" rx="36" fill="none" stroke="#6ee7b7" stroke-width="2" stroke-opacity="0.3" />
+
+  <!-- Wallet Body -->
+  <rect x="42" y="58" width="108" height="74" rx="14" fill="#ffffff" />
+  <path d="M42 74 C 42 63, 51 54, 62 54 L 130 54 C 141 54, 150 63, 150 74 L 150 86 C 150 90, 146 94, 142 94 L 50 94 C 46 94, 42 90, 42 86 Z" fill="#ecfdf5" />
+
+  <!-- Clasp -->
+  <rect x="112" y="84" width="38" height="24" rx="6" fill="url(#pwa-card-sm)" />
+  <circle cx="125" cy="96" r="4" fill="#ffffff" />
+
+  <!-- Heart badge -->
+  <circle cx="56" cy="116" r="15" fill="#f43f5e" />
+  <path d="M 56 123 L 54.8 121.9 C 50.4 117.9 47.5 115.3 47.5 112 C 47.5 109.4 49.5 107.3 52.2 107.3 C 53.7 107.3 55.1 108 56 109.1 C 56.9 108 58.3 107.3 59.8 107.3 C 62.5 107.3 64.5 109.4 64.5 112 C 64.5 115.3 61.6 117.9 57.2 121.9 Z" fill="#ffffff" />
+
+  <!-- Sparkle/Trend upward -->
+  <circle cx="138" cy="46" r="13" fill="#10b981" stroke="#ffffff" stroke-width="2.5" />
+  <path d="M132 50 L 136 45 L 140 48 L 144 42" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+
+  <text x="96" y="156" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">FINANÇAS</text>
+  <text x="96" y="170" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9" font-weight="700" fill="#a7f3d0" text-anchor="middle" letter-spacing="2">PRO &amp; SOCIAL</text>
+</svg>

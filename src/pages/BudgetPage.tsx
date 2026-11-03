@@ -167,46 +167,46 @@ export const BudgetPage: React.FC = () => {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
               Orçamento com Semáforo
             </h1>
             <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
               Grupos & Subgrupos
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Defina tetos por categoria principal (grupo) ou por subgrupo e acompanhe o consumo com
             semáforo nos 75% e 90%.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-            <Calendar className="w-4 h-4 text-slate-500" />
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center space-x-2 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 flex-1 sm:flex-initial">
+            <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none"
+              className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none w-full"
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button
               onClick={() => openNewDialog('group')}
               variant="outline"
-              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-bold gap-1.5 rounded-xl"
+              className="flex-1 sm:flex-initial border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-bold gap-1.5 rounded-xl h-9"
             >
               <Layers className="w-4 h-4" /> Meta por Grupo
             </Button>
             <Button
               onClick={() => openNewDialog('subgroup')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 rounded-xl"
+              className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 rounded-xl h-9"
             >
               <PlusCircle className="w-4 h-4" /> Meta por Subgrupo
             </Button>
@@ -217,7 +217,8 @@ export const BudgetPage: React.FC = () => {
       {/* Resumo e Filtro de Visualização */}
       {budgets.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
+            {' '}
             <button
               type="button"
               onClick={() => setViewFilter('all')}

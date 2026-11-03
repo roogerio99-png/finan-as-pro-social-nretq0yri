@@ -220,12 +220,13 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
           )}
 
           {/* Valor e Data */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="amt">Valor (R$)</Label>
               <Input
                 id="amt"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -344,6 +345,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 <Input
                   id="inst"
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   max={48}
                   value={installmentsTotal}
@@ -357,6 +359,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 <Input
                   id="instPaid"
                   type="number"
+                  inputMode="numeric"
                   min={0}
                   value={installmentsPaid}
                   onChange={(e) => setInstallmentsPaid(e.target.value)}

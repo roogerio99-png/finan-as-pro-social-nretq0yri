@@ -12,8 +12,6 @@ import {
   Compass,
   BookOpen,
   LogOut,
-  Menu,
-  X,
   CreditCard,
   UserCheck,
   Database,
@@ -35,7 +33,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = () => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
 
   const navItems = [
@@ -140,81 +137,26 @@ export const Navbar: React.FC<NavbarProps> = () => {
             ) : null}
           </div>
 
-          {/* Mobile menu trigger */}
-          <div className="md:hidden flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Abrir menu"
-            >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-background px-4 pt-3 pb-5 space-y-1 shadow-lg">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3 py-2.5 rounded-lg text-base font-medium ${
-                      isActive
-                        ? 'bg-emerald-50 text-emerald-700 font-semibold'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </NavLink>
-              )
-            })}
-            <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start text-slate-700"
-                onClick={() => {
-                  setMobileMenuOpen(false)
-                  setGlossaryOpen(true)
-                }}
-              >
-                <BookOpen className="w-4 h-4 text-emerald-600 mr-2" />
-                Glossário Vivo
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-slate-700"
-                onClick={() => {
-                  setMobileMenuOpen(false)
-                  navigate('/boas-vindas')
-                }}
-              >
-                <Compass className="w-4 h-4 text-teal-600 mr-2" />
-                Guia de Boas-vindas
-              </Button>
-              {user && (
+          {/* Mobile Right Actions (Guia ou Sair simplificado no topo) */}
+          <div className="md:hidden flex items-center space-x-1.5">
+            {user ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-700 max-w-[100px] truncate">
+                  {user.name?.split(' ')[0] || 'Você'}
+                </span>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start text-rose-600 hover:bg-rose-50"
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    logout()
-                  }}
+                  size="icon"
+                  className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                  onClick={logout}
+                  title="Sair da conta"
                 >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sair da Conta ({user.name || user.email})
+                  <LogOut className="w-4 h-4" />
                 </Button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
-        )}
+        </div>
       </header>
 
       {/* Modal do Glossário Vivo */}

@@ -287,4 +287,17 @@
   .animate-spotlight {
     animation: spotlight 2s ease forwards;
   }
+
+  /* Suporte a Safe Areas do iOS e Mobile Navigation */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+html,
+body {
+  -webkit-tap-highlight-color: transparent;
 }

@@ -197,30 +197,30 @@ export const InvoicesPage: React.FC = () => {
   const selectedCard = cards.find((c) => c.id === selectedCardId)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
-            <CreditCard className="w-8 h-8 text-purple-600" />
+          <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <CreditCard className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" />
             Faturas de Cartão
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Crie e concilie a fatura agrupando todas as compras do mês. Ao informar o pagamento, a
             movimentação debita a conta sem duplicar despesa.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center space-x-2">
-            <Label htmlFor="cardSelect" className="text-xs font-bold text-slate-600">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center space-x-2 flex-1 sm:flex-initial">
+            <Label htmlFor="cardSelect" className="text-xs font-bold text-slate-600 flex-shrink-0">
               Cartão:
             </Label>
             <select
               id="cardSelect"
               value={selectedCardId}
               onChange={(e) => setSelectedCardId(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
             >
               {cards.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -230,20 +230,20 @@ export const InvoicesPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-4 h-4 text-slate-500" />
+          <div className="flex items-center space-x-2 flex-1 sm:flex-initial">
+            <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input
               type="month"
               value={referenceMonth}
               onChange={(e) => setReferenceMonth(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
             />
           </div>
 
           <Button
             onClick={handleCreateInvoice}
             disabled={creating || !selectedCardId}
-            className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold gap-2 rounded-xl"
+            className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold gap-2 rounded-xl h-9"
           >
             <PlusCircle className="w-4 h-4" />
             {creating ? 'Agrupando Compras...' : 'Criar / Conciliar Fatura'}
