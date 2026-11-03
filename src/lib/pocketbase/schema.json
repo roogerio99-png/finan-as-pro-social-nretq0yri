@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T21:48:22.306Z",
+  "generatedAt": "2026-11-03T22:05:47.413Z",
   "collections": [
     {
       "name": "users",
@@ -480,6 +480,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "target_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["group", "subgroup"]
         }
       ],
       "indexes": []

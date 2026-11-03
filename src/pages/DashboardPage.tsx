@@ -8,7 +8,14 @@ import { cashValueForMonth } from '@/services/installments'
 import { netCashForMonth, remainingFutureCommitted } from '@/services/invoicePayments'
 import { InvoicePaymentsSection } from '@/components/dashboard/InvoicePaymentsSection'
 import { paymentsService } from '@/services/payments'
-import { AccountRecord, TransactionRecord, BudgetRecord, PaymentRecord } from '@/types/finance'
+import { categoriesService } from '@/services/categories'
+import {
+  AccountRecord,
+  TransactionRecord,
+  BudgetRecord,
+  PaymentRecord,
+  CategoryRecord,
+} from '@/types/finance'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EducationalPillCard } from '@/components/EducationalPillCard'
@@ -40,6 +47,7 @@ export const DashboardPage: React.FC = () => {
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [budgets, setBudgets] = useState<BudgetRecord[]>([])
+  const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [payments, setPayments] = useState<PaymentRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [activePill, setActivePill] = useState<MicrolearningPill | null>(null)
@@ -47,16 +55,18 @@ export const DashboardPage: React.FC = () => {
   const loadDashboardData = async () => {
     setLoading(true)
     try {
-      const [accs, txs, bdgs, pmts] = await Promise.all([
+      const [accs, txs, bdgs, pmts, cats] = await Promise.all([
         accountsService.list(),
         transactionsService.list({ month: selectedMonth, regime }),
         budgetsService.list(selectedMonth),
         paymentsService.list(),
+        categoriesService.list(),
       ])
       setAccounts(accs)
       setTransactions(txs)
       setBudgets(bdgs)
       setPayments(pmts)
+      setCategories(cats)
 
       // Gatilho de Pílula Educativa
       evaluateEducationalTrigger(txs, bdgs)
@@ -114,14 +124,89 @@ export const DashboardPage: React.FC = () => {
     totalExpense > 0 ? Math.round((totalAvailableBalance / totalExpense) * 10) / 10 : 0
   const runwayStatus = monthsOfRunway >= 3 ? 'green' : monthsOfRunway >= 1 ? 'yellow' : 'red'
 
-  // 3. Acurácia Orçamentária
-  const totalBudgeted = budgets.reduce((acc, b) => acc + b.limit_amount, 0)
+  // 3. Acurácia Orçamentária (evita somar duplamente grupo e subgrupo no teto total:
+  // Se existirem metas de subgrupo, soma os subgrupos + grupos sem metas filhas; ou vice-versa).
+  // Mais claro: agrupa por itens ativos.
+  const groupBudgets = budgets.filter(
+    (b) => budgetsService.resolveTargetType(b, categories) === 'group',
+  )
+  const subgroupBudgets = budgets.filter(
+    (b) => budgetsService.resolveTargetType(b, categories) === 'subgroup',
+  )
+
+  // Identifica alertas de estouro específicos para cada meta (seja grupo ou subgrupo)
+  const budgetAlerts = budgets.map((b) => {
+    const isGroup = budgetsService.resolveTargetType(b, categories) === 'group'
+    const spent = transactions
+      .filter((t) => {
+        if (t.type !== 'expense') return false
+        const cat = t.expand?.category_id || categories.find((c) => c.id === t.category_id)
+        if (isGroup) {
+          return cat?.group_level1 === b.category_group
+        }
+        return cat?.group_level2 === b.category_group || cat?.name === b.category_group
+      })
+      .reduce((acc, t) => acc + t.amount, 0)
+
+    const percent = b.limit_amount > 0 ? Math.round((spent / b.limit_amount) * 100) : 0
+    const isWarning = percent >= (b.warning_threshold || 75) && percent < (b.danger_threshold || 90)
+    const isDanger = percent >= (b.danger_threshold || 90)
+
+    return {
+      budget: b,
+      isGroup,
+      spent,
+      percent,
+      isWarning,
+      isDanger,
+      remaining: b.limit_amount - spent,
+    }
+  })
+
+  const dangerAlerts = budgetAlerts.filter((a) => a.isDanger)
+  const warningAlerts = budgetAlerts.filter((a) => a.isWarning)
+
+  // Teto total do orçamento para o card global:
+  // Se houver metas de grupo, o teto geral é a soma das metas de grupo + metas de subgrupos cujos grupos pai NÃO têm meta cadastrada.
+  // Caso não haja metas de grupo, é a soma de todos os subgrupos.
+  const totalBudgeted = (() => {
+    if (budgets.length === 0) return 0
+    if (groupBudgets.length === 0) {
+      return subgroupBudgets.reduce((acc, b) => acc + b.limit_amount, 0)
+    }
+    // Soma grupos
+    const groupSum = groupBudgets.reduce((acc, b) => acc + b.limit_amount, 0)
+    // Para subgrupos, só soma se o grupo_level1 ao qual pertence NÃO tiver meta de grupo
+    const standaloneSubgroupSum = subgroupBudgets
+      .filter((sb) => {
+        const cat = categories.find(
+          (c) => c.group_level2 === sb.category_group || c.name === sb.category_group,
+        )
+        const parentGroup = cat?.group_level1
+        return !parentGroup || !groupBudgets.some((gb) => gb.category_group === parentGroup)
+      })
+      .reduce((acc, b) => acc + b.limit_amount, 0)
+
+    return groupSum + standaloneSubgroupSum
+  })()
+
   const budgetRatio = totalBudgeted > 0 ? Math.round((totalExpense / totalBudgeted) * 100) : 0
-  const budgetStatus = budgetRatio <= 90 ? 'green' : budgetRatio <= 100 ? 'yellow' : 'red'
+  const budgetStatus =
+    dangerAlerts.length > 0 || budgetRatio > 100
+      ? 'red'
+      : warningAlerts.length > 0 || budgetRatio > 90
+        ? 'yellow'
+        : 'green'
 
   const evaluateEducationalTrigger = (txs: TransactionRecord[], bdgs: BudgetRecord[]) => {
-    // Se estourou orçamento
-    if (totalBudgeted > 0 && totalExpense > totalBudgeted) {
+    // Se estourou orçamento geral ou tem alertas críticos
+    const hasDanger = bdgs.some((b) => {
+      // cálculo simplificado para trigger
+      const spent = txs.filter((t) => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+      return b.limit_amount > 0 && spent / b.limit_amount >= 0.9
+    })
+
+    if ((totalBudgeted > 0 && totalExpense > totalBudgeted) || hasDanger) {
       setActivePill(microlearningPills.find((p) => p.trigger === 'overbudget') || null)
     } else if (netBalance > 500) {
       setActivePill(microlearningPills.find((p) => p.trigger === 'surplus') || null)
@@ -220,6 +305,75 @@ export const DashboardPage: React.FC = () => {
           >
             <FileSpreadsheet className="w-4 h-4" /> Conciliar Agora
           </Button>
+        </div>
+      )}
+
+      {/* Alertas de Metas Orçamentárias (Grupos ou Subgrupos com Atenção ou Estouro) */}
+      {(dangerAlerts.length > 0 || warningAlerts.length > 0) && (
+        <div className="space-y-2">
+          {dangerAlerts.map((alert) => (
+            <div
+              key={alert.budget.id}
+              className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">
+                    Estouro de Meta: {alert.budget.category_group} (
+                    {alert.isGroup ? 'Grupo Principal' : 'Subgrupo'})
+                  </h4>
+                  <p className="text-xs text-rose-800/90 mt-0.5">
+                    Consumido {formatCurrency(alert.spent)} de{' '}
+                    {formatCurrency(alert.budget.limit_amount)} ({alert.percent}% do teto definido
+                    para {selectedMonth}).
+                    {alert.remaining < 0 &&
+                      ` Estouro de ${formatCurrency(Math.abs(alert.remaining))}.`}
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => navigate('/orcamento')}
+                className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5 rounded-xl flex-shrink-0"
+              >
+                Ver no Orçamento
+              </Button>
+            </div>
+          ))}
+
+          {warningAlerts.map((alert) => (
+            <div
+              key={alert.budget.id}
+              className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm">
+                    Atenção ao Teto: {alert.budget.category_group} (
+                    {alert.isGroup ? 'Grupo Principal' : 'Subgrupo'})
+                  </h4>
+                  <p className="text-xs text-amber-800/90 mt-0.5">
+                    Já consumiu {alert.percent}% do teto ({formatCurrency(alert.spent)} de{' '}
+                    {formatCurrency(alert.budget.limit_amount)}). Restam apenas{' '}
+                    {formatCurrency(alert.remaining)}.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => navigate('/orcamento')}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1.5 rounded-xl flex-shrink-0"
+              >
+                Ajustar Orçamento
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 

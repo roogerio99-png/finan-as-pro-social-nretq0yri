@@ -140,11 +140,14 @@ export interface InvoiceRecord {
   }
 }
 
+export type BudgetTargetType = 'group' | 'subgroup'
+
 export interface BudgetRecord {
   id: string
   user_id: string
   month: string // YYYY-MM
-  category_group: string
+  category_group: string // Nome do Grupo (ex: "Custos Fixos") ou do Subgrupo (ex: "Habitação")
+  target_type?: BudgetTargetType // 'group' (nível 1 - categoria principal) ou 'subgroup' (nível 2 - subgrupo). Padrão 'subgroup'.
   limit_amount: number
   warning_threshold?: number // padrão 75
   danger_threshold?: number // padrão 90
