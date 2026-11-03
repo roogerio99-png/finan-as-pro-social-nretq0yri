@@ -15,7 +15,8 @@ import { CheckCircle2, CreditCard, Landmark, Undo2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { paymentsService, MarkPaidInput } from '@/services/payments'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { AccountRecord, PaymentRecord, TransactionRecord } from '@/types/finance'
+import { AccountRecord, InvoiceRecord, PaymentRecord, TransactionRecord } from '@/types/finance'
+import { invoicesService } from '@/services/invoices'
 import { formatBRL, formatDateBR } from './format'
 
 export interface InvoiceItem {
@@ -33,6 +34,8 @@ interface InvoicePaymentDialogProps {
   items: InvoiceItem[]
   total: number
   paidTotal: number
+  /** Fatura formal persistida (opcional). */
+  formalInvoice?: InvoiceRecord
   /** Pagamentos já registrados desta fatura (para exibir data/banco). */
   paidRecords: PaymentRecord[]
   accounts: AccountRecord[]
@@ -49,6 +52,7 @@ export const InvoicePaymentDialog: React.FC<InvoicePaymentDialogProps> = ({
   items,
   total,
   paidTotal,
+  formalInvoice,
   paidRecords,
   accounts,
   month,
@@ -110,6 +114,32 @@ export const InvoicePaymentDialog: React.FC<InvoicePaymentDialogProps> = ({
     setSaving(true)
     try {
       const chosen = items.filter((i) => selectedIds.includes(`${i.tx.id}#${i.index}`))
+
+      // Garante que exista fatura formal registrada para este cartão e mês
+      let invoice = formalInvoice
+      if (!invoice) {
+        try {
+          invoice = await invoicesService.createForMonth(card.id, month)
+        } catch (invErr) {
+          console.warn('Não foi possível auto-criar fatura formal:', invErr)
+        }
+      }
+
+      // Se temos fatura formal e todas as parcelas pendentes foram selecionadas,
+      // registramos o pagamento formal via payViaMovement (gera movimento bancário tipo invoice_payment)
+      const isFullPayment = chosen.length === items.length && items.length > 0
+      if (invoice && isFullPayment && invoice.status !== 'paid') {
+        await invoicesService.payViaMovement({
+          invoiceId: invoice.id,
+          paymentAccountId: accountId,
+          paidDate: date,
+          amount: selectedTotal,
+          notes: `Quitação da fatura ${month} do cartão ${card.name}`,
+        })
+      }
+
+      // Marca também as parcelas individuais na coleção payments para compatibilidade
+      // completa com os cálculos de netCashForMonth e marcação visual de parcelas
       for (const item of chosen) {
         const input: MarkPaidInput = {
           transaction: item.tx,
@@ -122,9 +152,10 @@ export const InvoicePaymentDialog: React.FC<InvoicePaymentDialogProps> = ({
         }
         await paymentsService.markPaid(input)
       }
+
       toast({
-        title: 'Parcelas marcadas como pagas!',
-        description: `${chosen.length} parcela(s) quitada(s) — saída registrada em ${formatDateBR(date)} via ${payerAccounts.find((a) => a.id === accountId)?.name ?? 'conta'}.`,
+        title: 'Pagamento de fatura registrado!',
+        description: `${chosen.length} parcela(s) quitada(s) no valor de ${formatBRL(selectedTotal)} via ${payerAccounts.find((a) => a.id === accountId)?.name ?? 'conta'}. Registrado como Pagamento de Fatura (neutro, sem duplicar despesa).`,
       })
       onOpenChange(false)
       onDone()

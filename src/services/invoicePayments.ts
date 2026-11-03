@@ -21,6 +21,8 @@ export interface InvoiceGroup {
   total: number
   /** Total já marcado como pago nesta fatura. */
   paidTotal: number
+  /** Fatura formal persistida na coleção invoices (se criada). */
+  formalInvoice?: import('@/types/finance').InvoiceRecord
 }
 
 // Parcelas que vencem no mês selecionado, agrupadas por cartão (fatura).
@@ -29,6 +31,7 @@ export const dueInvoiceGroups = (
   accounts: AccountRecord[],
   payments: PaymentRecord[],
   month: string,
+  formalInvoices?: import('@/types/finance').InvoiceRecord[],
 ): InvoiceGroup[] => {
   const groups = new Map<string, InvoiceGroup>()
 
@@ -54,6 +57,14 @@ export const dueInvoiceGroups = (
     if (!alreadyPaid) group.items.push({ tx, index, value })
     group.total += value
     if (alreadyPaid) group.paidTotal += value
+  }
+
+  if (formalInvoices && formalInvoices.length > 0) {
+    for (const group of groups.values()) {
+      group.formalInvoice = formalInvoices.find(
+        (inv) => inv.card_account_id === group.card.id && inv.reference_month === month,
+      )
+    }
   }
 
   return Array.from(groups.values())
