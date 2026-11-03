@@ -8,6 +8,7 @@ export interface UserRecord {
   email: string
   name: string
   avatar?: string
+  family_role?: string
   created: string
   updated: string
 }
@@ -28,6 +29,7 @@ export interface AccountRecord {
   name: string
   type: AccountType
   initial_balance: number
+  current_balance?: number
   credit_limit?: number
   closing_day?: number
   due_day?: number
@@ -47,6 +49,7 @@ export interface CategoryRecord {
   subgroup_level3?: string
   icon?: string
   color?: string
+  status?: 'active' | 'inactive'
   created: string
   updated: string
 }

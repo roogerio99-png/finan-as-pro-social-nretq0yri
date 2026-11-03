@@ -1,14 +1,14 @@
 {
-  "generatedAt": "2026-11-03T19:20:36.966Z",
+  "generatedAt": "2026-11-03T19:30:00.599Z",
   "collections": [
     {
       "name": "users",
       "type": "auth",
       "apiRules": {
-        "list": "id = @request.auth.id",
-        "view": "id = @request.auth.id",
+        "list": "id = @request.auth.id || (@request.auth.id != \"\" && @collection.families.created_by ?= @request.auth.id && @collection.families.members ?= id)",
+        "view": "id = @request.auth.id || (@request.auth.id != \"\" && @collection.families.created_by ?= @request.auth.id && @collection.families.members ?= id)",
         "create": "",
-        "update": "id = @request.auth.id",
+        "update": "(id = @request.auth.id && @request.body.family_role:changed = false) || (@request.auth.id != \"\" && @collection.families.created_by ?= @request.auth.id && @collection.families.members ?= id)",
         "delete": "id = @request.auth.id"
       },
       "fields": [
@@ -271,6 +271,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["active", "inactive"]
         }
       ],
       "indexes": []

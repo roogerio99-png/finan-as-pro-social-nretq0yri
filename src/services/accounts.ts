@@ -2,7 +2,7 @@ import pb from '@/lib/pocketbase/client'
 import { AccountRecord } from '@/types/finance'
 
 export const accountsService = {
-  async list(familyId?: string): Promise<AccountRecord[]> {
+  async list(familyId?: string, options?: { includeArchived?: boolean }): Promise<AccountRecord[]> {
     const filter = familyId
       ? `family_id = '${familyId}' || user_id = '${pb.authStore.record?.id}'`
       : `user_id = '${pb.authStore.record?.id}'`
@@ -10,7 +10,9 @@ export const accountsService = {
       filter: pb.authStore.record ? filter : '',
       sort: '-created',
     })
-    return records
+    if (options?.includeArchived) return records
+    // Registros sem status (legado) são considerados ativos.
+    return records.filter((a) => (a.status ?? 'active') === 'active')
   },
 
   async create(data: Partial<AccountRecord>): Promise<AccountRecord> {
