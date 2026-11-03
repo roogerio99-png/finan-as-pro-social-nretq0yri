@@ -275,9 +275,9 @@ export const MobileBottomNav: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-500 mt-0.5">
                   Significado Comportamental:
                 </p>
-                <p className="text-sm text-slate-800 mt-0.5 leading-relaxed">{item.definition}</p>
+                <p className="text-sm text-slate-800 mt-0.5 leading-relaxed">{item.meaning}</p>
                 <p className="text-xs text-emerald-700 mt-2 font-medium bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
-                  <span className="font-bold">Como aplicar:</span> {item.actionable}
+                  <span className="font-bold">Exemplo prático:</span> {item.example}
                 </p>
               </div>
             ))}
