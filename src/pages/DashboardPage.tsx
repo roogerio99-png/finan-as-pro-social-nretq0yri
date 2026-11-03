@@ -4,6 +4,7 @@ import { accountsService } from '@/services/accounts'
 import { transactionsService } from '@/services/transactions'
 import { budgetsService } from '@/services/budgets'
 import { microlearningPills, MicrolearningPill } from '@/services/microlearning'
+import { cashValueForMonth, monthShift } from '@/services/installments'
 import { AccountRecord, TransactionRecord, BudgetRecord } from '@/types/finance'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -64,14 +65,18 @@ export const DashboardPage: React.FC = () => {
     loadDashboardData()
   }, [selectedMonth, regime])
 
-  // Cálculos financeiros do mês
+  // Cálculos financeiros do mês.
+  // Competência: valor cheio da transação. Caixa: parcela mensal de compras parceladas.
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0)
 
-  const totalExpense = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((acc, t) => acc + t.amount, 0)
+  const totalExpense =
+    regime === 'cash'
+      ? transactions
+          .filter((t) => t.type === 'expense')
+          .reduce((acc, t) => acc + cashValueForMonth(t, selectedMonth, accounts), 0)
+      : transactions.filter((t) => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
 
   const netBalance = totalIncome - totalExpense
 
@@ -79,6 +84,19 @@ export const DashboardPage: React.FC = () => {
   const totalAvailableBalance = accounts
     .filter((a) => a.type !== 'credit_card' && a.status !== 'archived')
     .reduce((acc, a) => acc + (a.initial_balance || 0), 0)
+
+  // Sobra para faturas futuras: saldo das contas menos o caixa comprometido
+  // nos próximos meses (parcelas que ainda vão desembolsar).
+  const committedFutureCash = transactions
+    .filter((t) => t.type === 'expense')
+    .reduce((acc, t) => {
+      let future = 0
+      for (let i = 1; i <= 12; i++) {
+        const m = monthShift(selectedMonth, i)
+        future += cashValueForMonth(t, m, accounts)
+      }
+      return acc + future
+    }, 0)
 
   // Cartões de crédito (fatura estimada para o mês)
   const creditCards = accounts.filter((a) => a.type === 'credit_card')
@@ -228,6 +246,12 @@ export const DashboardPage: React.FC = () => {
               <Building className="w-3.5 h-3.5" />{' '}
               {accounts.filter((a) => a.type !== 'credit_card').length} contas cadastradas
             </p>
+            {committedFutureCash > 0 && (
+              <p className="text-[11px] font-semibold text-purple-700 mt-1.5">
+                {formatCurrency(committedFutureCash)} já comprometidos em parcelas futuras (12
+                meses)
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -479,10 +503,18 @@ export const DashboardPage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {creditCards.map((card) => {
-              // Gastos deste cartão no mês
+              // Fatura do mês: em competência, o valor TOTAL das compras do mês
+              // (parcelado entra inteiro); em caixa, apenas as parcelas do mês.
               const cardExpenses = transactions
                 .filter((t) => t.account_id === card.id && t.type === 'expense')
-                .reduce((acc, t) => acc + t.amount, 0)
+                .reduce(
+                  (acc, t) =>
+                    acc +
+                    (regime === 'competence'
+                      ? t.amount
+                      : cashValueForMonth(t, selectedMonth, accounts)),
+                  0,
+                )
 
               const availableLimit = (card.credit_limit || 0) - cardExpenses
               const limitUsedPercent = card.credit_limit

@@ -27,6 +27,12 @@ import {
   CreditCard,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import {
+  isInstallmentTransaction,
+  installmentValue,
+  cashValueForMonth,
+  firstCashMonth,
+} from '@/services/installments'
 
 export const TransactionsPage: React.FC = () => {
   const { toast } = useToast()
@@ -51,7 +57,12 @@ export const TransactionsPage: React.FC = () => {
   const [categoryId, setCategoryId] = useState<string>('')
   const [date, setDate] = useState<string>(todayStr)
   const [notes, setNotes] = useState<string>('')
+  const [installmentsTotal, setInstallmentsTotal] = useState<string>('')
+  const [installmentsPaid, setInstallmentsPaid] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
+
+  const selectedAccount = accounts.find((a) => a.id === accountId)
+  const isCreditCard = selectedAccount?.type === 'credit_card'
 
   const loadData = async () => {
     setLoading(true)
@@ -102,6 +113,10 @@ export const TransactionsPage: React.FC = () => {
         )
       }
 
+      // Parcelamento: só para despesa em cartão de crédito.
+      const installments =
+        type === 'expense' && isCreditCard ? Math.max(1, parseInt(installmentsTotal, 10) || 1) : 1
+
       await transactionsService.create({
         description,
         amount: parsedAmount,
@@ -111,19 +126,32 @@ export const TransactionsPage: React.FC = () => {
         date,
         competence_month: competenceMonth,
         cash_month: cashMonth,
+        installments_total: installments,
+        installments_paid:
+          installments > 1
+            ? Math.min(installments, Math.max(0, parseInt(installmentsPaid, 10) || 0))
+            : 0,
         is_reconciled: true,
-        notes: notes || undefined,
+        notes:
+          installments > 1
+            ? `Parcelado em ${installments}x de ${formatCurrency(installmentValue(parsedAmount, installments))}${parseInt(installmentsPaid, 10) > 0 ? ` • ${Math.min(installments, parseInt(installmentsPaid, 10))} parcela(s) paga(s)` : ''}`
+            : notes || undefined,
       })
 
       toast({
         title: 'Lançamento registrado!',
-        description: `Salvo com competência em ${competenceMonth} e caixa em ${cashMonth}.`,
+        description:
+          installments > 1
+            ? `Competência ${competenceMonth} com ${formatCurrency(parsedAmount)} • caixa em ${installments}x de ${formatCurrency(installmentValue(parsedAmount, installments))} a partir de ${cashMonth}.`
+            : `Salvo com competência em ${competenceMonth} e caixa em ${cashMonth}.`,
       })
 
       setDialogOpen(false)
       setDescription('')
       setAmount('')
       setNotes('')
+      setInstallmentsTotal('')
+      setInstallmentsPaid('')
       loadData()
     } catch (err: any) {
       toast({
@@ -147,13 +175,23 @@ export const TransactionsPage: React.FC = () => {
     }
   }
 
+  // O filtro por mês considera o regime: no caixa, cada parcela aparece no mês do desembolso.
   const filteredTransactions = transactions.filter((t) => {
-    if (filterType === 'all') return true
-    return t.type === filterType
+    if (filterType !== 'all' && t.type !== filterType) return false
+    if (regime === 'cash') {
+      return cashValueForMonth(t, selectedMonth, accounts) > 0
+    }
+    return t.competence_month === selectedMonth
   })
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+
+  // Mês do primeiro desembolso de caixa de uma transação parcelada (fechamento/vencimento).
+  const firstCashMonthFor = (tx: TransactionRecord, accs: AccountRecord[]): string => {
+    const acc = accs.find((a) => a.id === tx.account_id)
+    return firstCashMonth(tx.date, acc?.closing_day, acc?.due_day)
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -204,6 +242,72 @@ export const TransactionsPage: React.FC = () => {
             <PlusCircle className="w-4 h-4" /> Novo Lançamento
           </Button>
         </div>
+      </div>
+
+      {/* Totais do mês no regime selecionado */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+          <CardContent className="p-4">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Receitas ({selectedMonth})
+            </span>
+            <div className="text-xl font-black text-emerald-600 mt-1">
+              {formatCurrency(
+                filteredTransactions
+                  .filter((t) => t.type === 'income')
+                  .reduce(
+                    (acc, t) =>
+                      acc +
+                      (regime === 'cash'
+                        ? cashValueForMonth(t, selectedMonth, accounts)
+                        : t.amount),
+                    0,
+                  ),
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+          <CardContent className="p-4">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Despesas ({selectedMonth})
+            </span>
+            <div className="text-xl font-black text-rose-600 mt-1">
+              {formatCurrency(
+                filteredTransactions
+                  .filter((t) => t.type === 'expense')
+                  .reduce(
+                    (acc, t) =>
+                      acc +
+                      (regime === 'cash'
+                        ? cashValueForMonth(t, selectedMonth, accounts)
+                        : t.amount),
+                    0,
+                  ),
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+          <CardContent className="p-4">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Saldo do Mês ({regime === 'cash' ? 'Caixa' : 'Competência'})
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-1">
+              {formatCurrency(
+                filteredTransactions.reduce(
+                  (acc, t) =>
+                    acc +
+                    (t.type === 'income' ? 1 : -1) *
+                      (regime === 'cash'
+                        ? cashValueForMonth(t, selectedMonth, accounts)
+                        : t.amount),
+                  0,
+                ),
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filtros por tipo */}
@@ -279,6 +383,14 @@ export const TransactionsPage: React.FC = () => {
                         <div className="text-[11px] text-slate-400">
                           Comp: {tx.competence_month}
                         </div>
+                        {isInstallmentTransaction(tx) && (
+                          <div className="text-[11px] font-bold text-purple-600">
+                            {tx.installments_total}x
+                            {(tx.installments_paid ?? 0) > 0
+                              ? ` • ${tx.installments_paid} paga(s)`
+                              : ''}
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 font-semibold text-slate-900">
@@ -309,22 +421,39 @@ export const TransactionsPage: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <span
-                          className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                            tx.competence_month === tx.cash_month
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              : 'bg-purple-50 text-purple-800 border border-purple-200'
-                          }`}
-                        >
-                          {tx.competence_month === tx.cash_month
-                            ? 'Mesmo mês'
-                            : `Desembolso: ${tx.cash_month}`}
-                        </span>
+                        {isInstallmentTransaction(tx) ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                            {tx.installments_total}x de{' '}
+                            {formatCurrency(
+                              installmentValue(tx.amount, tx.installments_total ?? 1),
+                            )}
+                            {regime === 'cash' && (
+                              <span className="ml-1 font-normal text-purple-600">
+                                • desembolso a partir de {firstCashMonthFor(tx, accounts)}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                              tx.competence_month === tx.cash_month
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-purple-50 text-purple-800 border border-purple-200'
+                            }`}
+                          >
+                            {tx.competence_month === tx.cash_month
+                              ? 'Mesmo mês'
+                              : `Desembolso: ${tx.cash_month}`}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-right whitespace-nowrap font-black">
                         <span className={isExpense ? 'text-rose-600' : 'text-emerald-600'}>
-                          {isExpense ? '-' : '+'} {formatCurrency(tx.amount)}
+                          {isExpense ? '-' : '+'}{' '}
+                          {regime === 'cash' && isInstallmentTransaction(tx)
+                            ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
+                            : formatCurrency(tx.amount)}
                         </span>
                       </td>
 
@@ -454,6 +583,59 @@ export const TransactionsPage: React.FC = () => {
                   ))}
               </select>
             </div>
+
+            {type === 'expense' && isCreditCard && (
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-purple-50 border border-purple-200">
+                <div className="col-span-2 flex items-center gap-1.5 text-[11px] font-bold text-purple-800">
+                  <CreditCard className="w-3.5 h-3.5" /> Parcelamento no cartão
+                  <span className="font-normal text-purple-600">
+                    — o valor total entra na competência deste mês; o caixa mostra 1 parcela por mês
+                    até quitar.
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="inst">Em quantas parcelas?</Label>
+                  <Input
+                    id="inst"
+                    type="number"
+                    min={1}
+                    max={48}
+                    value={installmentsTotal}
+                    onChange={(e) => setInstallmentsTotal(e.target.value)}
+                    placeholder="1 = à vista"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="instPaid">Quantas já foram pagas?</Label>
+                  <Input
+                    id="instPaid"
+                    type="number"
+                    min={0}
+                    value={installmentsPaid}
+                    onChange={(e) => setInstallmentsPaid(e.target.value)}
+                    placeholder="0"
+                    disabled={!installmentsTotal || parseInt(installmentsTotal, 10) <= 1}
+                  />
+                </div>
+
+                {installmentsTotal && parseInt(installmentsTotal, 10) > 1 && amount && (
+                  <p className="col-span-2 text-[11px] font-semibold text-purple-700">
+                    {formatCurrency(parseFloat(amount) || 0)} na competência de {date.slice(0, 7)} •{' '}
+                    {installmentsTotal}x de{' '}
+                    {formatCurrency(
+                      installmentValue(parseFloat(amount) || 0, parseInt(installmentsTotal, 10)),
+                    )}{' '}
+                    no caixa, começando em{' '}
+                    {selectedAccount?.closing_day && selectedAccount?.due_day
+                      ? firstCashMonth(date, selectedAccount.closing_day, selectedAccount.due_day)
+                      : date.slice(0, 7)}
+                    .
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="nt">Observações (opcional)</Label>

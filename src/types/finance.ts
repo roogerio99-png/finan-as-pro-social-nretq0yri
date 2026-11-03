@@ -66,6 +66,8 @@ export interface TransactionRecord {
   date: string // YYYY-MM-DD
   competence_month: string // YYYY-MM
   cash_month: string // YYYY-MM
+  installments_total?: number // total de parcelas (vazio/0/1 = à vista)
+  installments_paid?: number // parcelas já pagas (informativo)
   is_reconciled?: boolean
   import_batch_id?: string
   notes?: string

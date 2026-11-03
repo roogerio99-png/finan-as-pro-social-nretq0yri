@@ -1,7 +1,13 @@
 import pb from '@/lib/pocketbase/client'
 import { TransactionRecord } from '@/types/finance'
+import { totalCashForMonth } from '@/services/installments'
 
 export const transactionsService = {
+  // month+regime selecionam a JANELA de busca, não a lista final:
+  // - competência: transações daquele mês de competência (valor cheio).
+  // - caixa: transações cujo cash_month seja o mês OU anteriores (parcelas
+  //   continuam saindo do caixa nos meses seguintes). A página filtra/mostra
+  //   o valor do mês com cashValueForMonth (src/services/installments.ts).
   async list(filters?: {
     month?: string // YYYY-MM
     regime?: 'competence' | 'cash'
@@ -19,7 +25,7 @@ export const transactionsService = {
 
     if (filters?.month) {
       if (filters.regime === 'cash') {
-        filterParts.push(`cash_month = '${filters.month}'`)
+        filterParts.push(`cash_month <= '${filters.month}'`)
       } else {
         filterParts.push(`competence_month = '${filters.month}'`)
       }
@@ -32,6 +38,15 @@ export const transactionsService = {
       sort: '-date,-created',
       expand: 'account_id,category_id,user_id',
     })
+  },
+
+  // Soma de desembolso de caixa de um mês (respeita parcelas).
+  async cashTotal(
+    transactions: TransactionRecord[],
+    month: string,
+    accounts: { id: string; closing_day?: number; due_day?: number }[],
+  ): Promise<number> {
+    return totalCashForMonth(transactions, month, accounts)
   },
 
   async create(data: Partial<TransactionRecord>): Promise<TransactionRecord> {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T19:30:00.599Z",
+  "generatedAt": "2026-11-03T19:53:33.409Z",
   "collections": [
     {
       "name": "users",
@@ -389,9 +389,21 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "installments_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "installments_paid",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE INDEX `idx_transactions_cash_month` ON `transactions` (cash_month)"]
     },
     {
       "name": "budgets",
