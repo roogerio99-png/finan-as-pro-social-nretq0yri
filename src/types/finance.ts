@@ -54,6 +54,27 @@ export interface CategoryRecord {
   updated: string
 }
 
+export interface PaymentRecord {
+  id: string
+  user_id: string
+  family_id?: string
+  source_transaction_id: string
+  payment_account_id?: string
+  card_account_id?: string
+  installment_index?: number
+  amount: number
+  cash_month: string // YYYY-MM (fatura quitada)
+  paid_date: string // YYYY-MM-DD
+  notes?: string
+  created: string
+  updated: string
+  expand?: {
+    payment_account_id?: AccountRecord
+    card_account_id?: AccountRecord
+    source_transaction_id?: TransactionRecord
+  }
+}
+
 export interface TransactionRecord {
   id: string
   user_id: string

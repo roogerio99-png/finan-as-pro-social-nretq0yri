@@ -4,8 +4,11 @@ import { accountsService } from '@/services/accounts'
 import { transactionsService } from '@/services/transactions'
 import { budgetsService } from '@/services/budgets'
 import { microlearningPills, MicrolearningPill } from '@/services/microlearning'
-import { cashValueForMonth, monthShift } from '@/services/installments'
-import { AccountRecord, TransactionRecord, BudgetRecord } from '@/types/finance'
+import { cashValueForMonth } from '@/services/installments'
+import { netCashForMonth, remainingFutureCommitted } from '@/services/invoicePayments'
+import { InvoicePaymentsSection } from '@/components/dashboard/InvoicePaymentsSection'
+import { paymentsService } from '@/services/payments'
+import { AccountRecord, TransactionRecord, BudgetRecord, PaymentRecord } from '@/types/finance'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EducationalPillCard } from '@/components/EducationalPillCard'
@@ -37,20 +40,23 @@ export const DashboardPage: React.FC = () => {
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [budgets, setBudgets] = useState<BudgetRecord[]>([])
+  const [payments, setPayments] = useState<PaymentRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [activePill, setActivePill] = useState<MicrolearningPill | null>(null)
 
   const loadDashboardData = async () => {
     setLoading(true)
     try {
-      const [accs, txs, bdgs] = await Promise.all([
+      const [accs, txs, bdgs, pmts] = await Promise.all([
         accountsService.list(),
         transactionsService.list({ month: selectedMonth, regime }),
         budgetsService.list(selectedMonth),
+        paymentsService.list(),
       ])
       setAccounts(accs)
       setTransactions(txs)
       setBudgets(bdgs)
+      setPayments(pmts)
 
       // Gatilho de Pílula Educativa
       evaluateEducationalTrigger(txs, bdgs)
@@ -73,9 +79,7 @@ export const DashboardPage: React.FC = () => {
 
   const totalExpense =
     regime === 'cash'
-      ? transactions
-          .filter((t) => t.type === 'expense')
-          .reduce((acc, t) => acc + cashValueForMonth(t, selectedMonth, accounts), 0)
+      ? netCashForMonth(transactions, accounts, payments, selectedMonth)
       : transactions.filter((t) => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
 
   const netBalance = totalIncome - totalExpense
@@ -86,18 +90,13 @@ export const DashboardPage: React.FC = () => {
     .reduce((acc, a) => acc + (a.initial_balance || 0), 0)
 
   // Sobra para faturas futuras: saldo das contas menos o caixa comprometido
-  // nos próximos meses (parcelas que ainda vão desembolsar).
-  const committedFutureCash = transactions
-    .filter((t) => t.type === 'expense')
-    .reduce((acc, t) => {
-      let future = 0
-      for (let i = 1; i <= 12; i++) {
-        const m = monthShift(selectedMonth, i)
-        future += cashValueForMonth(t, m, accounts)
-      }
-      return acc + future
-    }, 0)
-
+  // nos próximos meses (parcelas que ainda vão desembolsar) — quitadas não contam.
+  const committedFutureCash = remainingFutureCommitted(
+    transactions,
+    accounts,
+    payments,
+    selectedMonth,
+  )
   // Cartões de crédito (fatura estimada para o mês)
   const creditCards = accounts.filter((a) => a.type === 'credit_card')
 
@@ -486,6 +485,17 @@ export const DashboardPage: React.FC = () => {
       {/* Pílula Educativa Contextual */}
       {activePill && (
         <EducationalPillCard pill={activePill} onDismiss={() => setActivePill(null)} />
+      )}
+
+      {/* Parcelas & Faturas do Mês — marcar pagamento (data + banco) no regime caixa */}
+      {regime === 'cash' && (
+        <InvoicePaymentsSection
+          transactions={transactions}
+          accounts={accounts}
+          month={selectedMonth}
+          regime={regime}
+          onPaymentsChanged={loadDashboardData}
+        />
       )}
 
       {/* Seção Cartões de Crédito e Faturas */}

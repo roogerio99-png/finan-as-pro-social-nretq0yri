@@ -54,6 +54,23 @@ export const cashValueForMonth = (
   return installmentValue(tx.amount, installments)
 }
 
+// Índice (1-based) da parcela de uma compra que vence na fatura de `month`.
+// 0 quando nenhuma parcela dessa compra cai naquele mês.
+export const installmentIndexOfMonth = (
+  tx: TransactionRecord,
+  month: string,
+  accounts: { id: string; closing_day?: number; due_day?: number }[],
+): number => {
+  const installments = tx.type === 'expense' ? (tx.installments_total ?? 0) : 0
+  if (installments <= 1) return 0
+
+  const account = accounts.find((a) => a.id === tx.account_id)
+  const startMonth = firstCashMonth(tx.date, account?.closing_day, account?.due_day)
+  const offset = monthDistance(startMonth, month)
+  if (offset < 0 || offset >= installments) return 0
+  return offset + 1
+}
+
 // Soma de caixa de um conjunto de transações em um mês.
 export const totalCashForMonth = (
   txs: TransactionRecord[],
