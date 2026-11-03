@@ -62,122 +62,124 @@ routerAdd(
     if (!cardAccountId) throw new BadRequestError('Cartão não informado.')
     if (!isYYYYMM(referenceMonth)) throw new BadRequestError('Mês de referência inválido.')
 
-    const result = e.app.runInTransaction((txApp) => {
-      const card = txApp.findRecordById('accounts', cardAccountId)
-      if (card.getString('type') !== 'credit_card') {
-        throw new BadRequestError('A fatura pertence a um cartão de crédito.')
-      }
-      if (card.getString('user_id') !== e.auth.id) {
-        throw new ForbiddenError('Esse cartão não pertence a você.')
-      }
+    const card = e.app.findRecordById('accounts', cardAccountId)
+    if (card.getString('type') !== 'credit_card') {
+      throw new BadRequestError('A fatura pertence a um cartão de crédito.')
+    }
+    const userFamily = e.auth.getString('family_id')
+    const cardFamily = card.getString('family_id')
+    const belongsToUserOrFamily =
+      card.getString('user_id') === e.auth.id ||
+      (userFamily && cardFamily && userFamily === cardFamily)
+    if (!belongsToUserOrFamily) {
+      throw new ForbiddenError('Esse cartão não pertence à sua família.')
+    }
 
-      // Compras do cartão que têm parcela vencendo nesta fatura: despesas
-      // (competência da compra) cuja janela de desembolso cobre o mês, mais
-      // as à vista com cash_month no mês.
-      const expenseCollection = txApp.findCollectionByNameOrId('transactions')
-      const candidates = txApp.findRecordsByFilter(
-        expenseCollection,
-        `account_id = '${card.id}' && type = 'expense'`,
-        'date',
-        500,
-        0,
-      )
+    // Compras do cartão que têm parcela vencendo nesta fatura: despesas
+    // (competência da compra) cuja janela de desembolso cobre o mês, mais
+    // as à vista com cash_month no mês.
+    const candidates = e.app.findRecordsByFilter(
+      'transactions',
+      `account_id = '${card.id}' && type = 'expense'`,
+      'date',
+      500,
+      0,
+    )
 
-      const closingDay = card.getInt('closing_day') || 0
-      const dueDay = card.getInt('due_day') || 0
+    const closingDay = card.getInt('closing_day') || 0
+    const dueDay = card.getInt('due_day') || 0
 
-      const items = []
-      const transactionIds = []
-      let total = 0
+    const items = []
+    const transactionIds = []
+    let total = 0
 
-      for (const tx of candidates) {
-        const installments = Math.max(1, Math.floor(tx.getInt('installments_total') || 1))
-        const startDate = tx.getString('date')
+    for (const tx of candidates) {
+      const installments = Math.max(1, Math.floor(tx.getInt('installments_total') || 1))
+      const startDate = tx.getString('date')
 
-        // Primeiro mês de desembolso: mesma regra do frontend
-        // (accountsService.calculateCashDueDate) — compra depois do
-        // fechamento cai na fatura seguinte.
-        let startMonth = startDate.slice(0, 7)
-        if (closingDay && dueDay) {
-          const [y, m, d] = startDate.split('-').map(Number)
-          let month = m - 1
-          if (d > closingDay) month += 1
-          if (dueDay < closingDay) month += 1
-          startMonth = monthOfIndex(y, month)
-        }
-
-        for (let i = 0; i < installments; i++) {
-          const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
-          if (instMonth !== referenceMonth) continue
-
-          const perInst = Math.floor((tx.getFloat('amount') / installments) * 100) / 100
-          const value =
-            i === installments - 1
-              ? round2(tx.getFloat('amount') - perInst * (installments - 1))
-              : perInst
-          if (!(value > 0)) continue
-
-          items.push({
-            transaction_id: tx.id,
-            index: installments > 1 ? i + 1 : 0,
-            value: value,
-            description: tx.getString('description'),
-          })
-          transactionIds.push(tx.id)
-          total += value
-        }
+      // Primeiro mês de desembolso: mesma regra do frontend
+      // (accountsService.calculateCashDueDate) — compra depois do
+      // fechamento cai na fatura seguinte.
+      let startMonth = startDate.slice(0, 7)
+      if (closingDay && dueDay) {
+        const [y, m, d] = startDate.split('-').map(Number)
+        let month = m - 1
+        if (d > closingDay) month += 1
+        if (dueDay < closingDay) month += 1
+        startMonth = monthOfIndex(y, month)
       }
 
-      if (items.length === 0) {
-        throw new BadRequestError('Nenhuma compra com parcela vencendo nesta fatura para agrupar.')
+      for (let i = 0; i < installments; i++) {
+        const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
+        if (instMonth !== referenceMonth) continue
+
+        const perInst = Math.floor((tx.getFloat('amount') / installments) * 100) / 100
+        const value =
+          i === installments - 1
+            ? round2(tx.getFloat('amount') - perInst * (installments - 1))
+            : perInst
+        if (!(value > 0)) continue
+
+        items.push({
+          transaction_id: tx.id,
+          index: installments > 1 ? i + 1 : 0,
+          value: value,
+          description: tx.getString('description'),
+        })
+        transactionIds.push(tx.id)
+        total += value
       }
+    }
 
-      total = round2(total)
+    if (items.length === 0) {
+      throw new BadRequestError('Nenhuma compra com parcela vencendo nesta fatura para agrupar.')
+    }
 
-      // Fatura existente do par (cartão, mês)? Atualiza itens/total.
-      const existing = txApp.findRecordsByFilter(
-        'invoices',
-        `card_account_id = '${card.id}' && reference_month = '${referenceMonth}'`,
-        'created',
-        1,
-        0,
-      )
+    total = round2(total)
 
-      let invoice
-      if (existing.length > 0) {
-        invoice = existing[0]
-        if (invoice.getString('status') === 'paid') {
-          throw new BadRequestError(
-            'Essa fatura já está paga — desfaça o pagamento para re-conciliar.',
-          )
-        }
-        invoice.set('total_amount', total)
-        invoice.set('transactions', transactionIds)
-        invoice.set('items', JSON.stringify(items))
-        txApp.save(invoice)
-      } else {
-        const col = txApp.findCollectionByNameOrId('invoices')
-        invoice = new Record(col)
-        invoice.set('user_id', e.auth.id)
-        const familyId = card.getString('family_id')
-        if (familyId) invoice.set('family_id', familyId)
-        invoice.set('card_account_id', card.id)
-        invoice.set('reference_month', referenceMonth)
-        invoice.set('total_amount', total)
-        invoice.set('status', 'open')
-        invoice.set('transactions', transactionIds)
-        invoice.set('items', JSON.stringify(items))
-        txApp.save(invoice)
+    // Fatura existente do par (cartão, mês)? Atualiza itens/total.
+    const existing = e.app.findRecordsByFilter(
+      'invoices',
+      `card_account_id = '${card.id}' && reference_month = '${referenceMonth}'`,
+      'created',
+      1,
+      0,
+    )
+
+    let invoice
+    if (existing.length > 0) {
+      invoice = existing[0]
+      if (invoice.getString('status') === 'paid') {
+        throw new BadRequestError(
+          'Essa fatura já está paga — desfaça o pagamento para re-conciliar.',
+        )
       }
+      invoice.set('total_amount', total)
+      invoice.set('transactions', transactionIds)
+      invoice.set('items', JSON.stringify(items))
+      e.app.save(invoice)
+    } else {
+      const col = e.app.findCollectionByNameOrId('invoices')
+      invoice = new Record(col)
+      invoice.set('user_id', e.auth.id)
+      const familyId = card.getString('family_id') || userFamily
+      if (familyId) invoice.set('family_id', familyId)
+      invoice.set('card_account_id', card.id)
+      invoice.set('reference_month', referenceMonth)
+      invoice.set('total_amount', total)
+      invoice.set('status', 'open')
+      invoice.set('transactions', transactionIds)
+      invoice.set('items', JSON.stringify(items))
+      e.app.save(invoice)
+    }
 
-      return {
-        id: invoice.id,
-        reference_month: invoice.getString('reference_month'),
-        total_amount: invoice.getFloat('total_amount'),
-        status: invoice.getString('status'),
-        items_count: items.length,
-      }
-    })
+    const result = {
+      id: invoice.id,
+      reference_month: invoice.getString('reference_month'),
+      total_amount: invoice.getFloat('total_amount'),
+      status: invoice.getString('status'),
+      items_count: items.length,
+    }
 
     return e.json(200, result)
   },

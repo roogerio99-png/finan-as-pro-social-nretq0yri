@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T23:25:00.790Z",
+  "generatedAt": "2026-11-03T23:45:38.932Z",
   "collections": [
     {
       "name": "users",
@@ -44,6 +44,13 @@
           "required": false,
           "system": false,
           "selectValues": ["admin", "member"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": [
@@ -55,11 +62,11 @@
       "name": "families",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
+        "list": "@request.auth.id != '' && (created_by = @request.auth.id || members ?= @request.auth.id)",
+        "view": "@request.auth.id != '' && (created_by = @request.auth.id || members ?= @request.auth.id)",
         "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "update": "@request.auth.id != '' && (created_by = @request.auth.id || members ?= @request.auth.id)",
+        "delete": "@request.auth.id != '' && created_by = @request.auth.id"
       },
       "fields": [
         {
@@ -103,11 +110,11 @@
       "name": "accounts",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -201,11 +208,11 @@
       "name": "categories",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -278,6 +285,13 @@
           "required": false,
           "system": false,
           "selectValues": ["active", "inactive"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": []
@@ -286,11 +300,11 @@
       "name": "transactions",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -423,11 +437,11 @@
       "name": "budgets",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -487,6 +501,13 @@
           "required": false,
           "system": false,
           "selectValues": ["group", "subgroup"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": []
@@ -495,11 +516,11 @@
       "name": "debts",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -571,6 +592,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": []
@@ -579,11 +607,11 @@
       "name": "dreams",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -655,6 +683,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": []
@@ -663,11 +698,11 @@
       "name": "depara_rules",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -709,6 +744,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "family_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "families"
         }
       ],
       "indexes": []
@@ -717,11 +759,11 @@
       "name": "payments",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
@@ -820,11 +862,11 @@
       "name": "invoices",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "view": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "create": "@request.auth.id != '' && (user_id = '' || user_id = @request.auth.id || (@collection.families.members ?= @request.auth.id && @collection.families.members ?= user_id) || family_id.members ?= @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id))",
+        "update": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))",
+        "delete": "@request.auth.id != '' && (family_id.members ?= @request.auth.id || family_id.created_by = @request.auth.id || (@request.auth.family_id != '' && family_id = @request.auth.family_id) || (family_id = '' && user_id = @request.auth.id))"
       },
       "fields": [
         {
