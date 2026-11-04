@@ -78,13 +78,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, onClose }) => {
           <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto mb-2 shadow-md">
             <CreditCard className="w-6 h-6" />
           </div>
+          <div className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">
+            Gestão Financeira Pessoal
+          </div>
           <CardTitle className="text-2xl font-black text-slate-900">
             {mode === 'login' && 'Entrar no Gestio Finanças'}
             {mode === 'register' && 'Criar Nova Conta'}
             {mode === 'forgot' && 'Recuperar Senha'}
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            {mode === 'login' && 'Acesse seus dados e planejamento financeiro familiar.'}
+            {mode === 'login' && 'Acesse seus dados e seu planejamento financeiro pessoal.'}
             {mode === 'register' && 'Cadastre-se para organizar suas contas e sair do vermelho.'}
             {mode === 'forgot' && 'Informe seu e-mail para receber as instruções.'}
           </CardDescription>

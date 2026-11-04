@@ -81,6 +81,9 @@ export const WelcomePage: React.FC = () => {
             <Sparkles className="w-3.5 h-3.5" />
             Passo {step} de 3 • Integração Guiada
           </div>
+          <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-1">
+            Gestão Financeira Pessoal
+          </div>
           <CardTitle className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {step === 1 && 'Bem-vindo ao Gestio Finanças'}
             {step === 2 && 'Competência vs. Caixa: O Segredo da Clareza'}
@@ -88,7 +91,7 @@ export const WelcomePage: React.FC = () => {
           </CardTitle>
           <CardDescription className="text-slate-600 text-sm max-w-lg mx-auto">
             {step === 1 &&
-              'Uma gestão profissional com empatia para você e sua família saírem do vermelho.'}
+              'Gestão financeira pessoal profissional com clareza, empatia e sem complicação.'}
             {step === 2 && 'Descubra por que olhar apenas o extrato bancário ilude seu orçamento.'}
             {step === 3 &&
               'Cadastre sua conta ou cartão principal para dar vida aos seus lançamentos.'}

@@ -63,8 +63,8 @@ export const Navbar: React.FC<NavbarProps> = () => {
                 <span className="leading-tight text-slate-900 font-extrabold tracking-tight">
                   Gestio Finanças
                 </span>
-                <span className="text-xs font-medium text-emerald-600 tracking-wider uppercase">
-                  Social & Família
+                <span className="text-xs font-medium text-emerald-600 tracking-wider">
+                  Gestão Financeira Pessoal
                 </span>
               </div>
             </button>
