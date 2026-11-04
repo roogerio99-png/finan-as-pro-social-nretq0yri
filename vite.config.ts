@@ -8,9 +8,8 @@ import uidPlugin from './vite-plugin-react-uid'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: '0.0.0.0',
-    port: 3000,
-    allowedHosts: true,
+    host: '::',
+    port: 8080,
   },
   build: {
     outDir: mode === 'development' ? 'dev-dist' : 'dist',
@@ -20,10 +19,7 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     rolldownOptions: {
       onwarn(warning, warn) {
-        if (
-          warning.code === 'MODULE_LEVEL_DIRECTIVE' ||
-          warning.code === 'INEFFECTIVE_DYNAMIC_IMPORT'
-        ) {
+        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
           return
         }
         warn(warning)
