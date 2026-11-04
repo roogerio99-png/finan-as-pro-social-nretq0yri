@@ -33,15 +33,11 @@ function createInitialData() {
   const now = new Date()
   const nowIso = now.toISOString()
   const currentYearMonth = nowIso.slice(0, 7)
-  const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const prevYearMonth = prevMonthDate.toISOString().slice(0, 7)
-  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const nextYearMonth = nextMonthDate.toISOString().slice(0, 7)
 
   const defaultUser: MockRecord = {
     id: 'usr_rogerio',
     email: 'roogerio99@gmail.com',
-    name: 'Rogério Silva',
+    name: 'Rogério Coimbra',
     verified: true,
     created: nowIso,
     updated: nowIso,
@@ -49,7 +45,7 @@ function createInitialData() {
 
   const defaultFamily: MockRecord = {
     id: 'fam_silva',
-    name: 'Família Silva',
+    name: 'Família Coimbra',
     created_by: defaultUser.id,
     members: [defaultUser.id],
     created: nowIso,
@@ -327,153 +323,7 @@ function createInitialData() {
     },
   ]
 
-  const seededTransactions: MockRecord[] = [
-    {
-      id: 'tx_salario',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_cc',
-      category_id: 'cat_salario',
-      description: 'Salário Mensal Empresa Tech',
-      amount: 6800.0,
-      type: 'income',
-      date: `${currentYearMonth}-05`,
-      competence_month: currentYearMonth,
-      cash_month: currentYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_freela',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_cc',
-      category_id: 'cat_freela',
-      description: 'Consultoria UI/UX Freela',
-      amount: 1400.0,
-      type: 'income',
-      date: `${currentYearMonth}-12`,
-      competence_month: currentYearMonth,
-      cash_month: currentYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_aluguel',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_cc',
-      category_id: 'cat_aluguel',
-      description: 'Aluguel do Apartamento',
-      amount: 2100.0,
-      type: 'expense',
-      date: `${currentYearMonth}-10`,
-      competence_month: currentYearMonth,
-      cash_month: currentYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_condominio',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_cc',
-      category_id: 'cat_aluguel',
-      description: 'Condomínio e Fundo de Reserva',
-      amount: 480.0,
-      type: 'expense',
-      date: `${currentYearMonth}-10`,
-      competence_month: currentYearMonth,
-      cash_month: currentYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_energia',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_cc',
-      category_id: 'cat_energia',
-      description: 'Conta de Energia Enel',
-      amount: 195.4,
-      type: 'expense',
-      date: `${currentYearMonth}-15`,
-      competence_month: currentYearMonth,
-      cash_month: currentYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_mercado',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_uv',
-      category_id: 'cat_mercado',
-      description: 'Supermercado Pão de Açúcar',
-      amount: 620.5,
-      type: 'expense',
-      date: `${currentYearMonth}-14`,
-      competence_month: currentYearMonth,
-      cash_month: nextYearMonth,
-      is_reconciled: true,
-      notes: 'Compra mensal de mantimentos e limpeza',
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_jantar',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_uv',
-      category_id: 'cat_restaurantes',
-      description: 'Jantar Restaurante La Pasta',
-      amount: 215.0,
-      type: 'expense',
-      date: `${currentYearMonth}-18`,
-      competence_month: currentYearMonth,
-      cash_month: nextYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_streaming',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_uv',
-      category_id: 'cat_streaming',
-      description: 'Assinatura Netflix + Spotify',
-      amount: 89.8,
-      type: 'expense',
-      date: `${currentYearMonth}-02`,
-      competence_month: currentYearMonth,
-      cash_month: nextYearMonth,
-      is_reconciled: true,
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'tx_posto',
-      user_id: defaultUser.id,
-      family_id: defaultFamily.id,
-      account_id: 'acc_nubank_uv',
-      category_id: 'cat_transporte',
-      description: 'Posto Ipiranga Combustível',
-      amount: 220.0,
-      type: 'expense',
-      date: `${currentYearMonth}-20`,
-      competence_month: currentYearMonth,
-      cash_month: nextYearMonth,
-      is_reconciled: false,
-      created: nowIso,
-      updated: nowIso,
-    },
-  ]
+  const seededTransactions: MockRecord[] = []
 
   const seededBudgets: MockRecord[] = [
     {
@@ -667,6 +517,9 @@ class MockAuthStore {
   }
 
   save(token: string, record: MockRecord) {
+    if (record && (record.email === 'roogerio99@gmail.com' || record.name === 'Rogério Silva')) {
+      record.name = 'Rogério Coimbra'
+    }
     this.token = token
     this.record = record
     this.isValid = true
@@ -710,8 +563,61 @@ export class MockPocketBase {
       this.collections[col] = getStored(col, defaultRecords)
     }
 
+    // Auto-migração para sincronizar o nome correto de Rogério Coimbra
+    if (this.collections.users) {
+      let usersMigrated = false
+      for (const u of this.collections.users) {
+        if (u.email === 'roogerio99@gmail.com' || u.name === 'Rogério Silva') {
+          u.name = 'Rogério Coimbra'
+          usersMigrated = true
+        }
+      }
+      if (usersMigrated) {
+        this.persist('users')
+      }
+    }
+
+    if (this.collections.families) {
+      let famMigrated = false
+      for (const f of this.collections.families) {
+        if (f.name === 'Família Silva') {
+          f.name = 'Família Coimbra'
+          famMigrated = true
+        }
+      }
+      if (famMigrated) {
+        this.persist('families')
+      }
+    }
+
     const defaultUser = this.collections.users?.[0] || null
+    if (defaultUser && (defaultUser.email === 'roogerio99@gmail.com' || defaultUser.name === 'Rogério Silva')) {
+      defaultUser.name = 'Rogério Coimbra'
+    }
     this.authStore = new MockAuthStore(defaultUser)
+
+    // Limpeza da base de lançamentos de teste para permitir ingresso com dados reais
+    const PURGE_TX_KEY = 'pocketbase_mock_transactions_cleared_for_real_data_v2'
+    if (typeof window !== 'undefined' && !localStorage.getItem(PURGE_TX_KEY)) {
+      this.clearAllTransactions()
+      localStorage.setItem(PURGE_TX_KEY, 'true')
+    }
+  }
+
+  clearAllTransactions() {
+    this.collections.transactions = []
+    this.collections.invoices = []
+    this.collections.payments = []
+    this.persist('transactions')
+    this.persist('invoices')
+    this.persist('payments')
+    if (this.collections.accounts) {
+      for (const a of this.collections.accounts) {
+        a.current_balance = a.initial_balance ?? 0
+      }
+      this.persist('accounts')
+    }
+    this.emit('transactions', 'delete', { id: '*' })
   }
 
   autoCancellation(_flag: boolean) {
@@ -858,11 +764,14 @@ export class MockPocketBase {
           user = {
             id: 'usr_' + Date.now(),
             email,
-            name: email.split('@')[0],
+            name: email === 'roogerio99@gmail.com' ? 'Rogério Coimbra' : email.split('@')[0],
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
           }
           this.collections.users.push(user)
+          this.persist('users')
+        } else if (user.email === 'roogerio99@gmail.com' || user.name === 'Rogério Silva') {
+          user.name = 'Rogério Coimbra'
           this.persist('users')
         }
         this.authStore.save('mock_jwt_' + user.id, user)

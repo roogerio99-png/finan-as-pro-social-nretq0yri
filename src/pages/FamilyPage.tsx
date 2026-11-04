@@ -85,7 +85,7 @@ export const FamilyPage: React.FC = () => {
 
   const handleCreateFamily = async () => {
     try {
-      const fam = await familyService.create(`Família ${user?.name || 'Silva'}`)
+      const fam = await familyService.create(`Família ${user?.name ? user.name.split(' ')[0] : 'Coimbra'}`)
       setFamily(fam)
       toast({ title: 'Núcleo familiar criado com sucesso!' })
       loadData()

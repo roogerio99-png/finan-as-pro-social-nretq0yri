@@ -6,12 +6,16 @@ migrate(
     let defaultUser
     try {
       defaultUser = app.findAuthRecordByEmail('_pb_users_auth_', 'roogerio99@gmail.com')
+      if (defaultUser.get('name') === 'Rogério Silva') {
+        defaultUser.set('name', 'Rogério Coimbra')
+        app.save(defaultUser)
+      }
     } catch (_) {
       defaultUser = new Record(users)
       defaultUser.setEmail('roogerio99@gmail.com')
       defaultUser.setPassword('Skip@Pass')
       defaultUser.setVerified(true)
-      defaultUser.set('name', 'Rogério Silva')
+      defaultUser.set('name', 'Rogério Coimbra')
       app.save(defaultUser)
     }
 
@@ -21,13 +25,19 @@ migrate(
     const families = app.findCollectionByNameOrId('families')
     let family
     try {
-      family = app.findFirstRecordByData('families', 'name', 'Família Silva')
+      family = app.findFirstRecordByData('families', 'name', 'Família Coimbra')
     } catch (_) {
-      family = new Record(families)
-      family.set('name', 'Família Silva')
-      family.set('created_by', userId)
-      family.set('members', [userId])
-      app.save(family)
+      try {
+        family = app.findFirstRecordByData('families', 'name', 'Família Silva')
+        family.set('name', 'Família Coimbra')
+        app.save(family)
+      } catch (__) {
+        family = new Record(families)
+        family.set('name', 'Família Coimbra')
+        family.set('created_by', userId)
+        family.set('members', [userId])
+        app.save(family)
+      }
     }
 
     // 3. Contas e Cartões

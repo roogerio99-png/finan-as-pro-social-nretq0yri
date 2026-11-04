@@ -340,6 +340,36 @@ export const TransactionsPage: React.FC = () => {
     }
   }
 
+  const [clearing, setClearing] = useState(false)
+
+  const handleClearAll = async () => {
+    if (
+      !confirm(
+        'Atenção: Deseja realmente limpar toda a base de lançamentos?\n\nEsta ação apagará todos os lançamentos e faturas para que você possa iniciar o registro dos seus dados reais. Suas contas bancárias e categorias cadastradas continuarão preservadas.',
+      )
+    ) {
+      return
+    }
+
+    setClearing(true)
+    try {
+      await transactionsService.clearAll()
+      await loadData()
+      toast({
+        title: 'Base de lançamentos limpa com sucesso!',
+        description: 'Todos os lançamentos foram removidos. Pronto para ingressar com seus dados reais.',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao limpar lançamentos',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setClearing(false)
+    }
+  }
+
   // Filtragem
   const filteredTransactions = transactions.filter((t) => {
     if (filterType !== 'all' && t.type !== filterType) return false
@@ -427,6 +457,19 @@ export const TransactionsPage: React.FC = () => {
               className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
             />
           </div>
+
+          {transactions.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleClearAll}
+              disabled={clearing}
+              className="w-full sm:w-auto text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 gap-1.5 rounded-xl h-10 font-bold text-xs"
+              title="Limpar todos os lançamentos para iniciar com dados reais"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {clearing ? 'Limpando...' : 'Limpar Lançamentos'}
+            </Button>
+          )}
 
           <Button
             onClick={handleOpenCreate}
@@ -569,8 +612,24 @@ export const TransactionsPage: React.FC = () => {
       {/* Visualização Mobile: Cards empilhados (md:hidden) */}
       <div className="md:hidden space-y-3">
         {filteredTransactions.length === 0 ? (
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 text-center text-slate-500 text-sm">
-            Nenhum lançamento encontrado para os filtros selecionados.
+          <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300 text-center space-y-3">
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
+              <Receipt className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800">
+              {transactions.length === 0 ? 'Base de Lançamentos Limpa' : 'Nenhum lançamento encontrado'}
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              {transactions.length === 0
+                ? 'Base limpa e pronta para receber seus dados reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
+                : 'Não há lançamentos para o mês ou filtro selecionado.'}
+            </p>
+            <Button
+              onClick={handleOpenCreate}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
+            >
+              <PlusCircle className="w-4 h-4" /> Novo Lançamento Real
+            </Button>
           </div>
         ) : (
           filteredTransactions.map((tx) => {
@@ -701,8 +760,29 @@ export const TransactionsPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500 text-sm">
-                    Nenhum lançamento encontrado para os filtros selecionados.
+                  <td colSpan={8} className="py-12 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
+                        <Receipt className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-base font-bold text-slate-800">
+                        {transactions.length === 0
+                          ? 'Base de Lançamentos Limpa'
+                          : 'Nenhum lançamento encontrado'}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        {transactions.length === 0
+                          ? 'Pronto para ingressar com seus dados financeiros reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
+                          : 'Nenhum lançamento encontrado para os filtros selecionados no mês.'}
+                      </p>
+                      <Button
+                        onClick={handleOpenCreate}
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" /> Inserir Lançamento Real
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ) : (

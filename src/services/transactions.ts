@@ -99,6 +99,17 @@ export const transactionsService = {
     return await pb.collection('transactions').delete(id)
   },
 
+  async clearAll(): Promise<void> {
+    if ('clearAllTransactions' in pb && typeof (pb as any).clearAllTransactions === 'function') {
+      ;(pb as any).clearAllTransactions()
+      return
+    }
+    const all = await pb.collection('transactions').getFullList<TransactionRecord>()
+    for (const item of all) {
+      await pb.collection('transactions').delete(item.id)
+    }
+  },
+
   async createBatch(items: Partial<TransactionRecord>[]): Promise<TransactionRecord[]> {
     const results: TransactionRecord[] = []
     for (const item of items) {
