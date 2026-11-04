@@ -47,6 +47,10 @@ export const budgetsService = {
     })
   },
 
+  async update(id: string, data: Partial<BudgetRecord>): Promise<BudgetRecord> {
+    return await pb.collection('budgets').update<BudgetRecord>(id, data)
+  },
+
   async delete(id: string): Promise<boolean> {
     return await pb.collection('budgets').delete(id)
   },

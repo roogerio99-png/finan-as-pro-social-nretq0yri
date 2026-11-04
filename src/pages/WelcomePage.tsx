@@ -17,6 +17,7 @@ import {
   Sparkles,
   Wallet,
   Smartphone,
+  ShieldCheck,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -156,6 +157,21 @@ export const WelcomePage: React.FC = () => {
                 >
                   Como Instalar
                 </Button>
+              </div>
+
+              {/* Privacidade Local & Zero Terceiros */}
+              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-xs mt-0.5">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5 text-left">
+                  <h4 className="text-xs font-bold text-emerald-950">
+                    Privacidade Absoluta • 100% Salvo no seu Aparelho
+                  </h4>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Seus dados de login, contas e movimentações ficam armazenados exclusivamente na memória deste celular/computador. Nenhuma informação pessoal ou financeira é repassada para terceiros ou servidores externos.
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end pt-4">

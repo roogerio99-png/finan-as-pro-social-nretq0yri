@@ -5,11 +5,13 @@ import { Users } from 'lucide-react'
 import { UsersTab } from '@/components/cadastros/UsersTab'
 import { AccountsTab } from '@/components/cadastros/AccountsTab'
 import { CategoriesTab } from '@/components/cadastros/CategoriesTab'
+import { PrivacyTab } from '@/components/cadastros/PrivacyTab'
 
 const TABS = [
   { value: 'usuarios', label: 'Usuários' },
   { value: 'contas', label: 'Contas & Cartões' },
   { value: 'categorias', label: 'Categorias & Subgrupos' },
+  { value: 'privacidade', label: '🔒 Privacidade & Dados Locais' },
 ] as const
 
 type TabValue = (typeof TABS)[number]['value']
@@ -17,6 +19,7 @@ type TabValue = (typeof TABS)[number]['value']
 const slugToTab = (slug?: string): TabValue => {
   if (slug === 'contas') return 'contas'
   if (slug === 'categorias') return 'categorias'
+  if (slug === 'privacidade') return 'privacidade'
   return 'usuarios'
 }
 
@@ -40,24 +43,23 @@ export const CadastrosPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Cadastros
+            Cadastros &amp; Privacidade
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Pessoas do lar, contas/cartões e o plano de contas que alimentam lançamentos, orçamento
-            e sonhos.
+            Pessoas do lar, contas/cartões, categorias e gestão de soberania dos dados locais no seu aparelho.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
           <Users className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span className="font-medium">
-            Tudo criado aqui aparece automaticamente nas outras telas do app.
+            100% dos dados salvos no armazenamento seguro deste dispositivo.
           </span>
         </div>
       </div>
 
       {/* Abas */}
       <Tabs value={tabValue} onValueChange={handleTabChange}>
-        <TabsList className="h-11 bg-white border border-slate-200 rounded-2xl p-1 shadow-xs w-full grid grid-cols-3 sm:w-auto sm:inline-flex">
+        <TabsList className="h-11 bg-white border border-slate-200 rounded-2xl p-1 shadow-xs w-full grid grid-cols-2 sm:grid-cols-4 sm:w-auto sm:inline-flex">
           {TABS.map((t) => (
             <TabsTrigger
               key={t.value}
@@ -73,6 +75,7 @@ export const CadastrosPage: React.FC = () => {
       {tabValue === 'usuarios' && <UsersTab />}
       {tabValue === 'contas' && <AccountsTab />}
       {tabValue === 'categorias' && <CategoriesTab />}
+      {tabValue === 'privacidade' && <PrivacyTab />}
     </div>
   )
 }

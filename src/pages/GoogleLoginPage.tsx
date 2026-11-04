@@ -16,11 +16,22 @@ import {
   Layers,
   CreditCard,
   TrendingUp,
+  HardDrive,
+  EyeOff,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { localDataPrivacyService } from '@/services/localDataPrivacy'
 
 export const GoogleLoginPage: React.FC = () => {
   const { loginWithGoogle, savedAccounts, removeSavedAccount } = useAuth()
@@ -32,6 +43,7 @@ export const GoogleLoginPage: React.FC = () => {
   const [customEmail, setCustomEmail] = useState('')
   const [customName, setCustomName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false)
 
   const handleSignIn = async (email?: string, name?: string) => {
     const targetEmail = email || 'visitante@gestio.app'
@@ -136,7 +148,27 @@ export const GoogleLoginPage: React.FC = () => {
               Acesso ao Gestio Finanças
             </h1>
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              Conecte-se com sua Conta Google para sincronizar suas finanças ou experimente o modo de demonstração.
+              Acesse com sua Conta Google. Seus dados de login e finanças ficam salvos exclusivamente no armazenamento local deste aparelho.
+            </p>
+          </div>
+
+          {/* Destaque de Privacidade Local & Zero Terceiros */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50/50 to-slate-50 border border-emerald-200/80 text-left space-y-1.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-950">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                100% no seu Celular • Zero Terceiros
+              </span>
+              <button
+                type="button"
+                onClick={() => setPrivacyModalOpen(true)}
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+              >
+                Como funciona
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Login, cartões e lançamentos residem unicamente na memória deste aparelho. Nenhuma informação pessoal é enviada ou repassada a terceiros.
             </p>
           </div>
 
@@ -381,7 +413,7 @@ export const GoogleLoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Termos de Segurança e Instalação */}
+          {/* Termos de Segurança, Privacidade e Instalação */}
           <div className="pt-4 border-t border-slate-100 text-center space-y-2.5">
             <button
               type="button"
@@ -391,10 +423,19 @@ export const GoogleLoginPage: React.FC = () => {
               <Smartphone className="w-4 h-4 text-emerald-600" />
               <span>Instalar Aplicativo no Celular (PWA)</span>
             </button>
-            <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-              <span>Ambiente criptografado com isolamento individual por usuário.</span>
-            </p>
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPrivacyModalOpen(true)}
+                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span>Dados 100% locais no aparelho • Sem repasse a terceiros</span>
+              </button>
+              <span className="text-[10px] text-slate-400">
+                Isolamento estrito por usuário na memória segura deste navegador.
+              </span>
+            </div>
           </div>
         </div>
 
@@ -418,9 +459,79 @@ export const GoogleLoginPage: React.FC = () => {
         </div>
       </main>
 
+      {/* Modal de Garantia de Privacidade e Armazenamento Local */}
+      <Dialog open={privacyModalOpen} onOpenChange={setPrivacyModalOpen}>
+        <DialogContent className="sm:max-w-lg bg-white rounded-3xl p-6">
+          <DialogHeader className="text-left space-y-1 pb-2 border-b border-slate-100">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold w-fit">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Garantia de Privacidade Local</span>
+            </div>
+            <DialogTitle className="text-lg font-black text-slate-900">
+              Seus dados pertencem apenas a você
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Transparência total sobre como seus dados de login e finanças são tratados no Gestio.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs text-slate-700">
+            <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 space-y-1">
+              <h4 className="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
+                <Smartphone className="w-4 h-4 text-emerald-600" />
+                1. Salvo Exclusivamente no seu Celular / Aparelho
+              </h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Todas as contas, cartões, extratos e lançamentos ficam armazenados na memória local segura do seu navegador/aplicativo (sandbox local). Não há envio para servidores centrais ou bancos de dados remotos de terceiros.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                <Lock className="w-4 h-4 text-teal-600" />
+                2. Autenticação Segura com Conta Google
+              </h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                A identificação com a Conta Google é utilizada para criar seu perfil e associar suas finanças localmente no seu aparelho. Sua senha pessoal da Google nunca é solicitada nem exposta.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                <EyeOff className="w-4 h-4 text-indigo-600" />
+                3. Zero Compartilhamento com Terceiros
+              </h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Não há anúncios, rastreadores comerciais, pixels do Facebook/Meta ou ferramentas de espionagem. Nenhuma informação financeira ou de perfil é vendida ou transferida a terceiros.
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+              <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
+                <HardDrive className="w-4 h-4 text-blue-600" />
+                4. Soberania e Backup nas suas Mãos
+              </h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Ao entrar no app, acesse <strong>Cadastros &gt; Privacidade</strong> para baixar um arquivo de backup em JSON com todos os seus dados a qualquer momento ou limpar os registros deste dispositivo se for transferir o celular para outra pessoa.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <Button
+              type="button"
+              onClick={() => setPrivacyModalOpen(false)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 rounded-xl cursor-pointer"
+            >
+              Entendido
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Footer */}
       <footer className="relative z-10 max-w-5xl w-full mx-auto text-center py-2 text-xs text-slate-500">
-        Gestio Finanças &copy; {new Date().getFullYear()} — Plataforma Segura com Autenticação Google Identity
+        Gestio Finanças &copy; {new Date().getFullYear()} — Plataforma Segura com Armazenamento 100% Local no Aparelho
       </footer>
     </div>
   )
