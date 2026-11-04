@@ -55,7 +55,8 @@ export const GoogleLoginPage: React.FC = () => {
       setCopiedLink(true)
       toast({
         title: 'Link copiado com sucesso!',
-        description: 'Cole no navegador de outros computadores ou envie para seu celular para acessar.',
+        description:
+          'Cole no navegador de outros computadores ou envie para seu celular para acessar.',
       })
       setTimeout(() => setCopiedLink(false), 3000)
     } catch {
@@ -84,7 +85,10 @@ export const GoogleLoginPage: React.FC = () => {
     } catch (err: any) {
       const rawMsg = err?.message || ''
       let friendly = 'Não foi possível autenticar com a Conta Google. Tente novamente.'
-      if (rawMsg.toLowerCase().includes('failed to create record') || rawMsg.toLowerCase().includes('unique')) {
+      if (
+        rawMsg.toLowerCase().includes('failed to create record') ||
+        rawMsg.toLowerCase().includes('unique')
+      ) {
         friendly = 'Erro temporário ao sincronizar a conta. Tente novamente.'
       } else if (rawMsg) {
         friendly = rawMsg
@@ -201,7 +205,8 @@ export const GoogleLoginPage: React.FC = () => {
               Entrar na Plataforma
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-sm mx-auto">
-              Entre com sua <strong className="text-white font-semibold">Conta Google</strong> para acessar com segurança suas finanças e sincronizar seus dados.
+              Entre com sua <strong className="text-white font-semibold">Conta Google</strong> para
+              acessar com segurança suas finanças e sincronizar seus dados.
             </p>
           </div>
 
@@ -275,7 +280,8 @@ export const GoogleLoginPage: React.FC = () => {
               </button>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Os dados de login e lançamentos residem unicamente na memória deste aparelho. Nenhuma informação pessoal ou financeira é repassada para terceiros.
+              Os dados de login e lançamentos residem unicamente na memória deste aparelho. Nenhuma
+              informação pessoal ou financeira é repassada para terceiros.
             </p>
           </div>
 
@@ -346,16 +352,15 @@ export const GoogleLoginPage: React.FC = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span className="text-sm font-semibold text-slate-800">
-                Fazer Login com o Google
-              </span>
+              <span className="text-sm font-semibold text-slate-800">Fazer Login com o Google</span>
             </div>
 
             <DialogTitle className="text-2xl font-normal text-slate-900 tracking-tight">
               Escolha uma conta
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-600">
-              Prosseguir para <span className="text-blue-600 font-semibold">gestio-financas.app</span>
+              Prosseguir para{' '}
+              <span className="text-blue-600 font-semibold">gestio-financas.app</span>
             </DialogDescription>
           </DialogHeader>
 
@@ -376,9 +381,7 @@ export const GoogleLoginPage: React.FC = () => {
                   <div className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                     Rogério Coimbra
                   </div>
-                  <div className="text-xs text-slate-500 truncate">
-                    roogerio99@gmail.com
-                  </div>
+                  <div className="text-xs text-slate-500 truncate">roogerio99@gmail.com</div>
                 </div>
                 {loadingEmail === 'roogerio99@gmail.com' && (
                   <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
@@ -435,9 +438,7 @@ export const GoogleLoginPage: React.FC = () => {
                 <div className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 flex-shrink-0">
                   <UserPlus className="w-5 h-5" />
                 </div>
-                <div className="text-sm font-medium text-slate-800">
-                  Usar outra conta
-                </div>
+                <div className="text-sm font-medium text-slate-800">Usar outra conta</div>
               </button>
             </div>
           ) : (
@@ -518,9 +519,7 @@ export const GoogleLoginPage: React.FC = () => {
 
           {/* Rodapé Google: Português (Brasil) • Ajuda • Privacidade • Termos */}
           <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span className="hover:text-slate-800 cursor-pointer">
-              Português (Brasil) ▾
-            </span>
+            <span className="hover:text-slate-800 cursor-pointer">Português (Brasil) ▾</span>
             <div className="flex items-center gap-3">
               <span className="hover:text-slate-800 cursor-pointer">Ajuda</span>
               <span className="hover:text-slate-800 cursor-pointer">Privacidade</span>
@@ -553,7 +552,9 @@ export const GoogleLoginPage: React.FC = () => {
                 1. Salvo Exclusivamente no seu Celular / Aparelho
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Todas as contas, cartões, extratos e lançamentos ficam armazenados na memória local segura do seu navegador/aplicativo. Não há envio para servidores externos ou bancos de dados remotos de terceiros.
+                Todas as contas, cartões, extratos e lançamentos ficam armazenados na memória local
+                segura do seu navegador/aplicativo. Não há envio para servidores externos ou bancos
+                de dados remotos de terceiros.
               </p>
             </div>
 
@@ -563,7 +564,9 @@ export const GoogleLoginPage: React.FC = () => {
                 2. Autenticação Segura com Conta Google
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                A identificação com a Conta Google é utilizada para criar seu perfil e associar suas finanças localmente no seu aparelho. Sua senha pessoal da Google nunca é solicitada nem exposta.
+                A identificação com a Conta Google é utilizada para criar seu perfil e associar suas
+                finanças localmente no seu aparelho. Sua senha pessoal da Google nunca é solicitada
+                nem exposta.
               </p>
             </div>
 
@@ -573,7 +576,8 @@ export const GoogleLoginPage: React.FC = () => {
                 3. Zero Compartilhamento com Terceiros
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Não há anúncios, rastreadores comerciais ou scripts invasivos. Nenhuma informação financeira ou de perfil é transferida ou comercializada com terceiros.
+                Não há anúncios, rastreadores comerciais ou scripts invasivos. Nenhuma informação
+                financeira ou de perfil é transferida ou comercializada com terceiros.
               </p>
             </div>
 
@@ -583,7 +587,9 @@ export const GoogleLoginPage: React.FC = () => {
                 4. Soberania e Backup nas suas Mãos
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Ao entrar no app, acesse <strong>Cadastros &gt; Privacidade</strong> para baixar um arquivo de backup em JSON com todos os seus dados a qualquer momento ou limpar os registros se for transferir o celular para outra pessoa.
+                Ao entrar no app, acesse <strong>Cadastros &gt; Privacidade</strong> para baixar um
+                arquivo de backup em JSON com todos os seus dados a qualquer momento ou limpar os
+                registros se for transferir o celular para outra pessoa.
               </p>
             </div>
           </div>
@@ -602,7 +608,8 @@ export const GoogleLoginPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="relative z-10 max-w-6xl w-full mx-auto text-center py-2 text-xs text-slate-500">
-        Gestio Finanças &copy; {new Date().getFullYear()} — Plataforma Segura com Armazenamento 100% Local no Aparelho
+        Gestio Finanças &copy; {new Date().getFullYear()} — Plataforma Segura com Armazenamento 100%
+        Local no Aparelho
       </footer>
     </div>
   )

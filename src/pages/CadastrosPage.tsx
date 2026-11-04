@@ -46,7 +46,8 @@ export const CadastrosPage: React.FC = () => {
             Cadastros &amp; Privacidade
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Pessoas do lar, contas/cartões, categorias e gestão de soberania dos dados locais no seu aparelho.
+            Pessoas do lar, contas/cartões, categorias e gestão de soberania dos dados locais no seu
+            aparelho.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">

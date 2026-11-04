@@ -479,15 +479,87 @@ function createInitialData() {
   ]
 
   const seededDeparaRules: MockRecord[] = [
-    { id: 'dp_1', user_id: defaultUser.id, pattern: 'IFOOD', category_id: 'cat_restaurantes', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_2', user_id: defaultUser.id, pattern: 'UBER', category_id: 'cat_transporte', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_3', user_id: defaultUser.id, pattern: 'POSTO', category_id: 'cat_transporte', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_4', user_id: defaultUser.id, pattern: 'PAO DE ACUCAR', category_id: 'cat_mercado', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_5', user_id: defaultUser.id, pattern: 'CARREFOUR', category_id: 'cat_mercado', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_6', user_id: defaultUser.id, pattern: 'NETFLIX', category_id: 'cat_streaming', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_7', user_id: defaultUser.id, pattern: 'SPOTIFY', category_id: 'cat_streaming', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_8', user_id: defaultUser.id, pattern: 'ENEL', category_id: 'cat_energia', confidence: 95, created: nowIso, updated: nowIso },
-    { id: 'dp_9', user_id: defaultUser.id, pattern: 'SABESP', category_id: 'cat_energia', confidence: 95, created: nowIso, updated: nowIso },
+    {
+      id: 'dp_1',
+      user_id: defaultUser.id,
+      pattern: 'IFOOD',
+      category_id: 'cat_restaurantes',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_2',
+      user_id: defaultUser.id,
+      pattern: 'UBER',
+      category_id: 'cat_transporte',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_3',
+      user_id: defaultUser.id,
+      pattern: 'POSTO',
+      category_id: 'cat_transporte',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_4',
+      user_id: defaultUser.id,
+      pattern: 'PAO DE ACUCAR',
+      category_id: 'cat_mercado',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_5',
+      user_id: defaultUser.id,
+      pattern: 'CARREFOUR',
+      category_id: 'cat_mercado',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_6',
+      user_id: defaultUser.id,
+      pattern: 'NETFLIX',
+      category_id: 'cat_streaming',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_7',
+      user_id: defaultUser.id,
+      pattern: 'SPOTIFY',
+      category_id: 'cat_streaming',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_8',
+      user_id: defaultUser.id,
+      pattern: 'ENEL',
+      category_id: 'cat_energia',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'dp_9',
+      user_id: defaultUser.id,
+      pattern: 'SABESP',
+      category_id: 'cat_energia',
+      confidence: 95,
+      created: nowIso,
+      updated: nowIso,
+    },
   ]
 
   return {
@@ -591,7 +663,10 @@ export class MockPocketBase {
     }
 
     const defaultUser = this.collections.users?.[0] || null
-    if (defaultUser && (defaultUser.email === 'roogerio99@gmail.com' || defaultUser.name === 'Rogério Silva')) {
+    if (
+      defaultUser &&
+      (defaultUser.email === 'roogerio99@gmail.com' || defaultUser.name === 'Rogério Silva')
+    ) {
       defaultUser.name = 'Rogério Coimbra'
     }
     this.authStore = new MockAuthStore(defaultUser)
@@ -705,7 +780,10 @@ export class MockPocketBase {
         return item as unknown as R
       },
 
-      getFirstListItem: async <R = T>(filter: string, options?: { expand?: string }): Promise<R> => {
+      getFirstListItem: async <R = T>(
+        filter: string,
+        options?: { expand?: string },
+      ): Promise<R> => {
         let items = [...(this.collections[name] || [])]
         items = this.applyFilter(name, items, filter)
         if (items.length === 0) {
@@ -728,7 +806,9 @@ export class MockPocketBase {
         this.collections[name].unshift(newRecord)
         this.persist(name)
         this.emit(name, 'create', newRecord)
-        const item = options?.expand ? this.expandRecord(name, newRecord, options.expand) : newRecord
+        const item = options?.expand
+          ? this.expandRecord(name, newRecord, options.expand)
+          : newRecord
         return item as unknown as R
       },
 
@@ -841,7 +921,10 @@ export class MockPocketBase {
       const card = this.collections.accounts?.find((a) => a.id === card_account_id)
       const transactions = this.collections.transactions || []
       const cardTxs = transactions.filter(
-        (t) => t.account_id === card_account_id && t.type === 'expense' && t.cash_month === reference_month,
+        (t) =>
+          t.account_id === card_account_id &&
+          t.type === 'expense' &&
+          t.cash_month === reference_month,
       )
       const totalAmount = cardTxs.reduce((sum, t) => sum + (t.amount || 0), 0)
 
@@ -854,7 +937,11 @@ export class MockPocketBase {
         existing.items_count = cardTxs.length
         existing.updated = new Date().toISOString()
         this.persist('invoices')
-        return this.expandRecord('invoices', existing, 'card_account_id,payment_account_id') as unknown as T
+        return this.expandRecord(
+          'invoices',
+          existing,
+          'card_account_id,payment_account_id',
+        ) as unknown as T
       } else {
         const created = await this.collection('invoices').create({
           user_id: this.authStore.record?.id,
@@ -865,7 +952,11 @@ export class MockPocketBase {
           status: 'open',
           due_date: `${reference_month}-${String(card?.due_day || 10).padStart(2, '0')}`,
         })
-        return this.expandRecord('invoices', created, 'card_account_id,payment_account_id') as unknown as T
+        return this.expandRecord(
+          'invoices',
+          created,
+          'card_account_id,payment_account_id',
+        ) as unknown as T
       }
     }
 
@@ -878,7 +969,8 @@ export class MockPocketBase {
       const payAmount = amount || invoice?.total_amount || 0
 
       if (paymentAcc) {
-        paymentAcc.current_balance = (paymentAcc.current_balance ?? paymentAcc.initial_balance ?? 0) - payAmount
+        paymentAcc.current_balance =
+          (paymentAcc.current_balance ?? paymentAcc.initial_balance ?? 0) - payAmount
         this.persist('accounts')
       }
 
@@ -1073,15 +1165,25 @@ export class MockPocketBase {
 
     for (const rel of relations) {
       if (rel === 'category_id' && record.category_id) {
-        expanded.expand.category_id = this.collections.categories?.find((c) => c.id === record.category_id)
+        expanded.expand.category_id = this.collections.categories?.find(
+          (c) => c.id === record.category_id,
+        )
       } else if (rel === 'account_id' && record.account_id) {
-        expanded.expand.account_id = this.collections.accounts?.find((a) => a.id === record.account_id)
+        expanded.expand.account_id = this.collections.accounts?.find(
+          (a) => a.id === record.account_id,
+        )
       } else if (rel === 'card_account_id' && record.card_account_id) {
-        expanded.expand.card_account_id = this.collections.accounts?.find((a) => a.id === record.card_account_id)
+        expanded.expand.card_account_id = this.collections.accounts?.find(
+          (a) => a.id === record.card_account_id,
+        )
       } else if (rel === 'payment_account_id' && record.payment_account_id) {
-        expanded.expand.payment_account_id = this.collections.accounts?.find((a) => a.id === record.payment_account_id)
+        expanded.expand.payment_account_id = this.collections.accounts?.find(
+          (a) => a.id === record.payment_account_id,
+        )
       } else if (rel === 'source_transaction_id' && record.source_transaction_id) {
-        expanded.expand.source_transaction_id = this.collections.transactions?.find((t) => t.id === record.source_transaction_id)
+        expanded.expand.source_transaction_id = this.collections.transactions?.find(
+          (t) => t.id === record.source_transaction_id,
+        )
       }
     }
 

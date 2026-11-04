@@ -114,9 +114,9 @@ export const TransactionsPage: React.FC = () => {
     setDescription(tx.description || '')
     setAmount(String(tx.amount || ''))
     setDate(tx.date || todayStr)
-    setAccountId(tx.account_id || (accounts[0]?.id || ''))
-    setTargetAccountId(tx.transfer_account_id || (accounts[1]?.id || ''))
-    setSelectedInvoiceId(tx.invoice_id || (openInvoices[0]?.id || ''))
+    setAccountId(tx.account_id || accounts[0]?.id || '')
+    setTargetAccountId(tx.transfer_account_id || accounts[1]?.id || '')
+    setSelectedInvoiceId(tx.invoice_id || openInvoices[0]?.id || '')
     setCategoryId(tx.category_id || '')
     setNotes(tx.notes || '')
     setInstallmentsTotal(
@@ -357,7 +357,8 @@ export const TransactionsPage: React.FC = () => {
       await loadData()
       toast({
         title: 'Base de lançamentos limpa com sucesso!',
-        description: 'Todos os lançamentos foram removidos. Pronto para ingressar com seus dados reais.',
+        description:
+          'Todos os lançamentos foram removidos. Pronto para ingressar com seus dados reais.',
       })
     } catch (err: any) {
       toast({
@@ -617,7 +618,9 @@ export const TransactionsPage: React.FC = () => {
               <Receipt className="w-6 h-6" />
             </div>
             <h3 className="text-sm font-bold text-slate-800">
-              {transactions.length === 0 ? 'Base de Lançamentos Limpa' : 'Nenhum lançamento encontrado'}
+              {transactions.length === 0
+                ? 'Base de Lançamentos Limpa'
+                : 'Nenhum lançamento encontrado'}
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               {transactions.length === 0

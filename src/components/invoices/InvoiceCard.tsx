@@ -81,7 +81,9 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
           <CardDescription className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>
               {items.length} item(ns) conciliado(s) • Total:{' '}
-              <strong className="text-slate-900">{formatCurrency(invoice.total_amount || 0)}</strong>
+              <strong className="text-slate-900">
+                {formatCurrency(invoice.total_amount || 0)}
+              </strong>
             </span>
             {(invoice as any).due_date && (
               <span className="flex items-center gap-1 text-slate-600">

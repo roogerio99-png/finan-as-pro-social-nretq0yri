@@ -28,7 +28,8 @@ export const authService = {
     if (user.email?.toLowerCase() === 'roogerio99@gmail.com' || user.name === 'Rogério Silva') {
       user.name = 'Rogério Coimbra'
       if (!user.avatar || user.avatar.includes('Rog%C3%A9rio+Silva')) {
-        user.avatar = 'https://ui-avatars.com/api/?name=Rog%C3%A9rio+Coimbra&background=059669&color=fff&bold=true'
+        user.avatar =
+          'https://ui-avatars.com/api/?name=Rog%C3%A9rio+Coimbra&background=059669&color=fff&bold=true'
       }
     }
     return user
@@ -50,7 +51,7 @@ export const authService = {
               acc &&
               acc.email &&
               acc.email.toLowerCase() !== 'roogerio99@gmail.com' &&
-              !acc.name?.includes('Rogério Silva')
+              !acc.name?.includes('Rogério Silva'),
           )
           if (filtered.length !== parsed.length) {
             localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(filtered))
@@ -100,11 +101,19 @@ export const authService = {
    * Autenticação exclusiva com a Conta Google ou Modo Demonstração para terceiros.
    */
   async loginWithGoogle(payload?: GoogleAuthPayload): Promise<UserRecord> {
-    const isDemo = !payload?.email || payload.email.toLowerCase() === 'visitante@gestio.app' || payload.email.toLowerCase() === 'demo@gestio.app'
+    const isDemo =
+      !payload?.email ||
+      payload.email.toLowerCase() === 'visitante@gestio.app' ||
+      payload.email.toLowerCase() === 'demo@gestio.app'
     const email = (payload?.email || 'visitante@gestio.app').trim().toLowerCase()
-    const name = payload?.name?.trim() || (isDemo ? 'Convidado (Demonstração)' : (email === 'roogerio99@gmail.com' ? 'Rogério Coimbra' : email.split('@')[0]))
+    const name =
+      payload?.name?.trim() ||
+      (isDemo
+        ? 'Convidado (Demonstração)'
+        : email === 'roogerio99@gmail.com'
+          ? 'Rogério Coimbra'
+          : email.split('@')[0])
     const avatar =
-
       payload?.avatar ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`
 
@@ -143,10 +152,15 @@ export const authService = {
           passwordConfirm: deterministicGooglePass,
           emailVisibility: true,
         })
-        const authData = await pb.collection('users').authWithPassword(email, deterministicGooglePass)
+        const authData = await pb
+          .collection('users')
+          .authWithPassword(email, deterministicGooglePass)
         authRecord = authData?.record
       } catch (createErr: any) {
-        console.warn('Tentativa secundária de autenticação após falha na criação:', createErr?.message)
+        console.warn(
+          'Tentativa secundária de autenticação após falha na criação:',
+          createErr?.message,
+        )
         // Se já existia e por isso a criação falhou, tenta as senhas candidatas novamente
         for (const pass of candidatePasswords) {
           try {
@@ -166,7 +180,8 @@ export const authService = {
     if (!authRecord) {
       const nowIso = new Date().toISOString()
       // Se for modo demonstração ou visitante, mapeia para os dados ricos de demonstração ('usr_rogerio')
-      const effectiveId = (isDemo || email === 'roogerio99@gmail.com') ? 'usr_rogerio' : `usr_google_${Date.now()}`
+      const effectiveId =
+        isDemo || email === 'roogerio99@gmail.com' ? 'usr_rogerio' : `usr_google_${Date.now()}`
       const fallbackUser: UserRecord = {
         id: effectiveId,
         email,
@@ -183,7 +198,7 @@ export const authService = {
     const resolvedName =
       email === 'roogerio99@gmail.com' || authRecord.name === 'Rogério Silva'
         ? 'Rogério Coimbra'
-        : (authRecord.name || name)
+        : authRecord.name || name
 
     const resolvedAvatar =
       resolvedName === 'Rogério Coimbra' && (!avatar || avatar.includes('Rog%C3%A9rio+Silva'))
@@ -209,7 +224,9 @@ export const authService = {
     // Sincroniza atualização no backend/mock se necessário
     try {
       if (authRecord.id && authRecord.name !== finalUser.name && pb.collection('users')?.update) {
-        pb.collection('users').update(authRecord.id, { name: finalUser.name }).catch(() => {})
+        pb.collection('users')
+          .update(authRecord.id, { name: finalUser.name })
+          .catch(() => {})
       }
     } catch {
       // ignore

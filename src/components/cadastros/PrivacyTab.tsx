@@ -60,7 +60,8 @@ export const PrivacyTab: React.FC = () => {
     setConfirmClearTxOpen(false)
     toast({
       title: 'Lançamentos zerados!',
-      description: 'A base de lançamentos deste dispositivo está limpa para você inserir seus dados reais.',
+      description:
+        'A base de lançamentos deste dispositivo está limpa para você inserir seus dados reais.',
     })
     window.location.reload()
   }
@@ -80,7 +81,7 @@ export const PrivacyTab: React.FC = () => {
       {/* Banner Principal de Garantia */}
       <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-950 text-white border border-emerald-500/30 shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 -mr-12 -mt-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold">
@@ -91,7 +92,10 @@ export const PrivacyTab: React.FC = () => {
               Armazenamento 100% no seu Aparelho
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              O Gestio Finanças foi projetado com arquitetura <strong>Local-First</strong>. Seus dados de login, cartões, despesas e receitas ficam salvos <strong>exclusivamente na memória deste dispositivo</strong> (celular ou computador) e <strong>nunca são repassados a terceiros</strong>, intermediários ou anunciantes.
+              O Gestio Finanças foi projetado com arquitetura <strong>Local-First</strong>. Seus
+              dados de login, cartões, despesas e receitas ficam salvos{' '}
+              <strong>exclusivamente na memória deste dispositivo</strong> (celular ou computador) e{' '}
+              <strong>nunca são repassados a terceiros</strong>, intermediários ou anunciantes.
             </p>
           </div>
 
@@ -113,7 +117,9 @@ export const PrivacyTab: React.FC = () => {
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-1">
               <Lock className="w-4 h-4" />
             </div>
-            <CardTitle className="text-sm font-bold text-slate-900">Zero Transmissão a Terceiros</CardTitle>
+            <CardTitle className="text-sm font-bold text-slate-900">
+              Zero Transmissão a Terceiros
+            </CardTitle>
             <CardDescription className="text-xs text-slate-500">
               Nenhuma empresa externa recebe seu e-mail, gastos ou valores bancários.
             </CardDescription>
@@ -157,7 +163,9 @@ export const PrivacyTab: React.FC = () => {
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-1">
               <HardDrive className="w-4 h-4" />
             </div>
-            <CardTitle className="text-sm font-bold text-slate-900">Controle Total do Usuário</CardTitle>
+            <CardTitle className="text-sm font-bold text-slate-900">
+              Controle Total do Usuário
+            </CardTitle>
             <CardDescription className="text-xs text-slate-500">
               Você pode exportar ou apagar tudo com um único clique.
             </CardDescription>
@@ -196,22 +204,34 @@ export const PrivacyTab: React.FC = () => {
         <CardContent className="p-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Lançamentos</span>
-              <span className="text-xl font-black text-slate-900">{stats?.transactionsCount ?? 0}</span>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
+                Lançamentos
+              </span>
+              <span className="text-xl font-black text-slate-900">
+                {stats?.transactionsCount ?? 0}
+              </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">salvos localmente</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Contas &amp; Cartões</span>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
+                Contas &amp; Cartões
+              </span>
               <span className="text-xl font-black text-slate-900">{stats?.accountsCount ?? 0}</span>
               <span className="text-[10px] text-slate-400 block mt-0.5">neste aparelho</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Categorias</span>
-              <span className="text-xl font-black text-slate-900">{stats?.categoriesCount ?? 0}</span>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
+                Categorias
+              </span>
+              <span className="text-xl font-black text-slate-900">
+                {stats?.categoriesCount ?? 0}
+              </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">plano de contas</span>
             </div>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Armazenamento</span>
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">
+                Armazenamento
+              </span>
               <span className="text-xl font-black text-emerald-600">
                 {((stats?.totalBytesApprox || 0) / 1024).toFixed(1)} KB
               </span>
@@ -229,15 +249,19 @@ export const PrivacyTab: React.FC = () => {
             <span>Gerenciamento &amp; Limpeza Local do Aparelho</span>
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            Ações seguras para resetar dados antes de repassar o celular para terceiros ou para iniciar com dados financeiros 100% reais.
+            Ações seguras para resetar dados antes de repassar o celular para terceiros ou para
+            iniciar com dados financeiros 100% reais.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-slate-200">
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-slate-900">Limpar Lançamentos (Zerar Extrato)</h4>
+              <h4 className="text-xs font-bold text-slate-900">
+                Limpar Lançamentos (Zerar Extrato)
+              </h4>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Remove todos os lançamentos e despesas de teste mantendo suas contas bancárias e categorias estruturadas para você cadastrar dados reais.
+                Remove todos os lançamentos e despesas de teste mantendo suas contas bancárias e
+                categorias estruturadas para você cadastrar dados reais.
               </p>
             </div>
             <Button
@@ -253,9 +277,12 @@ export const PrivacyTab: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-rose-200">
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-rose-900">Excluir Todos os Dados Deste Aparelho</h4>
+              <h4 className="text-xs font-bold text-rose-900">
+                Excluir Todos os Dados Deste Aparelho
+              </h4>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Apaga todas as contas salvas, sessões, lançamentos e configurações deste celular/computador. Recomendado se você for emprestar ou vender este dispositivo.
+                Apaga todas as contas salvas, sessões, lançamentos e configurações deste
+                celular/computador. Recomendado se você for emprestar ou vender este dispositivo.
               </p>
             </div>
             <Button
@@ -280,14 +307,23 @@ export const PrivacyTab: React.FC = () => {
               <span>Zerar Lançamentos Financeiros?</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-600 pt-2 leading-relaxed">
-              Esta ação removerá todos os lançamentos salvos localmente no seu aparelho para permitir que você insira seus dados financeiros reais. Suas contas cadastradas e categorias serão preservadas.
+              Esta ação removerá todos os lançamentos salvos localmente no seu aparelho para
+              permitir que você insira seus dados financeiros reais. Suas contas cadastradas e
+              categorias serão preservadas.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setConfirmClearTxOpen(false)} className="text-xs">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmClearTxOpen(false)}
+              className="text-xs"
+            >
               Cancelar
             </Button>
-            <Button onClick={handleClearTransactions} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold">
+            <Button
+              onClick={handleClearTransactions}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
+            >
               Confirmar e Zerar Lançamentos
             </Button>
           </div>
@@ -303,7 +339,9 @@ export const PrivacyTab: React.FC = () => {
               <span>Apagar Todos os Dados Deste Aparelho?</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-600 pt-2 leading-relaxed">
-              Todos os dados do Gestio Finanças gravados no armazenamento local deste navegador serão apagados imediatamente. Recomendamos que você faça o download do <strong>Backup JSON</strong> antes se desejar guardar uma cópia.
+              Todos os dados do Gestio Finanças gravados no armazenamento local deste navegador
+              serão apagados imediatamente. Recomendamos que você faça o download do{' '}
+              <strong>Backup JSON</strong> antes se desejar guardar uma cópia.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4">

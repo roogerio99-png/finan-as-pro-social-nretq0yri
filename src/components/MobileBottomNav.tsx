@@ -205,9 +205,7 @@ export const MobileBottomNav: React.FC = () => {
         >
           <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
           <SheetHeader className="text-left pb-2">
-            <SheetTitle className="text-base font-bold text-slate-900">
-              Menu Completo
-            </SheetTitle>
+            <SheetTitle className="text-base font-bold text-slate-900">Menu Completo</SheetTitle>
             <SheetDescription className="text-xs text-slate-500">
               Todas as ferramentas e configurações de Gestio Finanças
             </SheetDescription>

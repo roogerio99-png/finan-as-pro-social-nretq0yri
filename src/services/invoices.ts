@@ -112,9 +112,15 @@ export const invoicesService = {
       })
       for (const tx of linkedTxs) {
         if (tx.type === 'invoice_payment') {
-          await pb.collection('transactions').delete(tx.id).catch(() => {})
+          await pb
+            .collection('transactions')
+            .delete(tx.id)
+            .catch(() => {})
         } else {
-          await pb.collection('transactions').update(tx.id, { invoice_id: null }).catch(() => {})
+          await pb
+            .collection('transactions')
+            .update(tx.id, { invoice_id: null })
+            .catch(() => {})
         }
       }
       return await pb.collection('invoices').delete(id)

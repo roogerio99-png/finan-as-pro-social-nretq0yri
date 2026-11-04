@@ -16,7 +16,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserRecord | null>(authService.getCurrentUser())
   const [loading, setLoading] = useState<boolean>(true)
-  const [savedAccounts, setSavedAccounts] = useState<SavedGoogleAccount[]>(authService.getSavedAccounts())
+  const [savedAccounts, setSavedAccounts] = useState<SavedGoogleAccount[]>(
+    authService.getSavedAccounts(),
+  )
 
   const refreshSavedAccounts = () => {
     setSavedAccounts(authService.getSavedAccounts())

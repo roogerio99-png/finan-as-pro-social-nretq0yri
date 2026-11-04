@@ -24,16 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  Target,
-  PlusCircle,
-  Calendar,
-  Sparkles,
-  Layers,
-  Tag,
-  Pencil,
-  Trash2,
-} from 'lucide-react'
+import { Target, PlusCircle, Calendar, Sparkles, Layers, Tag, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export const BudgetPage: React.FC = () => {
@@ -684,9 +675,9 @@ export const BudgetPage: React.FC = () => {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-slate-600">
               Tem certeza de que deseja remover a meta para{' '}
-              <strong className="text-slate-900 font-bold">"{deletingBudget?.name}"</strong> no mês de{' '}
-              <strong className="text-slate-900 font-bold">{selectedMonth}</strong>?
-              Esta ação removerá este teto de gastos do seu dispositivo.
+              <strong className="text-slate-900 font-bold">"{deletingBudget?.name}"</strong> no mês
+              de <strong className="text-slate-900 font-bold">{selectedMonth}</strong>? Esta ação
+              removerá este teto de gastos do seu dispositivo.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

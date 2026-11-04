@@ -22,15 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  Sparkles,
-  Target,
-  PlusCircle,
-  Scissors,
-  Pencil,
-  Trash2,
-  Plus,
-} from 'lucide-react'
+import { Sparkles, Target, PlusCircle, Scissors, Pencil, Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export const DreamsPage: React.FC = () => {

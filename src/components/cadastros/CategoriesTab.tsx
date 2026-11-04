@@ -633,7 +633,8 @@ export const CategoriesTab: React.FC = () => {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-slate-600 space-y-2">
               <p>
-                Tem certeza que deseja excluir este {deletingNode?.level === 1 ? 'grupo' : 'subgrupo'}?
+                Tem certeza que deseja excluir este{' '}
+                {deletingNode?.level === 1 ? 'grupo' : 'subgrupo'}?
                 {deletingNode?.level === 1
                   ? ' Todos os subgrupos e categorias vinculadas serão removidos.'
                   : ' O subgrupo será removido do plano de contas.'}

@@ -31,25 +31,25 @@ const App = () => (
           <PwaInstallPrompt />
           <Routes>
             <Route element={<Layout />}>
-            <Route path="/" element={<Index />} />
-            <Route path="/boas-vindas" element={<WelcomePage />} />
-            <Route path="/painel" element={<DashboardPage />} />
-            <Route path="/lancamentos" element={<TransactionsPage />} />
-            <Route path="/faturas" element={<InvoicesPage />} />
-            <Route path="/conciliacao" element={<ReconciliationPage />} />
-            <Route path="/orcamento" element={<BudgetPage />} />
-            <Route path="/dividas" element={<DebtsPage />} />
-            <Route path="/sonhos" element={<DreamsPage />} />
-            <Route path="/familia" element={<FamilyPage />} />
-            <Route path="/cadastros" element={<CadastrosPage />} />
-            <Route path="/cadastros/:tab" element={<CadastrosPage />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </AuthProvider>
-    </TooltipProvider>
-  </BrowserRouter>
-</ErrorBoundary>
+              <Route path="/" element={<Index />} />
+              <Route path="/boas-vindas" element={<WelcomePage />} />
+              <Route path="/painel" element={<DashboardPage />} />
+              <Route path="/lancamentos" element={<TransactionsPage />} />
+              <Route path="/faturas" element={<InvoicesPage />} />
+              <Route path="/conciliacao" element={<ReconciliationPage />} />
+              <Route path="/orcamento" element={<BudgetPage />} />
+              <Route path="/dividas" element={<DebtsPage />} />
+              <Route path="/sonhos" element={<DreamsPage />} />
+              <Route path="/familia" element={<FamilyPage />} />
+              <Route path="/cadastros" element={<CadastrosPage />} />
+              <Route path="/cadastros/:tab" element={<CadastrosPage />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
+      </TooltipProvider>
+    </BrowserRouter>
+  </ErrorBoundary>
 )
 
 export default App

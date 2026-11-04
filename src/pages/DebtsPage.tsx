@@ -197,13 +197,14 @@ export const DebtsPage: React.FC = () => {
       const newStatus: DebtStatus = d.status === 'paid_off' ? 'active' : 'paid_off'
       await debtsService.update(d.id, {
         status: newStatus,
-        current_balance: newStatus === 'paid_off' ? 0 : (d.total_debt || d.minimum_payment),
+        current_balance: newStatus === 'paid_off' ? 0 : d.total_debt || d.minimum_payment,
       })
       toast({
         title: newStatus === 'paid_off' ? '🎉 Parabéns! Dívida quitada!' : 'Dívida reativada',
-        description: newStatus === 'paid_off'
-          ? `A dívida com "${d.creditor}" foi marcada como quitada.`
-          : `A dívida com "${d.creditor}" voltou ao status ativo.`,
+        description:
+          newStatus === 'paid_off'
+            ? `A dívida com "${d.creditor}" foi marcada como quitada.`
+            : `A dívida com "${d.creditor}" voltou ao status ativo.`,
       })
       loadData()
     } catch (err: any) {
@@ -413,9 +414,12 @@ export const DebtsPage: React.FC = () => {
           {debts.length === 0 ? (
             <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 space-y-2">
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-              <p className="text-sm font-bold text-slate-800">Nenhuma dívida cadastrada no momento.</p>
+              <p className="text-sm font-bold text-slate-800">
+                Nenhuma dívida cadastrada no momento.
+              </p>
               <p className="text-xs text-slate-500">
-                Caso tenha empréstimos, cheque especial ou faturas pendentes, cadastre-os para planejar a quitação.
+                Caso tenha empréstimos, cheque especial ou faturas pendentes, cadastre-os para
+                planejar a quitação.
               </p>
               <Button
                 onClick={openCreateDialog}
@@ -460,15 +464,20 @@ export const DebtsPage: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
                       <span>
                         Taxa de Juros:{' '}
-                        <strong className="text-rose-600 font-bold">{d.interest_rate_monthly}% a.m.</strong>
+                        <strong className="text-rose-600 font-bold">
+                          {d.interest_rate_monthly}% a.m.
+                        </strong>
                       </span>
                       <span>
                         Pagamento Mínimo:{' '}
-                        <strong className="text-slate-800 font-bold">{formatCurrency(d.minimum_payment)}</strong>
+                        <strong className="text-slate-800 font-bold">
+                          {formatCurrency(d.minimum_payment)}
+                        </strong>
                       </span>
                       {d.due_day && (
                         <span>
-                          Vencimento: <strong className="text-slate-800 font-bold">Dia {d.due_day}</strong>
+                          Vencimento:{' '}
+                          <strong className="text-slate-800 font-bold">Dia {d.due_day}</strong>
                         </span>
                       )}
                       {d.total_debt && d.total_debt > d.current_balance && (
@@ -734,11 +743,7 @@ export const DebtsPage: React.FC = () => {
                 disabled={saving}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
               >
-                {saving
-                  ? 'Salvando...'
-                  : editingDebt
-                    ? 'Salvar Alterações'
-                    : 'Cadastrar Dívida'}
+                {saving ? 'Salvando...' : editingDebt ? 'Salvar Alterações' : 'Cadastrar Dívida'}
               </Button>
             </div>
           </form>
@@ -754,8 +759,8 @@ export const DebtsPage: React.FC = () => {
             </AlertDialogTitle>
             <AlertDialogDescription className="text-sm text-slate-600">
               Tem certeza de que deseja remover o cadastro da dívida com{' '}
-              <strong className="text-slate-900 font-bold">"{deletingDebt?.creditor}"</strong> (Saldo:{' '}
-              {deletingDebt ? formatCurrency(deletingDebt.current_balance) : 'R$ 0,00'})?
+              <strong className="text-slate-900 font-bold">"{deletingDebt?.creditor}"</strong>{' '}
+              (Saldo: {deletingDebt ? formatCurrency(deletingDebt.current_balance) : 'R$ 0,00'})?
               Esta ação removerá este registro do seu dispositivo.
             </AlertDialogDescription>
           </AlertDialogHeader>

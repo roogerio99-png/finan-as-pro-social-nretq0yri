@@ -144,7 +144,8 @@ export const WelcomePage: React.FC = () => {
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">Aplicativo no seu Celular</h4>
                     <p className="text-[11px] text-slate-500">
-                      Você pode instalar o Gestio direto no seu Android ou iPhone para acesso com 1 toque.
+                      Você pode instalar o Gestio direto no seu Android ou iPhone para acesso com 1
+                      toque.
                     </p>
                   </div>
                 </div>
@@ -169,7 +170,9 @@ export const WelcomePage: React.FC = () => {
                     Privacidade Absoluta • 100% Salvo no seu Aparelho
                   </h4>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Seus dados de login, contas e movimentações ficam armazenados exclusivamente na memória deste celular/computador. Nenhuma informação pessoal ou financeira é repassada para terceiros ou servidores externos.
+                    Seus dados de login, contas e movimentações ficam armazenados exclusivamente na
+                    memória deste celular/computador. Nenhuma informação pessoal ou financeira é
+                    repassada para terceiros ou servidores externos.
                   </p>
                 </div>
               </div>

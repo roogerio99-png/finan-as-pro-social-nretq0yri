@@ -855,11 +855,7 @@ export const ReconciliationPage: React.FC = () => {
             </div>
 
             <div className="flex justify-end space-x-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditRuleDialogOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setEditRuleDialogOpen(false)}>
                 Cancelar
               </Button>
               <Button

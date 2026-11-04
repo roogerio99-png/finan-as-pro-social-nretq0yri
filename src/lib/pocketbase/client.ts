@@ -15,4 +15,3 @@ if (pbUrl && typeof pbUrl === 'string' && pbUrl.trim().length > 0 && pbUrl.start
 
 const pb = pbInstance
 export default pb
-

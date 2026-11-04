@@ -25,15 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import {
-  Users,
-  UserCheck,
-  UserPlus,
-  ShieldCheck,
-  Heart,
-  Pencil,
-  Trash2,
-} from 'lucide-react'
+import { Users, UserCheck, UserPlus, ShieldCheck, Heart, Pencil, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export const FamilyPage: React.FC = () => {
@@ -118,7 +110,9 @@ export const FamilyPage: React.FC = () => {
 
   const handleCreateFamily = async () => {
     try {
-      const fam = await familyService.create(`Família ${user?.name ? user.name.split(' ')[0] : 'Coimbra'}`)
+      const fam = await familyService.create(
+        `Família ${user?.name ? user.name.split(' ')[0] : 'Coimbra'}`,
+      )
       setFamily(fam)
       toast({ title: 'Núcleo familiar criado com sucesso!' })
       loadData()
@@ -286,7 +280,8 @@ export const FamilyPage: React.FC = () => {
               </span>
             </CardTitle>
             <CardDescription className="text-xs text-slate-500">
-              Cada membro possui seu próprio login seguro e contribui para o orçamento compartilhado.
+              Cada membro possui seu próprio login seguro e contribui para o orçamento
+              compartilhado.
             </CardDescription>
           </CardHeader>
 

@@ -127,7 +127,9 @@ export const Navbar: React.FC = () => {
                   <span className="text-base font-extrabold text-slate-900 tracking-tight leading-none">
                     Gestio
                   </span>
-                  <span className="text-emerald-600 font-black text-lg leading-none -ml-0.5">.</span>
+                  <span className="text-emerald-600 font-black text-lg leading-none -ml-0.5">
+                    .
+                  </span>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mt-0.5">
                   Finanças

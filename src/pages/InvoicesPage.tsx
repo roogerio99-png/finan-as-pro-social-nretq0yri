@@ -150,7 +150,7 @@ export const InvoicesPage: React.FC = () => {
   // Ação: Abrir modal para Criar Nova Fatura Manual
   const openCreateManualDialog = () => {
     setEditingInvoice(null)
-    setFormCardId(selectedCardId || (cards[0]?.id || ''))
+    setFormCardId(selectedCardId || cards[0]?.id || '')
     setFormMonth(referenceMonth || currentMonthStr)
     const card = cards.find((c) => c.id === (selectedCardId || cards[0]?.id))
     const dueDay = card?.due_day || 10
@@ -201,7 +201,7 @@ export const InvoicesPage: React.FC = () => {
           total_amount: parsedTotal,
           status: formStatus,
           due_date: formDueDate || undefined,
-          paid_date: formStatus === 'paid' ? (formPaidDate || todayStr) : undefined,
+          paid_date: formStatus === 'paid' ? formPaidDate || todayStr : undefined,
           payment_account_id: formStatus === 'paid' ? formPaymentAccountId : undefined,
           notes: formNotes || undefined,
         }
@@ -218,7 +218,7 @@ export const InvoicesPage: React.FC = () => {
           total_amount: parsedTotal,
           status: formStatus,
           due_date: formDueDate || undefined,
-          paid_date: formStatus === 'paid' ? (formPaidDate || todayStr) : undefined,
+          paid_date: formStatus === 'paid' ? formPaidDate || todayStr : undefined,
           payment_account_id: formStatus === 'paid' ? formPaymentAccountId : undefined,
           notes: formNotes || undefined,
         }
@@ -398,8 +398,7 @@ export const InvoicesPage: React.FC = () => {
               value={referenceMonth}
               onChange={(e) => setReferenceMonth(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
-            >
-            </input>
+            ></input>
           </div>
 
           <Button
@@ -585,10 +584,14 @@ export const InvoicesPage: React.FC = () => {
 
             {formStatus === 'paid' && (
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
-                <span className="text-xs font-bold text-emerald-900 block">Dados do Pagamento:</span>
+                <span className="text-xs font-bold text-emerald-900 block">
+                  Dados do Pagamento:
+                </span>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="formPaidDt" className="text-xs">Data Pago</Label>
+                    <Label htmlFor="formPaidDt" className="text-xs">
+                      Data Pago
+                    </Label>
                     <Input
                       id="formPaidDt"
                       type="date"
@@ -597,7 +600,9 @@ export const InvoicesPage: React.FC = () => {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="formPayAcc" className="text-xs">Conta Pagadora</Label>
+                    <Label htmlFor="formPayAcc" className="text-xs">
+                      Conta Pagadora
+                    </Label>
                     <select
                       id="formPayAcc"
                       value={formPaymentAccountId}
@@ -662,8 +667,8 @@ export const InvoicesPage: React.FC = () => {
                 ?
               </p>
               <p className="text-xs text-slate-500">
-                Esta ação remove o registro da fatura. Compras vinculadas voltarão a ficar disponíveis
-                para nova conciliação.
+                Esta ação remove o registro da fatura. Compras vinculadas voltarão a ficar
+                disponíveis para nova conciliação.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
