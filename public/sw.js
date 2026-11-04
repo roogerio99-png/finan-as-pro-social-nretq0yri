@@ -1,9 +1,9 @@
-// Service Worker para Finanças Pro & Social
+// Service Worker para Gestio Finanças
 // Política estrita: Cache apenas de ativos estáticos (HTML/CSS/JS/SVGs/Fonts)
 // NUNCA cachear requisições para a API do PocketBase (/api/* ou requisições dinâmicas de backend),
 // garantindo que os dados financeiros estejam SEMPRE frescos e em tempo real.
 
-const CACHE_NAME = 'financas-pro-shell-v1'
+const CACHE_NAME = 'gestio-financas-shell-v1'
 
 const PRECACHE_ASSETS = [
   '/',

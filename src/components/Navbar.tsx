@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = () => {
               </div>
               <div className="flex flex-col text-left">
                 <span className="leading-tight text-slate-900 font-extrabold tracking-tight">
-                  Finanças Pro
+                  Gestio Finanças
                 </span>
                 <span className="text-xs font-medium text-emerald-600 tracking-wider uppercase">
                   Social & Família

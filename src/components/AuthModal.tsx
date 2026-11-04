@@ -34,7 +34,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, onClose }) => {
         onClose()
       } else if (mode === 'register') {
         await register(email, password, name)
-        toast({ title: 'Conta criada!', description: 'Seja bem-vindo ao Finanças Pro.' })
+        toast({ title: 'Conta criada!', description: 'Seja bem-vindo ao Gestio Finanças.' })
         onClose()
       } else if (mode === 'forgot') {
         await requestPasswordReset(email)
@@ -79,7 +79,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, onClose }) => {
             <CreditCard className="w-6 h-6" />
           </div>
           <CardTitle className="text-2xl font-black text-slate-900">
-            {mode === 'login' && 'Entrar no Finanças Pro'}
+            {mode === 'login' && 'Entrar no Gestio Finanças'}
             {mode === 'register' && 'Criar Nova Conta'}
             {mode === 'forgot' && 'Recuperar Senha'}
           </CardTitle>

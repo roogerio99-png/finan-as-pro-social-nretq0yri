@@ -15,7 +15,7 @@ export default function Layout() {
       <footer className="border-t border-slate-200/80 bg-white py-6 text-center text-xs text-slate-500 hidden md:block">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="font-semibold text-slate-700">
-            Finanças Pro Social &copy; {new Date().getFullYear()} — Rigor Profissional com Abordagem
+            Gestio Finanças &copy; {new Date().getFullYear()} — Rigor Profissional com Abordagem
             Humana
           </div>
           <div className="text-slate-400">
