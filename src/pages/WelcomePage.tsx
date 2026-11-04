@@ -16,6 +16,7 @@ import {
   Scale,
   Sparkles,
   Wallet,
+  Smartphone,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -131,6 +132,30 @@ export const WelcomePage: React.FC = () => {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Dica de Aplicativo no Celular */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center flex-shrink-0">
+                    <Smartphone className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">Aplicativo no seu Celular</h4>
+                    <p className="text-[11px] text-slate-500">
+                      Você pode instalar o Gestio direto no seu Android ou iPhone para acesso com 1 toque.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
+                  className="w-full sm:w-auto text-emerald-700 bg-white hover:bg-emerald-50 border-emerald-300 font-bold text-xs h-8 px-3 rounded-lg flex-shrink-0"
+                >
+                  Como Instalar
+                </Button>
               </div>
 
               <div className="flex justify-end pt-4">

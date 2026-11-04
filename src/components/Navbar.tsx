@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Wallet,
   Settings,
+  Smartphone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -257,6 +258,18 @@ export const Navbar: React.FC = () => {
               <span className="hidden sm:inline">Glossário</span>
             </Button>
 
+            {/* Instalar App no Celular / Computador */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
+              className="hidden md:inline-flex text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-xs font-bold gap-1.5 h-8 px-2.5 rounded-lg transition-colors cursor-pointer"
+              title="Instalar Gestio Finanças como Aplicativo"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Instalar App</span>
+            </Button>
+
             {/* Menu do Usuário */}
             {user ? (
               <DropdownMenu>
@@ -282,6 +295,14 @@ export const Navbar: React.FC = () => {
                   </div>
 
                   <div className="py-1">
+                    <DropdownMenuItem
+                      onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
+                      className="text-xs gap-2 py-2 cursor-pointer font-bold text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Instalar no Celular (PWA)</span>
+                    </DropdownMenuItem>
+
                     <DropdownMenuItem
                       onClick={() => navigate('/cadastros')}
                       className="text-xs gap-2 py-2 cursor-pointer font-medium"

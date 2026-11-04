@@ -112,10 +112,15 @@ export const GoogleLoginPage: React.FC = () => {
             <span className="hidden sm:inline font-medium">Ambiente Seguro</span>
             <span className="text-emerald-400 font-semibold">• Google Auth</span>
           </div>
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/60 border border-slate-800/60 px-3 py-1.5 rounded-full">
-            <Smartphone className="w-3.5 h-3.5 text-teal-400" />
-            <span>PWA Celular</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
+            className="flex items-center gap-1.5 text-xs text-emerald-300 bg-emerald-950/70 hover:bg-emerald-900/90 border border-emerald-700/60 px-3 py-1.5 rounded-full cursor-pointer transition-colors shadow-xs"
+            title="Instalar aplicativo Gestio Finanças no seu celular"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-semibold">Instalar App</span>
+          </button>
         </div>
       </header>
 
@@ -376,8 +381,16 @@ export const GoogleLoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Termos de Segurança */}
-          <div className="pt-4 border-t border-slate-100 text-center space-y-2">
+          {/* Termos de Segurança e Instalação */}
+          <div className="pt-4 border-t border-slate-100 text-center space-y-2.5">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
+              className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-emerald-50/70 hover:bg-emerald-100/80 border border-emerald-200 text-emerald-800 font-bold text-xs transition-colors cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-emerald-600" />
+              <span>Instalar Aplicativo no Celular (PWA)</span>
+            </button>
             <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
               <span>Ambiente criptografado com isolamento individual por usuário.</span>

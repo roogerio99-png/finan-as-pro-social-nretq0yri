@@ -19,6 +19,7 @@ import { CadastrosPage } from './pages/CadastrosPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 
 const App = () => (
   <ErrorBoundary>
@@ -27,6 +28,7 @@ const App = () => (
         <AuthProvider>
           <Toaster />
           <Sonner />
+          <PwaInstallPrompt />
           <Routes>
             <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
