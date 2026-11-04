@@ -16,6 +16,7 @@ import {
   BookOpen,
   LogOut,
   ChevronRight,
+  Smartphone,
 } from 'lucide-react'
 import {
   Sheet,
@@ -244,6 +245,18 @@ export const MobileBottomNav: React.FC = () => {
           </div>
 
           <div className="pt-3 mt-2 border-t border-slate-100 space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200 h-10 rounded-xl text-xs font-bold"
+              onClick={() => {
+                setMoreOpen(false)
+                window.dispatchEvent(new CustomEvent('open-pwa-install'))
+              }}
+            >
+              <Smartphone className="w-4 h-4 text-emerald-600 mr-2" />
+              Instalar Aplicativo no Celular (PWA)
+            </Button>
+
             <Button
               variant="outline"
               className="w-full justify-start text-slate-700 h-10 rounded-xl text-xs font-semibold border-slate-200"

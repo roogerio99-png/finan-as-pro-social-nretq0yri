@@ -4,7 +4,11 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export const categoriesService = {
   async list(options?: { includeInactive?: boolean }): Promise<CategoryRecord[]> {
+    const filter = pb.authStore.record
+      ? `user_id = '${pb.authStore.record.id}' || user_id = '' || user_id = 'usr_rogerio'`
+      : ''
     const records = await pb.collection('categories').getFullList<CategoryRecord>({
+      filter: filter || undefined,
       sort: 'group_level1,group_level2,name',
     })
     if (options?.includeInactive) return records

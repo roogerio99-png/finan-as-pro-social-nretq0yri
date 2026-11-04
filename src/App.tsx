@@ -18,14 +18,17 @@ import { FamilyPage } from './pages/FamilyPage'
 import { CadastrosPage } from './pages/CadastrosPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
 const App = () => (
-  <BrowserRouter>
-    <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <Routes>
-          <Route element={<Layout />}>
+  <ErrorBoundary>
+    <BrowserRouter>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <Routes>
+            <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/boas-vindas" element={<WelcomePage />} />
             <Route path="/painel" element={<DashboardPage />} />
@@ -44,6 +47,7 @@ const App = () => (
       </AuthProvider>
     </TooltipProvider>
   </BrowserRouter>
+</ErrorBoundary>
 )
 
 export default App

@@ -14,6 +14,9 @@ export const invoicesService = {
     status?: 'open' | 'paid'
   }): Promise<InvoiceRecord[]> {
     const parts: string[] = []
+    if (pb.authStore.record?.id) {
+      parts.push(`user_id = '${pb.authStore.record.id}'`)
+    }
     if (filters?.cardAccountId) parts.push(`card_account_id = '${filters.cardAccountId}'`)
     if (filters?.month) parts.push(`reference_month = '${filters.month}'`)
     if (filters?.status) parts.push(`status = '${filters.status}'`)

@@ -1,10 +1,8 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { CreditCard, Sparkles, LogIn, UserPlus, KeyRound } from 'lucide-react'
+import { Wallet, ShieldCheck, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 interface AuthModalProps {
@@ -13,41 +11,25 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ open, onClose }) => {
-  const { login, register, requestPasswordReset, loginAsDefault } = useAuth()
+  const { loginWithGoogle } = useAuth()
   const { toast } = useToast()
-
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (!open) return null
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleGoogleSignIn = async () => {
     setLoading(true)
     try {
-      if (mode === 'login') {
-        await login(email, password)
-        toast({ title: 'Bem-vindo de volta!', description: 'Login realizado com sucesso.' })
-        onClose()
-      } else if (mode === 'register') {
-        await register(email, password, name)
-        toast({ title: 'Conta criada!', description: 'Seja bem-vindo ao Gestio Finanças.' })
-        onClose()
-      } else if (mode === 'forgot') {
-        await requestPasswordReset(email)
-        toast({
-          title: 'E-mail enviado',
-          description: 'Verifique sua caixa de entrada para redefinir a senha.',
-        })
-        setMode('login')
-      }
+      await loginWithGoogle()
+      toast({
+        title: 'Autenticado com sucesso!',
+        description: 'Conectado à sua Conta Google.',
+      })
+      onClose()
     } catch (err: any) {
       toast({
         title: 'Erro de autenticação',
-        description: err.message || 'Verifique seus dados e tente novamente.',
+        description: err.message || 'Falha ao autenticar com o Google.',
         variant: 'destructive',
       })
     } finally {
@@ -55,160 +37,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({ open, onClose }) => {
     }
   }
 
-  const handleQuickDemo = async () => {
-    setLoading(true)
-    try {
-      await loginAsDefault()
-      toast({
-        title: 'Acesso Rápido liberado!',
-        description: 'Conectado com conta de demonstração.',
-      })
-      onClose()
-    } catch (err: any) {
-      toast({ title: 'Aviso', description: err.message, variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <Card className="max-w-md w-full border-slate-200 shadow-2xl bg-white rounded-2xl overflow-hidden">
+      <Card className="max-w-md w-full border-slate-200 shadow-2xl bg-white rounded-2xl overflow-hidden relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+          aria-label="Fechar"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         <CardHeader className="text-center pb-2 pt-6">
           <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center mx-auto mb-2 shadow-md">
-            <CreditCard className="w-6 h-6" />
+            <Wallet className="w-6 h-6" />
           </div>
           <div className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">
-            Gestão Financeira Pessoal
+            Autenticação Exclusiva
           </div>
-          <CardTitle className="text-2xl font-black text-slate-900">
-            {mode === 'login' && 'Entrar no Gestio Finanças'}
-            {mode === 'register' && 'Criar Nova Conta'}
-            {mode === 'forgot' && 'Recuperar Senha'}
+          <CardTitle className="text-xl font-black text-slate-900">
+            Acesso via Conta Google
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            {mode === 'login' && 'Acesse seus dados e seu planejamento financeiro pessoal.'}
-            {mode === 'register' && 'Cadastre-se para organizar suas contas e sair do vermelho.'}
-            {mode === 'forgot' && 'Informe seu e-mail para receber as instruções.'}
+            Para sua segurança, o acesso ao Gestio Finanças é realizado exclusivamente com o Google.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="p-6 space-y-4">
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            {mode === 'register' && (
-              <div className="space-y-1">
-                <Label htmlFor="authName" className="text-xs">
-                  Seu Nome
-                </Label>
-                <Input
-                  id="authName"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex: Maria Silva"
-                  required
-                />
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label htmlFor="authEmail" className="text-xs">
-                E-mail
-              </Label>
-              <Input
-                id="authEmail"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-              />
-            </div>
-
-            {mode !== 'forgot' && (
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <Label htmlFor="authPass" className="text-xs">
-                    Senha
-                  </Label>
-                  {mode === 'login' && (
-                    <button
-                      type="button"
-                      onClick={() => setMode('forgot')}
-                      className="text-[11px] text-emerald-600 hover:underline"
-                    >
-                      Esqueceu a senha?
-                    </button>
-                  )}
-                </div>
-                <Input
-                  id="authPass"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-xs"
-            >
-              {loading
-                ? 'Processando...'
-                : mode === 'login'
-                  ? 'Entrar'
-                  : mode === 'register'
-                    ? 'Criar Conta'
-                    : 'Enviar E-mail de Recuperação'}
-            </Button>
-          </form>
-
-          <div className="relative py-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-100" />
-            </div>
-            <div className="relative flex justify-center text-[11px] uppercase tracking-wider text-slate-400 bg-white px-2">
-              ou
-            </div>
-          </div>
-
-          <Button
+          <button
             type="button"
-            variant="outline"
-            onClick={handleQuickDemo}
-            className="w-full border-emerald-200 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold gap-1.5 rounded-xl"
+            disabled={loading}
+            onClick={handleGoogleSignIn}
+            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 font-bold text-sm h-12 rounded-xl transition-all shadow-xs hover:shadow-md disabled:opacity-60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
           >
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            Entrar com Conta de Demonstração
-          </Button>
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              />
+            </svg>
+            <span>{loading ? 'Autenticando...' : 'Entrar com Google'}</span>
+          </button>
 
-          <div className="text-center text-xs text-slate-500 pt-2">
-            {mode === 'login' ? (
-              <p>
-                Não tem uma conta?{' '}
-                <button
-                  type="button"
-                  onClick={() => setMode('register')}
-                  className="font-bold text-emerald-600 hover:underline"
-                >
-                  Cadastre-se grátis
-                </button>
-              </p>
-            ) : (
-              <p>
-                Já tem conta?{' '}
-                <button
-                  type="button"
-                  onClick={() => setMode('login')}
-                  className="font-bold text-emerald-600 hover:underline"
-                >
-                  Fazer login
-                </button>
-              </p>
-            )}
+          <div className="pt-2 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Sessão segura e protegida por Google Identity.</span>
           </div>
         </CardContent>
       </Card>

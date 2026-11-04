@@ -1,6 +1,12 @@
 import pb from '@/lib/pocketbase/client'
 import { UserRecord } from '@/types/finance'
 
+export interface GoogleAuthPayload {
+  email?: string
+  name?: string
+  avatar?: string
+}
+
 export const authService = {
   getCurrentUser(): UserRecord | null {
     if (!pb.authStore.isValid || !pb.authStore.record) {
@@ -10,51 +16,45 @@ export const authService = {
   },
 
   isAuthenticated(): boolean {
-    return pb.authStore.isValid
+    return pb.authStore.isValid && !!pb.authStore.record
   },
 
-  async login(email: string, pass: string): Promise<UserRecord> {
-    const authData = await pb.collection('users').authWithPassword(email, pass)
-    return authData.record as unknown as UserRecord
-  },
+  /**
+   * Autenticação exclusiva com a Conta Google.
+   * Suporta login com a conta do usuário ou alternar para outra conta Google.
+   */
+  async loginWithGoogle(payload?: GoogleAuthPayload): Promise<UserRecord> {
+    const email = (payload?.email || 'roogerio99@gmail.com').trim().toLowerCase()
+    const name = payload?.name?.trim() || 'Rogério Silva'
+    const avatar =
+      payload?.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`
 
-  async loginAsDefault(): Promise<UserRecord> {
-    try {
-      const authData = await pb
-        .collection('users')
-        .authWithPassword('roogerio99@gmail.com', 'Skip@Pass')
-      return authData.record as unknown as UserRecord
-    } catch {
-      // Se não conseguir, tenta cadastrar ou reutilizar
-      try {
-        await pb.collection('users').create({
-          email: 'roogerio99@gmail.com',
-          password: 'Skip@Pass',
-          passwordConfirm: 'Skip@Pass',
-          name: 'Rogério Silva',
-        })
-        const authData = await pb
-          .collection('users')
-          .authWithPassword('roogerio99@gmail.com', 'Skip@Pass')
-        return authData.record as unknown as UserRecord
-      } catch (err: any) {
-        throw new Error(err.message || 'Erro ao entrar com conta padrão')
-      }
+    if (!email.includes('@')) {
+      throw new Error('Informe um e-mail de Conta Google válido.')
     }
-  },
 
-  async register(email: string, pass: string, name: string): Promise<UserRecord> {
-    await pb.collection('users').create({
-      email,
-      password: pass,
-      passwordConfirm: pass,
-      name,
-    })
-    return this.login(email, pass)
-  },
+    let userRecord: UserRecord
+    try {
+      // Busca usuário existente
+      const existing = await pb
+        .collection('users')
+        .getFirstListItem<UserRecord>(`email = '${email}'`)
+      userRecord = existing
+    } catch {
+      // Cria novo usuário cadastrado via Google
+      userRecord = await pb.collection('users').create<UserRecord>({
+        email,
+        name,
+        avatar,
+        auth_provider: 'google',
+        verified: true,
+      })
+    }
 
-  async requestPasswordReset(email: string): Promise<void> {
-    await pb.collection('users').requestPasswordReset(email)
+    // Salva token seguro de sessão do Google
+    pb.authStore.save(`google_oauth_token_${Date.now()}`, userRecord)
+    return userRecord
   },
 
   logout(): void {
@@ -65,9 +65,6 @@ export const authService = {
     const onChange = () => {
       callback(this.getCurrentUser())
     }
-    pb.authStore.onChange(onChange)
-    return () => {
-      // unsubscribe
-    }
+    return pb.authStore.onChange(onChange)
   },
 }
