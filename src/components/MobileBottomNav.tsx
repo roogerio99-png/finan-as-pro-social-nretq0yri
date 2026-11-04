@@ -34,12 +34,24 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
 
 export const MobileBottomNav: React.FC = () => {
   const { user, logout } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+
+  const handleLogout = () => {
+    setMoreOpen(false)
+    logout()
+    toast({
+      title: 'Sessão encerrada',
+      description: 'Você saiu da sua conta. Para acessar novamente, selecione sua Conta Google.',
+    })
+    navigate('/')
+  }
 
   // 4 itens principais mais frequentes + Botão Menu
   const primaryTabs = [
@@ -286,10 +298,7 @@ export const MobileBottomNav: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setMoreOpen(false)
-                    logout()
-                  }}
+                  onClick={handleLogout}
                   className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-bold gap-1 rounded-lg h-8 px-2.5"
                 >
                   <LogOut className="w-3.5 h-3.5" />

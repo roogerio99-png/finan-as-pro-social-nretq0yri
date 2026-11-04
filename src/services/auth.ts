@@ -7,6 +7,24 @@ export interface GoogleAuthPayload {
   avatar?: string
 }
 
+export interface SavedGoogleAccount {
+  email: string
+  name: string
+  avatar?: string
+  lastUsed: number
+}
+
+const SAVED_ACCOUNTS_KEY = 'gestio_saved_google_accounts'
+
+const DEFAULT_ACCOUNTS: SavedGoogleAccount[] = [
+  {
+    email: 'roogerio99@gmail.com',
+    name: 'Rogério Silva',
+    avatar: 'https://ui-avatars.com/api/?name=Rog%C3%A9rio+Silva&background=059669&color=fff&bold=true',
+    lastUsed: Date.now(),
+  },
+]
+
 export const authService = {
   getCurrentUser(): UserRecord | null {
     if (!pb.authStore.isValid || !pb.authStore.record) {
@@ -19,13 +37,59 @@ export const authService = {
     return pb.authStore.isValid && !!pb.authStore.record
   },
 
+  getSavedAccounts(): SavedGoogleAccount[] {
+    try {
+      const stored = localStorage.getItem(SAVED_ACCOUNTS_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored) as SavedGoogleAccount[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_ACCOUNTS
+  },
+
+  saveAccount(account: { email: string; name: string; avatar?: string }): void {
+    try {
+      const current = this.getSavedAccounts()
+      const normalizedEmail = account.email.trim().toLowerCase()
+      const updated = current.filter((acc) => acc.email.toLowerCase() !== normalizedEmail)
+      updated.unshift({
+        email: normalizedEmail,
+        name: account.name.trim(),
+        avatar:
+          account.avatar ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=059669&color=fff&bold=true`,
+        lastUsed: Date.now(),
+      })
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(updated.slice(0, 5)))
+    } catch {
+      // ignore storage error
+    }
+  },
+
+  removeSavedAccount(email: string): SavedGoogleAccount[] {
+    try {
+      const current = this.getSavedAccounts()
+      const normalizedEmail = email.trim().toLowerCase()
+      const updated = current.filter((acc) => acc.email.toLowerCase() !== normalizedEmail)
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(updated))
+      return updated
+    } catch {
+      return []
+    }
+  },
+
   /**
    * Autenticação exclusiva com a Conta Google.
    * Suporta login com a conta do usuário ou alternar para outra conta Google.
    */
   async loginWithGoogle(payload?: GoogleAuthPayload): Promise<UserRecord> {
     const email = (payload?.email || 'roogerio99@gmail.com').trim().toLowerCase()
-    const name = payload?.name?.trim() || 'Rogério Silva'
+    const name = payload?.name?.trim() || (email === 'roogerio99@gmail.com' ? 'Rogério Silva' : email.split('@')[0])
     const avatar =
       payload?.avatar ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`
@@ -51,6 +115,9 @@ export const authService = {
         verified: true,
       })
     }
+
+    // Salva na lista de contas Google conhecidas do dispositivo
+    this.saveAccount({ email, name, avatar })
 
     // Salva token seguro de sessão do Google
     pb.authStore.save(`google_oauth_token_${Date.now()}`, userRecord)

@@ -35,12 +35,23 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+
+  const handleLogout = () => {
+    logout()
+    toast({
+      title: 'Sessão encerrada',
+      description: 'Você saiu da sua conta. Para acessar novamente, selecione sua Conta Google.',
+    })
+    navigate('/')
+  }
 
   // Rotas primárias de uso contínuo no cabeçalho
   const primaryNav = [
@@ -291,7 +302,7 @@ export const Navbar: React.FC = () => {
                   <DropdownMenuSeparator />
 
                   <DropdownMenuItem
-                    onClick={logout}
+                    onClick={handleLogout}
                     className="text-xs gap-2 py-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer font-bold"
                   >
                     <LogOut className="w-3.5 h-3.5 text-rose-600" />

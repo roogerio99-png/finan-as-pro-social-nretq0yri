@@ -1,37 +1,69 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Wallet, ShieldCheck, Smartphone, Lock, ArrowRight, UserCheck } from 'lucide-react'
+import {
+  Wallet,
+  ShieldCheck,
+  Smartphone,
+  Lock,
+  UserPlus,
+  Trash2,
+  CheckCircle2,
+  Loader2,
+  ChevronRight,
+  ArrowLeft,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useToast } from '@/hooks/use-toast'
 
 export const GoogleLoginPage: React.FC = () => {
-  const { loginWithGoogle } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const { loginWithGoogle, savedAccounts, removeSavedAccount } = useAuth()
+  const { toast } = useToast()
+  const navigate = useNavigate()
+
+  const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [showCustomGoogle, setShowCustomGoogle] = useState(false)
   const [customEmail, setCustomEmail] = useState('')
   const [customName, setCustomName] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const handleSignIn = async (email?: string, name?: string) => {
-    setLoading(true)
+  const handleSignIn = async (email: string, name?: string) => {
+    setLoadingEmail(email)
     setError(null)
     try {
-      await loginWithGoogle(email ? { email, name } : undefined)
+      await loginWithGoogle({ email, name })
+      toast({
+        title: 'Bem-vindo(a) ao Gestio!',
+        description: `Conectado com sucesso como ${email}.`,
+      })
+      navigate('/painel')
     } catch (err: any) {
       setError(err.message || 'Falha ao autenticar com o Google. Tente novamente.')
     } finally {
-      setLoading(false)
+      setLoadingEmail(null)
     }
   }
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!customEmail.trim()) {
-      setError('Informe o e-mail da sua Conta Google.')
+    const trimmed = customEmail.trim()
+    if (!trimmed || !trimmed.includes('@')) {
+      setError('Informe um e-mail de Conta Google válido (ex: seu.nome@gmail.com).')
       return
     }
-    handleSignIn(customEmail.trim(), customName.trim() || undefined)
+    handleSignIn(trimmed, customName.trim() || undefined)
+  }
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      const parts = name.trim().split(/\s+/)
+      if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      return parts[0].slice(0, 2).toUpperCase()
+    }
+    if (email) return email.slice(0, 2).toUpperCase()
+    return 'G'
   }
 
   return (
@@ -50,7 +82,7 @@ export const GoogleLoginPage: React.FC = () => {
               <span className="text-emerald-400 font-black text-xl leading-none -ml-0.5">.</span>
             </div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mt-0.5">
-              Finanças
+              Finanças Conscientes
             </span>
           </div>
         </div>
@@ -63,18 +95,17 @@ export const GoogleLoginPage: React.FC = () => {
       </div>
 
       {/* Main Login Card */}
-      <div className="max-w-md w-full mx-auto my-auto py-8">
+      <div className="max-w-md w-full mx-auto my-auto py-6">
         <div className="bg-white rounded-3xl p-6 sm:p-8 text-slate-900 shadow-2xl border border-slate-100 space-y-6">
           <div className="text-center space-y-2">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 mb-1 border border-emerald-100">
               <ShieldCheck className="w-6 h-6 stroke-[2.2]" />
             </div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900">
-              Acesso Exclusivo com Google
+              Acesso com Conta Google
             </h1>
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              Para garantir máxima segurança às suas finanças, o aplicativo aceita exclusivamente a
-              autenticação com a <strong>Conta Google</strong>.
+              Selecione sua conta para entrar ou cadastrar uma nova conta Google para acessar suas finanças.
             </p>
           </div>
 
@@ -84,64 +115,111 @@ export const GoogleLoginPage: React.FC = () => {
             </div>
           )}
 
-          {/* Opção Rápida: Conta Google Principal */}
           {!showCustomGoogle ? (
+            /* Lista de Contas Google Salvas (Google Account Chooser) */
             <div className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs">
-                    RS
-                  </div>
-                  <div className="min-w-0 text-left">
-                    <p className="text-xs font-bold text-slate-900 truncate">Rogério Silva</p>
-                    <p className="text-[11px] text-slate-500 truncate">roogerio99@gmail.com</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full flex-shrink-0">
-                  Google
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block px-1">
+                  Contas Google neste dispositivo
                 </span>
+
+                <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200/90 overflow-hidden bg-white shadow-2xs">
+                  {savedAccounts.map((account) => {
+                    const isSelectedLoading = loadingEmail === account.email
+                    return (
+                      <div
+                        key={account.email}
+                        className="group flex items-center justify-between p-3 hover:bg-slate-50 transition-colors"
+                      >
+                        <button
+                          type="button"
+                          disabled={Boolean(loadingEmail)}
+                          onClick={() => handleSignIn(account.email, account.name)}
+                          className="flex-1 flex items-center gap-3 text-left min-w-0 pr-2 focus-visible:outline-hidden"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs relative">
+                            {getInitials(account.name, account.email)}
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center shadow-xs">
+                              {/* Mini ícone Google */}
+                              <svg className="w-2.5 h-2.5" viewBox="0 0 24 24">
+                                <path
+                                  fill="#4285F4"
+                                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                                />
+                                <path
+                                  fill="#34A853"
+                                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                                />
+                                <path
+                                  fill="#FBBC05"
+                                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                                />
+                                <path
+                                  fill="#EA4335"
+                                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                                />
+                              </svg>
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-900 truncate">
+                              {account.name}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">{account.email}</p>
+                          </div>
+                          {isSelectedLoading ? (
+                            <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                          )}
+                        </button>
+
+                        {savedAccounts.length > 1 && (
+                          <button
+                            type="button"
+                            title="Remover conta deste dispositivo"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeSavedAccount(account.email)
+                            }}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
-              {/* Botão Oficial do Google */}
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleSignIn('roogerio99@gmail.com', 'Rogério Silva')}
-                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-800 border border-slate-300 font-bold text-sm h-12 rounded-xl transition-all shadow-xs hover:shadow-md disabled:opacity-60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
-              >
-                {/* Ícone Oficial Multicolorido do Google */}
-                <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{loading ? 'Entrando com o Google...' : 'Continuar com o Google'}</span>
-              </button>
-
+              {/* Botão Oficial: Usar Outra Conta Google */}
               <button
                 type="button"
                 onClick={() => setShowCustomGoogle(true)}
-                className="w-full text-center text-xs text-slate-500 hover:text-emerald-700 font-semibold py-1.5 transition-colors"
+                className="w-full flex items-center justify-center gap-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-bold text-xs h-11 rounded-xl transition-all shadow-2xs hover:border-slate-300"
               >
-                Entrar com outra Conta Google &rarr;
+                <UserPlus className="w-4 h-4 text-emerald-600" />
+                <span>Entrar com outra Conta Google</span>
               </button>
             </div>
           ) : (
-            /* Formulário para Informar Outra Conta Google */
+            /* Formulário para Informar Nova Conta Google */
             <form onSubmit={handleCustomSubmit} className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomGoogle(false)}
+                  className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                  title="Voltar às contas"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-bold text-slate-800">
+                  Adicionar nova Conta Google
+                </span>
+              </div>
+
               <div className="space-y-1.5 text-left">
                 <Label htmlFor="googleEmail" className="text-xs font-semibold text-slate-700">
                   E-mail da sua Conta Google
@@ -151,27 +229,28 @@ export const GoogleLoginPage: React.FC = () => {
                   type="email"
                   value={customEmail}
                   onChange={(e) => setCustomEmail(e.target.value)}
-                  placeholder="seu.nome@gmail.com"
+                  placeholder="exemplo@gmail.com"
                   className="h-11 rounded-xl text-sm"
                   required
+                  autoFocus
                 />
               </div>
 
               <div className="space-y-1.5 text-left">
                 <Label htmlFor="googleName" className="text-xs font-semibold text-slate-700">
-                  Seu Nome de Usuário Google
+                  Nome Completo
                 </Label>
                 <Input
                   id="googleName"
                   type="text"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
-                  placeholder="Nome completo ou de exibição"
+                  placeholder="Nome de exibição"
                   className="h-11 rounded-xl text-sm"
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -182,11 +261,20 @@ export const GoogleLoginPage: React.FC = () => {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={Boolean(loadingEmail)}
                   className="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-11 rounded-xl gap-2 shadow-xs"
                 >
-                  <UserCheck className="w-4 h-4" />
-                  {loading ? 'Conectando...' : 'Entrar com esta Conta'}
+                  {loadingEmail ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Autenticando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Conectar com Google</span>
+                    </>
+                  )}
                 </Button>
               </div>
             </form>
@@ -196,7 +284,7 @@ export const GoogleLoginPage: React.FC = () => {
           <div className="pt-4 border-t border-slate-100 text-center space-y-2">
             <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-              <span>Ambiente criptografado com isolamento de dados familiares.</span>
+              <span>Ambiente criptografado com isolamento familiar por usuário.</span>
             </p>
           </div>
         </div>
