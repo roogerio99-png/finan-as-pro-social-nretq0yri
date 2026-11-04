@@ -20,7 +20,10 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     rolldownOptions: {
       onwarn(warning, warn) {
-        if (warning.code === 'MODULE_LEVEL_DIRECTIVE') {
+        if (
+          warning.code === 'MODULE_LEVEL_DIRECTIVE' ||
+          warning.code === 'INEFFECTIVE_DYNAMIC_IMPORT'
+        ) {
           return
         }
         warn(warning)

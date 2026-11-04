@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import pb from '@/lib/pocketbase/client'
 import { accountsService } from '@/services/accounts'
 import { invoicesService } from '@/services/invoices'
 import { AccountRecord, InvoiceRecord } from '@/types/finance'
@@ -165,7 +166,6 @@ export const InvoicesPage: React.FC = () => {
     }
 
     try {
-      const pb = (await import('@/lib/pocketbase/client')).default
       const txs = await pb.collection('transactions').getFullList({
         filter: `invoice_id = '${invoice.id}' && type = 'invoice_payment'`,
         sort: '-created',

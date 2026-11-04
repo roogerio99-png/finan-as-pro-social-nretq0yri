@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 import { TransactionRecord } from '@/types/finance'
 import { totalCashForMonth } from '@/services/installments'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export const transactionsService = {
   // month+regime selecionam a JANELA de busca, não a lista final:
@@ -77,7 +78,6 @@ export const transactionsService = {
     description?: string
     notes?: string
   }): Promise<{ id: string; amount: number }> {
-    const { getErrorMessage } = await import('@/lib/pocketbase/errors')
     try {
       return await pb.send<{ id: string; amount: number }>('/backend/v1/transfers', {
         method: 'POST',

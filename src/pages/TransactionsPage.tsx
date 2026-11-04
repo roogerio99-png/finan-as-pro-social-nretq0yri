@@ -23,6 +23,7 @@ import {
   Trash2,
   Clock,
   CreditCard,
+  Pencil,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -48,8 +49,9 @@ export const TransactionsPage: React.FC = () => {
   const [openInvoices, setOpenInvoices] = useState<InvoiceRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
 
-  // Modal de criação
+  // Modal de criação e alteração
   const [dialogOpen, setDialogOpen] = useState<boolean>(false)
+  const [editingTransaction, setEditingTransaction] = useState<TransactionRecord | null>(null)
   const [description, setDescription] = useState<string>('')
   const [amount, setAmount] = useState<string>('')
   const [type, setType] = useState<TransactionType>('expense')
@@ -95,7 +97,38 @@ export const TransactionsPage: React.FC = () => {
     loadData()
   }, [selectedMonth, regime])
 
-  const handleCreateTransaction = async (e: React.FormEvent) => {
+  const handleOpenCreate = () => {
+    setEditingTransaction(null)
+    resetForm()
+    setType('expense')
+    setDate(todayStr)
+    if (accounts.length > 0) setAccountId(accounts[0].id)
+    if (accounts.length > 1) setTargetAccountId(accounts[1].id)
+    if (categories.length > 0) setCategoryId(categories[0].id)
+    setDialogOpen(true)
+  }
+
+  const handleOpenEdit = (tx: TransactionRecord) => {
+    setEditingTransaction(tx)
+    setType(tx.type)
+    setDescription(tx.description || '')
+    setAmount(String(tx.amount || ''))
+    setDate(tx.date || todayStr)
+    setAccountId(tx.account_id || (accounts[0]?.id || ''))
+    setTargetAccountId(tx.transfer_account_id || (accounts[1]?.id || ''))
+    setSelectedInvoiceId(tx.invoice_id || (openInvoices[0]?.id || ''))
+    setCategoryId(tx.category_id || '')
+    setNotes(tx.notes || '')
+    setInstallmentsTotal(
+      tx.installments_total && tx.installments_total > 1 ? String(tx.installments_total) : '',
+    )
+    setInstallmentsPaid(
+      tx.installments_paid && tx.installments_paid > 0 ? String(tx.installments_paid) : '',
+    )
+    setDialogOpen(true)
+  }
+
+  const handleSubmitTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || !accountId) return
 
@@ -104,6 +137,64 @@ export const TransactionsPage: React.FC = () => {
       const parsedAmount = Math.abs(parseFloat(amount))
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
         throw new Error('Informe um valor válido maior que zero.')
+      }
+
+      // CASO 0: Alteração de lançamento existente
+      if (editingTransaction) {
+        if (type !== 'invoice_payment' && !description) {
+          throw new Error('Informe uma descrição para o lançamento.')
+        }
+
+        const selectedAcc = accounts.find((a) => a.id === accountId)
+        const competenceMonth = date.slice(0, 7)
+
+        let cashMonth = competenceMonth
+        if (
+          selectedAcc &&
+          selectedAcc.type === 'credit_card' &&
+          selectedAcc.closing_day &&
+          selectedAcc.due_day
+        ) {
+          cashMonth = accountsService.calculateCashDueDate(
+            date,
+            selectedAcc.closing_day,
+            selectedAcc.due_day,
+          )
+        }
+
+        const installments =
+          type === 'expense' && isCreditCard ? Math.max(1, parseInt(installmentsTotal, 10) || 1) : 1
+
+        await transactionsService.update(editingTransaction.id, {
+          description:
+            type === 'transfer' ? description || 'Transferência entre contas' : description,
+          amount: parsedAmount,
+          type,
+          account_id: accountId,
+          transfer_account_id: type === 'transfer' ? targetAccountId : undefined,
+          category_id:
+            type === 'expense' || type === 'income' ? categoryId || undefined : undefined,
+          date,
+          competence_month: competenceMonth,
+          cash_month: cashMonth,
+          installments_total: installments,
+          installments_paid:
+            installments > 1
+              ? Math.min(installments, Math.max(0, parseInt(installmentsPaid, 10) || 0))
+              : 0,
+          notes: notes || undefined,
+        })
+
+        toast({
+          title: 'Lançamento alterado!',
+          description: 'As alterações foram salvas com sucesso.',
+        })
+
+        setDialogOpen(false)
+        setEditingTransaction(null)
+        resetForm()
+        loadData()
+        return
       }
 
       // CASO 1: Transferência entre contas
@@ -338,7 +429,7 @@ export const TransactionsPage: React.FC = () => {
           </div>
 
           <Button
-            onClick={() => setDialogOpen(true)}
+            onClick={handleOpenCreate}
             className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl h-10 font-bold"
           >
             <PlusCircle className="w-4 h-4" /> Novo Lançamento
@@ -568,13 +659,22 @@ export const TransactionsPage: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => handleDelete(tx.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-auto"
-                    title="Excluir lançamento"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1 ml-auto">
+                    <button
+                      onClick={() => handleOpenEdit(tx)}
+                      className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Alterar lançamento"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tx.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Excluir lançamento"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -719,13 +819,22 @@ export const TransactionsPage: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => handleDelete(tx.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => handleOpenEdit(tx)}
+                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                            title="Alterar lançamento"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(tx.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -738,7 +847,11 @@ export const TransactionsPage: React.FC = () => {
 
       <TransactionDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(val) => {
+          setDialogOpen(val)
+          if (!val) setEditingTransaction(null)
+        }}
+        isEditing={!!editingTransaction}
         type={type}
         setType={setType}
         description={description}
@@ -765,7 +878,7 @@ export const TransactionsPage: React.FC = () => {
         categories={categories}
         openInvoices={openInvoices}
         saving={saving}
-        onSubmit={handleCreateTransaction}
+        onSubmit={handleSubmitTransaction}
       />
     </div>
   )
