@@ -77,4 +77,60 @@ export const invoicesService = {
       throw new Error(getErrorMessage(err))
     }
   },
+  /** Cria fatura avulsa ou manual */
+  async create(data: Partial<InvoiceRecord>): Promise<InvoiceRecord> {
+    try {
+      const payload = {
+        ...data,
+        user_id: pb.authStore.record?.id,
+        status: data.status || 'open',
+        total_amount: data.total_amount ?? 0,
+      }
+      return await pb.collection('invoices').create<InvoiceRecord>(payload)
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Atualiza dados da fatura (mês, vencimento, valor, status, observações) */
+  async update(id: string, data: Partial<InvoiceRecord>): Promise<InvoiceRecord> {
+    try {
+      return await pb.collection('invoices').update<InvoiceRecord>(id, data, {
+        expand: 'card_account_id,payment_account_id',
+      })
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Exclui uma fatura e desvincula movimentos ou pagamentos associados */
+  async delete(id: string): Promise<boolean> {
+    try {
+      // Se houver transação do tipo invoice_payment vinculada a esta fatura, deletamos ou desvinculamos
+      const linkedTxs = await pb.collection('transactions').getFullList({
+        filter: `invoice_id = '${id}'`,
+      })
+      for (const tx of linkedTxs) {
+        if (tx.type === 'invoice_payment') {
+          await pb.collection('transactions').delete(tx.id).catch(() => {})
+        } else {
+          await pb.collection('transactions').update(tx.id, { invoice_id: null }).catch(() => {})
+        }
+      }
+      return await pb.collection('invoices').delete(id)
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Obtém uma fatura pelo ID */
+  async getById(id: string): Promise<InvoiceRecord> {
+    try {
+      return await pb.collection('invoices').getOne<InvoiceRecord>(id, {
+        expand: 'card_account_id,payment_account_id',
+      })
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
 }

@@ -72,6 +72,17 @@ export const familyService = {
     }
   },
 
+  async removeMember(familyId: string, memberId: string): Promise<FamilyRecord> {
+    try {
+      const family = await pb.collection('families').getOne<FamilyRecord>(familyId)
+      const members = (family.members || []).filter((id) => id !== memberId)
+      return await pb.collection('families').update<FamilyRecord>(familyId, { members })
+    } catch (err: unknown) {
+      void err
+      throw new Error('Erro ao remover membro da família.')
+    }
+  },
+
   /**
    * Cadastra um membro do lar com e-mail e senha previamente definidos pelo gerente.
    * Se o e-mail já existir como usuário, vincula ao núcleo familiar.

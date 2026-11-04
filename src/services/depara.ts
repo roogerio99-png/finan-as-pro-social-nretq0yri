@@ -20,6 +20,18 @@ export const deparaService = {
     })
   },
 
+  async update(
+    id: string,
+    data: { pattern?: string; category_id?: string },
+  ): Promise<DeparaRuleRecord> {
+    const payload: Record<string, any> = {}
+    if (data.pattern !== undefined) payload.pattern = data.pattern.trim().toUpperCase()
+    if (data.category_id !== undefined) payload.category_id = data.category_id
+    return await pb.collection('depara_rules').update<DeparaRuleRecord>(id, payload, {
+      expand: 'category_id',
+    })
+  },
+
   async delete(id: string): Promise<boolean> {
     return await pb.collection('depara_rules').delete(id)
   },

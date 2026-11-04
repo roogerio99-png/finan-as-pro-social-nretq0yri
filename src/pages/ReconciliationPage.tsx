@@ -12,7 +12,13 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import {
   FileSpreadsheet,
   Upload,
@@ -28,6 +34,7 @@ import {
   CreditCard,
   Building2,
   Loader2,
+  Pencil,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { statementParserService, ParsedStatementTransaction } from '@/services/statementParser'
@@ -51,6 +58,13 @@ export const ReconciliationPage: React.FC = () => {
   // Modal/Form de Nova Regra De-Para
   const [newPattern, setNewPattern] = useState<string>('')
   const [newCategoryTarget, setNewCategoryTarget] = useState<string>('')
+
+  // Edição de Regra De-Para
+  const [editingRule, setEditingRule] = useState<DeparaRuleRecord | null>(null)
+  const [editPattern, setEditPattern] = useState<string>('')
+  const [editCategoryId, setEditCategoryId] = useState<string>('')
+  const [editRuleDialogOpen, setEditRuleDialogOpen] = useState<boolean>(false)
+  const [savingEditRule, setSavingEditRule] = useState<boolean>(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -738,17 +752,32 @@ export const ReconciliationPage: React.FC = () => {
                         &rarr; {cat?.name || 'Categoria'}
                       </div>
                     </div>
-                    <button
-                      onClick={async () => {
-                        await deparaService.delete(r.id)
-                        setRules((prev) => prev.filter((item) => item.id !== r.id))
-                        toast({ title: 'Regra removida.' })
-                      }}
-                      className="text-slate-400 hover:text-rose-600 p-1"
-                      title="Excluir regra"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingRule(r)
+                          setEditPattern(r.pattern)
+                          setEditCategoryId(r.category_id)
+                          setEditRuleDialogOpen(true)
+                        }}
+                        className="text-slate-400 hover:text-slate-800 p-1 rounded"
+                        title="Alterar regra"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Deseja excluir a regra "${r.pattern}"?`)) return
+                          await deparaService.delete(r.id)
+                          setRules((prev) => prev.filter((item) => item.id !== r.id))
+                          toast({ title: 'Regra removida.' })
+                        }}
+                        className="text-slate-400 hover:text-rose-600 p-1 rounded"
+                        title="Excluir regra"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 )
               })
@@ -756,6 +785,94 @@ export const ReconciliationPage: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Modal de Edição de Regra De-Para */}
+      <Dialog open={editRuleDialogOpen} onOpenChange={setEditRuleDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-emerald-600" />
+              Alterar Regra De-Para
+            </DialogTitle>
+            <DialogDescription>
+              Modifique o padrão de texto ou a categoria de destino desta regra.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault()
+              if (!editingRule || !editPattern || !editCategoryId) return
+              setSavingEditRule(true)
+              try {
+                const updated = await deparaService.update(editingRule.id, {
+                  pattern: editPattern,
+                  category_id: editCategoryId,
+                })
+                setRules((prev) =>
+                  prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
+                )
+                toast({ title: 'Regra atualizada com sucesso!' })
+                setEditRuleDialogOpen(false)
+                loadData()
+              } catch (err: any) {
+                toast({
+                  title: 'Erro ao atualizar regra',
+                  description: err.message,
+                  variant: 'destructive',
+                })
+              } finally {
+                setSavingEditRule(false)
+              }
+            }}
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="edPat">Termo no Extrato / Fatura</Label>
+              <Input
+                id="edPat"
+                value={editPattern}
+                onChange={(e) => setEditPattern(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edCat">Categoria Destino</Label>
+              <select
+                id="edCat"
+                value={editCategoryId}
+                onChange={(e) => setEditCategoryId(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
+                required
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.group_level1} &gt; {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditRuleDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingEditRule}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                {savingEditRule ? 'Salvando...' : 'Salvar Alteração'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

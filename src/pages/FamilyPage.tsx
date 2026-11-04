@@ -3,22 +3,36 @@ import { familyService } from '@/services/family'
 import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
 import { useAuth } from '@/contexts/AuthContext'
-import { FamilyRecord, TransactionRecord, AccountRecord } from '@/types/finance'
+import { FamilyRecord, TransactionRecord, AccountRecord, UserRecord } from '@/types/finance'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Users,
   UserCheck,
   UserPlus,
   ShieldCheck,
-  TrendingDown,
-  TrendingUp,
-  CreditCard,
-  Building,
   Heart,
-  Scale,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -27,6 +41,7 @@ export const FamilyPage: React.FC = () => {
   const { toast } = useToast()
 
   const [family, setFamily] = useState<FamilyRecord | null>(null)
+  const [members, setMembers] = useState<UserRecord[]>([])
   const [viewMode, setViewMode] = useState<'individual' | 'consolidated'>('consolidated')
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
@@ -36,11 +51,29 @@ export const FamilyPage: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState<string>('')
   const [inviting, setInviting] = useState<boolean>(false)
 
+  // Modal Alterar Membro
+  const [editingMember, setEditingMember] = useState<UserRecord | null>(null)
+  const [editMemberRole, setEditMemberRole] = useState<string>('membro')
+  const [editMemberName, setEditMemberName] = useState<string>('')
+  const [editMemberDialogOpen, setEditMemberDialogOpen] = useState<boolean>(false)
+  const [savingMember, setSavingMember] = useState<boolean>(false)
+
+  // Modal Excluir / Remover Membro
+  const [deletingMember, setDeletingMember] = useState<UserRecord | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false)
+  const [isDeletingMember, setIsDeletingMember] = useState<boolean>(false)
+
   const loadData = async () => {
     setLoading(true)
     try {
       const myFam = await familyService.getMyFamily()
       setFamily(myFam)
+
+      let memList: UserRecord[] = []
+      if (myFam) {
+        memList = await familyService.listMembers(myFam.id)
+      }
+      setMembers(memList)
 
       const [txs, accs] = await Promise.all([
         transactionsService.list({ familyId: viewMode === 'consolidated' ? myFam?.id : undefined }),
@@ -94,6 +127,56 @@ export const FamilyPage: React.FC = () => {
     }
   }
 
+  const openEditMember = (m: UserRecord) => {
+    setEditingMember(m)
+    setEditMemberName(m.name || '')
+    setEditMemberRole(m.family_role || 'membro')
+    setEditMemberDialogOpen(true)
+  }
+
+  const handleSaveMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingMember) return
+    setSavingMember(true)
+    try {
+      await familyService.updateMember(editingMember.id, {
+        name: editMemberName,
+        family_role: editMemberRole,
+      })
+      toast({ title: 'Membro atualizado com sucesso!' })
+      setEditMemberDialogOpen(false)
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao atualizar', description: err.message, variant: 'destructive' })
+    } finally {
+      setSavingMember(false)
+    }
+  }
+
+  const openDeleteMember = (m: UserRecord) => {
+    setDeletingMember(m)
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDeleteMember = async () => {
+    if (!family || !deletingMember) return
+    setIsDeletingMember(true)
+    try {
+      await familyService.removeMember(family.id, deletingMember.id)
+      toast({
+        title: 'Membro removido',
+        description: `${deletingMember.name} foi desvinculado do núcleo familiar.`,
+      })
+      setDeleteConfirmOpen(false)
+      setDeletingMember(null)
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao remover membro', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsDeletingMember(false)
+    }
+  }
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
@@ -104,6 +187,19 @@ export const FamilyPage: React.FC = () => {
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0)
+
+  // Garantir que o usuário atual sempre apareça se ainda não listado no expand
+  const allDisplayMembers = [...members]
+  if (user && !allDisplayMembers.some((m) => m.id === user.id)) {
+    allDisplayMembers.unshift({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      family_role: 'Administrador',
+      created: '',
+      updated: '',
+    })
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-5 sm:space-y-8">
@@ -183,33 +279,71 @@ export const FamilyPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-slate-200 shadow-xs rounded-2xl bg-white p-6 space-y-4">
           <CardHeader className="p-0">
-            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-600" />
-              Membros Conectados ({family?.members?.length || 1})
+            <CardTitle className="text-base font-bold text-slate-900 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600" />
+                Membros Conectados ({allDisplayMembers.length})
+              </span>
             </CardTitle>
             <CardDescription className="text-xs text-slate-500">
-              Cada membro possui seu próprio login seguro e contribui para o orçamento
-              compartilhado.
+              Cada membro possui seu próprio login seguro e contribui para o orçamento compartilhado.
             </CardDescription>
           </CardHeader>
 
           {family ? (
             <div className="space-y-3 pt-2">
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                    {user?.name?.[0] || 'U'}
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">
-                      {user?.name} (Você)
-                    </span>
-                    <span className="text-[11px] text-slate-500">{user?.email}</span>
-                  </div>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  Administrador
-                </span>
+              <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+                {allDisplayMembers.map((m) => {
+                  const isCurrentUser = m.id === user?.id
+                  return (
+                    <div
+                      key={m.id}
+                      className="p-3 bg-white flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                          {m.name?.[0] || 'U'}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-900 block truncate">
+                            {m.name} {isCurrentUser ? '(Você)' : ''}
+                          </span>
+                          <span className="text-[11px] text-slate-500 truncate block">
+                            {m.email}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full capitalize">
+                          {isCurrentUser ? 'Administrador' : m.family_role || 'Membro'}
+                        </span>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditMember(m)}
+                          className="h-7 w-7 text-slate-400 hover:text-slate-800"
+                          title="Alterar membro"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+
+                        {!isCurrentUser && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openDeleteMember(m)}
+                            className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                            title="Remover membro da família"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
 
               {/* Form Convite */}
@@ -242,7 +376,7 @@ export const FamilyPage: React.FC = () => {
               <p className="text-xs text-slate-500">Você ainda não tem um núcleo familiar ativo.</p>
               <Button
                 onClick={handleCreateFamily}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
               >
                 Criar Minha Família
               </Button>
@@ -287,6 +421,93 @@ export const FamilyPage: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Modal de Alteração de Membro */}
+      <Dialog open={editMemberDialogOpen} onOpenChange={setEditMemberDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-emerald-600" />
+              Alterar Membro da Família
+            </DialogTitle>
+            <DialogDescription>
+              Modifique o nome de exibição ou o papel familiar deste membro.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveMember} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="mName">Nome de Exibição</Label>
+              <Input
+                id="mName"
+                value={editMemberName}
+                onChange={(e) => setEditMemberName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="mRole">Papel Familiar</Label>
+              <select
+                id="mRole"
+                value={editMemberRole}
+                onChange={(e) => setEditMemberRole(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800"
+              >
+                <option value="administrador">Administrador</option>
+                <option value="cônjuge">Cônjuge</option>
+                <option value="membro">Membro</option>
+                <option value="dependente">Dependente</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditMemberDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={savingMember}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
+                {savingMember ? 'Salvando...' : 'Salvar Alteração'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação para Remover Membro */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Remover "{deletingMember?.name}" da família?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600">
+              Esta pessoa não terá mais acesso à visualização consolidada dos gastos e contas
+              familiares.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isDeletingMember}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteMember}
+              disabled={isDeletingMember}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeletingMember ? 'Removendo...' : 'Sim, Remover Membro'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { dreamsService } from '@/services/dreams'
-import { DreamRecord } from '@/types/finance'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { DreamRecord, DreamStatus } from '@/types/finance'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,18 +13,23 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Sparkles,
   Target,
   PlusCircle,
   Scissors,
-  CheckCircle,
-  Calendar,
-  Shield,
-  Plane,
-  Car,
-  Home,
-  Heart,
-  TrendingUp,
+  Pencil,
+  Trash2,
+  Plus,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -36,15 +41,22 @@ export const DreamsPage: React.FC = () => {
   // Tradutor Comportamental de Cortes de Gastos
   const [expenseCutAmount, setExpenseCutAmount] = useState<string>('150')
 
-  // Modal de Criação de Sonho
+  // Modal de Criação / Edição de Sonho
   const [dialogOpen, setDialogOpen] = useState<boolean>(false)
+  const [editingDream, setEditingDream] = useState<DreamRecord | null>(null)
   const [title, setTitle] = useState<string>('')
   const [targetAmount, setTargetAmount] = useState<string>('')
   const [currentAmount, setCurrentAmount] = useState<string>('0')
   const [targetDate, setTargetDate] = useState<string>('2026-12-31')
   const [monthlyContribution, setMonthlyContribution] = useState<string>('400')
+  const [status, setStatus] = useState<DreamStatus>('in_progress')
   const [icon, setIcon] = useState<string>('Plane')
   const [saving, setSaving] = useState<boolean>(false)
+
+  // Modal de Exclusão de Sonho
+  const [deletingDream, setDeletingDream] = useState<DreamRecord | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   // Modal de Aporte Rápido
   const [contributionModalOpen, setContributionModalOpen] = useState<boolean>(false)
@@ -67,36 +79,98 @@ export const DreamsPage: React.FC = () => {
     loadData()
   }, [])
 
-  const handleCreateDream = async (e: React.FormEvent) => {
+  const openCreateDialog = () => {
+    setEditingDream(null)
+    setTitle('')
+    setTargetAmount('')
+    setCurrentAmount('0')
+    setTargetDate('2026-12-31')
+    setMonthlyContribution('400')
+    setStatus('in_progress')
+    setIcon('Plane')
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (dr: DreamRecord) => {
+    setEditingDream(dr)
+    setTitle(dr.title)
+    setTargetAmount(String(dr.target_amount || ''))
+    setCurrentAmount(String(dr.current_amount || 0))
+    setTargetDate(dr.target_date || '2026-12-31')
+    setMonthlyContribution(String(dr.monthly_contribution || 0))
+    setStatus(dr.status || 'in_progress')
+    setIcon(dr.icon || 'Plane')
+    setDialogOpen(true)
+  }
+
+  const handleSaveDream = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title || !targetAmount) return
 
     setSaving(true)
     try {
-      await dreamsService.create({
+      const payload: Partial<DreamRecord> = {
         title,
         target_amount: parseFloat(targetAmount) || 1000,
         current_amount: parseFloat(currentAmount) || 0,
         target_date: targetDate,
         monthly_contribution: parseFloat(monthlyContribution) || 100,
         icon,
-        status: 'in_progress',
-      })
+        status,
+      }
 
-      toast({
-        title: 'Sonho registrado!',
-        description: 'Toda grande conquista começa com uma meta clara e aportes constantes.',
-      })
+      if (editingDream) {
+        await dreamsService.update(editingDream.id, payload)
+        toast({
+          title: 'Meta atualizada!',
+          description: `"${title}" foi alterada com sucesso.`,
+        })
+      } else {
+        await dreamsService.create(payload)
+        toast({
+          title: 'Sonho registrado!',
+          description: 'Toda grande conquista começa com uma meta clara e aportes constantes.',
+        })
+      }
 
       setDialogOpen(false)
-      setTitle('')
-      setTargetAmount('')
-      setCurrentAmount('0')
       loadData()
     } catch (err: any) {
-      toast({ title: 'Erro ao criar', description: err.message, variant: 'destructive' })
+      toast({
+        title: 'Erro ao salvar sonho',
+        description: err.message,
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const openDeleteConfirm = (dr: DreamRecord) => {
+    setDeletingDream(dr)
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingDream) return
+    setIsDeleting(true)
+    try {
+      await dreamsService.delete(deletingDream.id)
+      toast({
+        title: 'Meta excluída com sucesso',
+        description: `"${deletingDream.title}" foi removida do seu planejamento.`,
+      })
+      setDeleteConfirmOpen(false)
+      setDeletingDream(null)
+      loadData()
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao excluir meta',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -131,62 +205,63 @@ export const DreamsPage: React.FC = () => {
             Metas & Sonhos de Longo Prazo
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-            Acompanhe seus aportes, meça prazos e veja como cortes conscientes de gastos aceleram a
-            realização do que realmente importa.
+            Crie, altere e exclua metas financeiras. Acompanhe aportes e meça o impacto de cortes
+            conscientes para acelerar sua conquista.
           </p>
         </div>
 
         <Button
-          onClick={() => setDialogOpen(true)}
-          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold h-10"
+          onClick={openCreateDialog}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 rounded-xl h-10 px-4"
         >
-          <PlusCircle className="w-4 h-4" /> Criar Novo Sonho
+          <Plus className="w-4 h-4" /> Novo Sonho / Meta
         </Button>
       </div>
 
-      {/* Tradutor Comportamental de Cortes de Gastos */}
-      <Card className="border-teal-200 shadow-xs rounded-2xl bg-gradient-to-r from-teal-50/70 to-emerald-50/70 p-6 space-y-4">
+      {/* Tradutor Comportamental */}
+      <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-teal-50/40 p-5 rounded-2xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Scissors className="w-5 h-5 text-teal-700" />
-            <h2 className="text-lg font-bold text-teal-950">
-              Tradutor Comportamental: O Poder dos Pequenos Cortes
-            </h2>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+              <Scissors className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                Simulador Comportamental de Cortes
+              </h3>
+              <p className="text-xs text-slate-600">
+                Se você cortar uma despesa desnecessária hoje e direcionar para seus sonhos:
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-teal-900">
-            <Label htmlFor="cutInp">Se eu economizar:</Label>
-            <Input
-              id="cutInp"
-              type="number"
-              value={expenseCutAmount}
-              onChange={(e) => setExpenseCutAmount(e.target.value)}
-              className="w-28 h-8 text-xs font-bold bg-white"
-              placeholder="R$ 150"
-            />
-            <span>/ mês</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700">Corte de Gastos:</span>
+            <div className="relative w-32">
+              <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">R$</span>
+              <Input
+                type="number"
+                value={expenseCutAmount}
+                onChange={(e) => setExpenseCutAmount(e.target.value)}
+                className="pl-8 text-xs font-bold bg-white"
+              />
+            </div>
           </div>
         </div>
 
-        <p className="text-xs text-teal-900 leading-relaxed">
-          Cortar R$ {parsedCut} em delivery ou assinaturas não significa privação: significa
-          antecipar seu sonho. Veja o impacto direto em cada uma das suas metas abaixo:
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          {dreams.map((dream) => {
-            const impact = dreamsService.calculateBehavioralImpact(dream, parsedCut)
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+          {dreams.map((dr) => {
+            const impact = dreamsService.calculateBehavioralImpact(dr, parsedCut)
             return (
               <div
-                key={dream.id}
-                className="p-3.5 bg-white rounded-xl border border-teal-100 shadow-2xs space-y-1"
+                key={dr.id}
+                className="p-3 bg-white/80 rounded-xl border border-emerald-100 space-y-1.5"
               >
-                <span className="font-bold text-xs text-slate-900 truncate block">
-                  {dream.title}
-                </span>
-                <div className="flex items-baseline gap-1.5 text-xs text-emerald-800 font-extrabold">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{impact.monthsSaved} meses adiantados!</span>
+                <div className="flex justify-between items-center text-xs">
+                  <strong className="text-slate-900 truncate">{dr.title}</strong>
+                  <span className="text-emerald-700 font-bold">
+                    -{impact.monthsSaved} meses adiantados
+                  </span>
                 </div>
                 <span className="text-[11px] text-slate-500 block">
                   Prazo cai de {impact.monthsOriginal} para {impact.monthsWithCut} meses (
@@ -209,8 +284,8 @@ export const DreamsPage: React.FC = () => {
               dê um nome ao seu futuro.
             </p>
             <Button
-              onClick={() => setDialogOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 rounded-xl"
+              onClick={openCreateDialog}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 rounded-xl font-bold"
             >
               <PlusCircle className="w-4 h-4" /> Criar Meu Primeiro Sonho
             </Button>
@@ -237,9 +312,29 @@ export const DreamsPage: React.FC = () => {
                       <h3 className="font-extrabold text-slate-900 text-base mt-0.5">{dr.title}</h3>
                     </div>
 
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      {percent}% Concluído
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {percent}%
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEditDialog(dr)}
+                        className="h-7 w-7 text-slate-400 hover:text-slate-800"
+                        title="Alterar meta"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openDeleteConfirm(dr)}
+                        className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                        title="Excluir meta"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Barra de Progresso */}
@@ -274,16 +369,34 @@ export const DreamsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 flex items-center gap-2">
                   <Button
                     onClick={() => {
                       setSelectedDreamId(dr.id)
                       setContributionModalOpen(true)
                     }}
-                    className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 rounded-xl gap-1.5"
+                    className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200 rounded-xl gap-1.5"
                   >
                     <PlusCircle className="w-3.5 h-3.5 text-emerald-600" />
                     Registrar Aporte
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => openEditDialog(dr)}
+                    className="text-xs font-bold text-slate-700 border-slate-200 rounded-xl px-2.5"
+                    title="Alterar meta"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                    Alterar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => openDeleteConfirm(dr)}
+                    className="text-xs font-bold text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl px-2.5"
+                    title="Excluir meta"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-600" />
+                    Excluir
                   </Button>
                 </div>
               </Card>
@@ -292,26 +405,38 @@ export const DreamsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Modal de Novo Sonho */}
+      {/* Modal de Criar / Alterar Sonho */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-900">
-              Novo Sonho ou Meta
+            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              {editingDream ? (
+                <>
+                  <Pencil className="w-5 h-5 text-emerald-600" />
+                  Alterar Sonho ou Meta
+                </>
+              ) : (
+                <>
+                  <Target className="w-5 h-5 text-emerald-600" />
+                  Novo Sonho ou Meta
+                </>
+              )}
             </DialogTitle>
             <DialogDescription>
-              Defina o valor alvo, aporte mensal e prazo para realizar.
+              {editingDream
+                ? 'Atualize os dados e valores do seu objetivo.'
+                : 'Defina o valor alvo, aporte mensal e prazo para realizar.'}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateDream} className="space-y-4 pt-2">
+          <form onSubmit={handleSaveDream} className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label htmlFor="dTitle">Título do Sonho</Label>
               <Input
                 id="dTitle"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Viagem Europa, Troca de Carro, Reserva 6 Meses..."
+                placeholder="Ex: Viagem Europa, Troca de Carro, Reserva de Emergência..."
                 required
               />
             </div>
@@ -368,6 +493,22 @@ export const DreamsPage: React.FC = () => {
               </div>
             </div>
 
+            {editingDream && (
+              <div className="space-y-1.5">
+                <Label htmlFor="dStatus">Situação da Meta</Label>
+                <select
+                  id="dStatus"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as DreamStatus)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800"
+                >
+                  <option value="in_progress">Em Andamento</option>
+                  <option value="achieved">Concluído / Atingido</option>
+                  <option value="paused">Pausado</option>
+                </select>
+              </div>
+            )}
+
             <div className="flex justify-end space-x-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancelar
@@ -375,14 +516,42 @@ export const DreamsPage: React.FC = () => {
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
               >
-                {saving ? 'Salvando...' : 'Salvar Sonho'}
+                {saving ? 'Salvando...' : editingDream ? 'Salvar Alterações' : 'Criar Sonho'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Confirmação para Excluir Sonho */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Excluir Sonho "{deletingDream?.title}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600">
+              Tem certeza que deseja remover esta meta financeira? O histórico e o progresso
+              acumulado serão apagados permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir Meta'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Modal de Aporte Rápido */}
       <Dialog open={contributionModalOpen} onOpenChange={setContributionModalOpen}>
@@ -414,7 +583,10 @@ export const DreamsPage: React.FC = () => {
               >
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button
+                type="submit"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              >
                 Confirmar
               </Button>
             </div>

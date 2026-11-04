@@ -56,6 +56,16 @@ export const categoriesService = {
     }
   },
 
+  /** Exclui definitivamente uma lista de IDs do plano de contas */
+  async deleteNodes(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    try {
+      await Promise.all(ids.map((id) => pb.collection('categories').delete(id)))
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
   /** Renomeia todos os registros que compartilham o mesmo rótulo de grupo/subgrupo. */
   async renameLabel(
     cats: CategoryRecord[],

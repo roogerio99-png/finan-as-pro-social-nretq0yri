@@ -12,6 +12,16 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Wallet,
   CreditCard,
   Plus,
@@ -22,6 +32,7 @@ import {
   PiggyBank,
   TrendingUp,
   Banknote,
+  Trash2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { accountsService } from '@/services/accounts'
@@ -70,6 +81,9 @@ export const AccountsTab: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<AccountForm>(emptyForm())
+  const [deletingAccount, setDeletingAccount] = useState<AccountRecord | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -168,6 +182,34 @@ export const AccountsTab: React.FC = () => {
     }
   }
 
+  const openDeleteConfirm = (a: AccountRecord) => {
+    setDeletingAccount(a)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingAccount) return
+    setIsDeleting(true)
+    try {
+      await accountsService.delete(deletingAccount.id)
+      toast({
+        title: 'Conta excluída!',
+        description: `${deletingAccount.name} foi removida definitivamente.`,
+      })
+      setDeleteDialogOpen(false)
+      setDeletingAccount(null)
+      load()
+    } catch (err) {
+      toast({
+        title: 'Erro ao excluir conta',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
 
@@ -260,6 +302,16 @@ export const AccountsTab: React.FC = () => {
                       ) : (
                         <Archive className="w-4 h-4" />
                       )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openDeleteConfirm(a)}
+                      className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                      aria-label={`Excluir ${a.name}`}
+                      title="Excluir conta definitivamente"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -465,6 +517,39 @@ export const AccountsTab: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+      {/* Modal de Confirmação para Excluir Conta */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Excluir conta "{deletingAccount?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600 space-y-2">
+              <p>
+                Tem certeza que deseja excluir esta conta/cartão? Esta ação removerá a conta
+                permanentemente do seu sistema.
+              </p>
+              <p className="text-xs text-slate-500">
+                Dica: caso queira apenas que ela não apareça mais nos novos lançamentos sem perder
+                histórico, você também pode usar a opção de arquivar.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir Conta'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
