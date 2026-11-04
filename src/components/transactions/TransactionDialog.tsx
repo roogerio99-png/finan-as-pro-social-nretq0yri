@@ -10,6 +10,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { Mic, AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   TrendingUp,
   TrendingDown,
@@ -51,7 +53,15 @@ interface TransactionDialogProps {
   openInvoices: InvoiceRecord[]
   saving: boolean
   onSubmit: (e: React.FormEvent) => void
+  // Preenchimento por voz: campos reconhecidos ficam destacados; campos não
+  // reconhecidos aparecem com dica para preenchimento manual.
+  voiceFields?: Record<string, boolean>
+  voiceAccountLabel?: string
+  voiceHints?: string[]
 }
+
+const voiceHighlight = (flag?: boolean): string =>
+  flag ? 'ring-2 ring-amber-400 border-amber-300 bg-amber-50/60' : ''
 
 export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   open,
@@ -84,9 +94,14 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   openInvoices,
   saving,
   onSubmit,
+  voiceFields,
+  voiceAccountLabel = '',
+  voiceHints = [],
 }) => {
   const selectedAccount = accounts.find((a) => a.id === accountId)
   const isCreditCard = selectedAccount?.type === 'credit_card'
+  const isVoice = !!voiceFields
+  const vField = (k: string) => !!voiceFields?.[k]
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
@@ -106,6 +121,37 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4 pt-2">
+          {isVoice && (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Mic className="w-3.5 h-3.5" /> Preenchido por voz — revise antes de salvar
+              </div>
+              <p className="text-[11px] leading-snug">
+                Os campos destacados em amarelo foram reconhecidos pela fala. Nada foi gravado
+                ainda: edite o que precisar e confirme.
+                {voiceAccountLabel && (
+                  <>
+                    {' '}
+                    Meio de pagamento ouvido: <strong>{voiceAccountLabel}</strong>
+                    {vField('account') ? ' (conta encontrada)' : ' (selecione a conta abaixo)'}.
+                  </>
+                )}
+              </p>
+              {voiceHints.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  {voiceHints.map((hint, i) => (
+                    <p
+                      key={i}
+                      className="text-[11px] flex items-start gap-1.5 bg-white/70 border border-amber-200 rounded-lg px-2 py-1.5"
+                    >
+                      <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-600" />
+                      {hint}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {/* Opções de Tipo de Movimento */}
           {isEditing && (type === 'transfer' || type === 'invoice_payment') ? (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center justify-between">
@@ -119,22 +165,26 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
               <button
                 type="button"
                 onClick={() => setType('expense')}
-                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                className={cn(
+                  'py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all',
                   type === 'expense'
                     ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-2xs'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                  voiceHighlight(vField('type')),
+                )}
               >
                 <TrendingDown className="w-4 h-4 text-rose-600" /> Despesa
               </button>
               <button
                 type="button"
                 onClick={() => setType('income')}
-                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                className={cn(
+                  'py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all',
                   type === 'income'
                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-2xs'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                  type === 'expense' ? '' : voiceHighlight(vField('type')),
+                )}
               >
                 <TrendingUp className="w-4 h-4 text-emerald-600" /> Receita
               </button>
@@ -229,6 +279,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                     : 'Ex: Supermercado, Aluguel, Salário...'
                 }
                 required={type !== 'transfer'}
+                className={voiceHighlight(vField('description'))}
               />
             </div>
           )}
@@ -246,6 +297,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
                 required
+                className={voiceHighlight(vField('amount'))}
               />
             </div>
 
@@ -257,6 +309,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
+                className={voiceHighlight(vField('date'))}
               />
             </div>
           </div>
@@ -307,7 +360,10 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 id="acc"
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                className={cn(
+                  'w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500',
+                  voiceHighlight(vField('account')),
+                )}
                 required
               >
                 {accounts
@@ -365,6 +421,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                   value={installmentsTotal}
                   onChange={(e) => setInstallmentsTotal(e.target.value)}
                   placeholder="1 = à vista"
+                  className={voiceHighlight(vField('installments'))}
                 />
               </div>
 

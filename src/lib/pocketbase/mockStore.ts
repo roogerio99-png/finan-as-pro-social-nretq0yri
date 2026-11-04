@@ -692,7 +692,7 @@ export class MockPocketBase {
       }
       this.persist('accounts')
     }
-    this.emit('transactions', 'delete', { id: '*' })
+    this.emit('transactions', 'delete', { id: '*', created: '', updated: '' })
   }
 
   autoCancellation(_flag: boolean) {

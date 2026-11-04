@@ -86,7 +86,7 @@ export const DebtsPage: React.FC = () => {
 
   // Executa a simulação sempre que mudar método, dívidas ou aporte extra
   useEffect(() => {
-    const activeDebts = debts.filter((d) => (d.status ?? 'active') !== 'paid_off')
+    const activeDebts = debts.filter((d) => (d.status ?? 'active') !== 'paid')
     if (activeDebts.length > 0) {
       const extra = parseFloat(extraMonthlyBudget) || 0
       const res = debtsService.simulatePayoff(activeDebts, simulationMethod, extra)
@@ -194,15 +194,15 @@ export const DebtsPage: React.FC = () => {
 
   const handleToggleStatus = async (d: DebtRecord) => {
     try {
-      const newStatus: DebtStatus = d.status === 'paid_off' ? 'active' : 'paid_off'
+      const newStatus: DebtStatus = d.status === 'paid' ? 'active' : 'paid'
       await debtsService.update(d.id, {
         status: newStatus,
-        current_balance: newStatus === 'paid_off' ? 0 : d.total_debt || d.minimum_payment,
+        current_balance: newStatus === 'paid' ? 0 : d.total_debt || d.minimum_payment,
       })
       toast({
-        title: newStatus === 'paid_off' ? '🎉 Parabéns! Dívida quitada!' : 'Dívida reativada',
+        title: newStatus === 'paid' ? '🎉 Parabéns! Dívida quitada!' : 'Dívida reativada',
         description:
-          newStatus === 'paid_off'
+          newStatus === 'paid'
             ? `A dívida com "${d.creditor}" foi marcada como quitada.`
             : `A dívida com "${d.creditor}" voltou ao status ativo.`,
       })
@@ -431,8 +431,8 @@ export const DebtsPage: React.FC = () => {
             </div>
           ) : (
             debts.map((d) => {
-              const isPaid = (d.status ?? 'active') === 'paid_off' || d.current_balance <= 0
-              const isNegotiating = d.status === 'negotiating'
+              const isPaid = (d.status ?? 'active') === 'paid' || d.current_balance <= 0
+              const isNegotiating = d.status === 'renegotiating'
 
               return (
                 <div
@@ -719,7 +719,7 @@ export const DebtsPage: React.FC = () => {
                 >
                   <option value="active">Ativa</option>
                   <option value="negotiating">Em Negociação</option>
-                  <option value="paid_off">Quitada</option>
+                  <option value="paid">Quitada</option>
                 </select>
               </div>
             </div>

@@ -190,7 +190,7 @@ export const authService = {
         created: nowIso,
         updated: nowIso,
       }
-      pb.authStore.save(`google_oauth_token_${Date.now()}`, fallbackUser)
+      pb.authStore.save(`google_oauth_token_${Date.now()}`, fallbackUser as any)
       authRecord = fallbackUser
     }
 

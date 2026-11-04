@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
 import { categoriesService } from '@/services/categories'
@@ -24,6 +24,7 @@ import {
   Clock,
   CreditCard,
   Pencil,
+  Mic,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -33,6 +34,13 @@ import {
   firstCashMonth,
 } from '@/services/installments'
 import { TransactionDialog } from '@/components/transactions/TransactionDialog'
+import { useVoiceInput } from '@/hooks/useVoiceInput'
+import { parseVoiceTransaction } from '@/services/voiceParser'
+import {
+  VoiceCaptureBar,
+  VoiceFab,
+  VoiceUnsupportedNote,
+} from '@/components/transactions/VoiceCaptureUI'
 
 export const TransactionsPage: React.FC = () => {
   const { toast } = useToast()
@@ -64,6 +72,14 @@ export const TransactionsPage: React.FC = () => {
   const [installmentsTotal, setInstallmentsTotal] = useState<string>('')
   const [installmentsPaid, setInstallmentsPaid] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
+
+  // Lançamento por voz: transcrição e campos reconhecidos (destaque visual)
+  const [voiceFields, setVoiceFields] = useState<Record<string, boolean>>({})
+  const [voiceHints, setVoiceHints] = useState<string[]>([])
+  const [voiceAccountLabel, setVoiceAccountLabel] = useState<string>('')
+  const [voiceFromSpeech, setVoiceFromSpeech] = useState<boolean>(false)
+  const accountsRef = useRef<AccountRecord[]>([])
+  accountsRef.current = accounts
 
   const selectedAccount = accounts.find((a) => a.id === accountId)
   const isCreditCard = selectedAccount?.type === 'credit_card'
@@ -99,6 +115,7 @@ export const TransactionsPage: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingTransaction(null)
+    clearVoiceHighlights()
     resetForm()
     setType('expense')
     setDate(todayStr)
@@ -110,6 +127,7 @@ export const TransactionsPage: React.FC = () => {
 
   const handleOpenEdit = (tx: TransactionRecord) => {
     setEditingTransaction(tx)
+    clearVoiceHighlights()
     setType(tx.type)
     setDescription(tx.description || '')
     setAmount(String(tx.amount || ''))
@@ -327,7 +345,74 @@ export const TransactionsPage: React.FC = () => {
     setNotes('')
     setInstallmentsTotal('')
     setInstallmentsPaid('')
+    setVoiceFields({})
+    setVoiceHints([])
+    setVoiceAccountLabel('')
+    setVoiceFromSpeech(false)
   }
+
+  const clearVoiceHighlights = () => {
+    setVoiceFields({})
+    setVoiceHints([])
+    setVoiceAccountLabel('')
+    setVoiceFromSpeech(false)
+  }
+
+  const applyVoiceResult = (transcript: string) => {
+    const parsed = parseVoiceTransaction(transcript, accountsRef.current)
+
+    setEditingTransaction(null)
+    setVoiceFromSpeech(true)
+    setVoiceFields({
+      type: parsed.fields.type.found,
+      description: parsed.fields.description.found,
+      amount: parsed.fields.amount.found,
+      date: parsed.fields.date.found,
+      account: parsed.fields.account.found,
+      installments: parsed.fields.installments.found,
+    })
+    setVoiceHints(
+      Object.values(parsed.fields)
+        .filter((f) => !f.found && f.message)
+        .map((f) => f.message as string),
+    )
+    setVoiceAccountLabel(parsed.accountName || parsed.accountQuery)
+
+    // Preenche o formulário — nada é gravado; o usuário revisa e confirma.
+    setType(parsed.type)
+    setDescription(parsed.description)
+    setAmount(parsed.amount !== null ? String(parsed.amount) : '')
+    setDate(parsed.date || todayStr)
+    setNotes('')
+    setInstallmentsPaid('')
+    if (parsed.accountId) {
+      setAccountId(parsed.accountId)
+    } else if (accountsRef.current.length > 0) {
+      setAccountId(accountsRef.current[0].id)
+    }
+    setInstallmentsTotal(parsed.installments !== null ? String(parsed.installments) : '')
+
+    if (categories.length > 0 && !categoryId) setCategoryId(categories[0].id)
+
+    setDialogOpen(true)
+
+    toast({
+      title: 'Fala entendida! Revise antes de salvar.',
+      description:
+        'Os campos reconhecidos por voz estão destacados. Nada foi gravado — confirme só quando conferir.',
+    })
+  }
+
+  const {
+    supported: voiceSupported,
+    listening: voiceListening,
+    transcript: voiceTranscript,
+    interim: voiceInterim,
+    error: voiceError,
+    start: startVoice,
+    stop: stopVoice,
+    reset: resetVoice,
+  } = useVoiceInput(applyVoiceResult)
 
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja excluir este lançamento?')) return
@@ -419,6 +504,21 @@ export const TransactionsPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
+      {/* Lançamento por voz — captura e transcrição para conferência */}
+      {voiceSupported ? (
+        <VoiceCaptureBar
+          listening={voiceListening}
+          transcript={voiceTranscript}
+          interim={voiceInterim}
+          error={voiceError}
+          onStart={startVoice}
+          onStop={stopVoice}
+          onClear={resetVoice}
+        />
+      ) : (
+        <VoiceUnsupportedNote />
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -478,6 +578,20 @@ export const TransactionsPage: React.FC = () => {
           >
             <PlusCircle className="w-4 h-4" /> Novo Lançamento
           </Button>
+
+          {voiceSupported && (
+            <Button
+              onClick={voiceListening ? stopVoice : startVoice}
+              className={`w-full sm:w-auto text-white gap-2 rounded-xl h-10 font-bold ${
+                voiceListening
+                  ? 'bg-rose-600 hover:bg-rose-700 animate-pulse'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+              title="Lançar por voz (microfone)"
+            >
+              <Mic className="w-4 h-4" /> {voiceListening ? 'Parar Voz' : 'Lançar por Voz'}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -962,7 +1076,19 @@ export const TransactionsPage: React.FC = () => {
         openInvoices={openInvoices}
         saving={saving}
         onSubmit={handleSubmitTransaction}
+        voiceFields={voiceFromSpeech ? voiceFields : undefined}
+        voiceAccountLabel={voiceFromSpeech ? voiceAccountLabel : ''}
+        voiceHints={voiceFromSpeech ? voiceHints : []}
       />
+
+      {/* FAB de voz — sempre visível, acima do menu inferior no mobile */}
+      {voiceSupported && (
+        <VoiceFab
+          listening={voiceListening}
+          starting={false}
+          onClick={voiceListening ? stopVoice : startVoice}
+        />
+      )}
     </div>
   )
 }
