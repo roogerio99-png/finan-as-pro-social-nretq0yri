@@ -1,15 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { UserRecord } from '@/types/finance'
-import { authService } from '@/services/auth'
+import { authService, GoogleAuthPayload, SavedGoogleAccount } from '@/services/auth'
 
 interface AuthContextType {
   user: UserRecord | null
   loading: boolean
-  login: (email: string, pass: string) => Promise<UserRecord>
-  loginAsDefault: () => Promise<UserRecord>
-  register: (email: string, pass: string, name: string) => Promise<UserRecord>
-  requestPasswordReset: (email: string) => Promise<void>
+  savedAccounts: SavedGoogleAccount[]
+  loginWithGoogle: (payload?: GoogleAuthPayload) => Promise<UserRecord>
   logout: () => void
+  removeSavedAccount: (email: string) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -17,57 +16,46 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserRecord | null>(authService.getCurrentUser())
   const [loading, setLoading] = useState<boolean>(true)
+  const [savedAccounts, setSavedAccounts] = useState<SavedGoogleAccount[]>(authService.getSavedAccounts())
+
+  const refreshSavedAccounts = () => {
+    setSavedAccounts(authService.getSavedAccounts())
+  }
 
   useEffect(() => {
-    // Se não tiver login prévio, tenta logar automaticamente com a conta semente para experiência fluida imediata
-    const checkInit = async () => {
-      if (!authService.isAuthenticated()) {
-        try {
-          const defaultUser = await authService.loginAsDefault()
-          setUser(defaultUser)
-        } catch (e) {
-          console.warn('Auto-login skip:', e)
-        }
-      } else {
-        setUser(authService.getCurrentUser())
-      }
-      setLoading(false)
+    // Restaura o usuário autenticado caso já possua sessão Google salva
+    if (authService.isAuthenticated()) {
+      setUser(authService.getCurrentUser())
+    } else {
+      setUser(null)
     }
-
-    checkInit()
+    refreshSavedAccounts()
+    setLoading(false)
 
     const unsub = authService.subscribe((newUser) => {
       setUser(newUser)
+      refreshSavedAccounts()
     })
 
     return () => unsub()
   }, [])
 
-  const login = async (email: string, pass: string) => {
-    const logged = await authService.login(email, pass)
+  const loginWithGoogle = async (payload?: GoogleAuthPayload) => {
+    const logged = await authService.loginWithGoogle(payload)
     setUser(logged)
+    refreshSavedAccounts()
     return logged
-  }
-
-  const loginAsDefault = async () => {
-    const logged = await authService.loginAsDefault()
-    setUser(logged)
-    return logged
-  }
-
-  const register = async (email: string, pass: string, name: string) => {
-    const registered = await authService.register(email, pass, name)
-    setUser(registered)
-    return registered
-  }
-
-  const requestPasswordReset = async (email: string) => {
-    await authService.requestPasswordReset(email)
   }
 
   const logout = () => {
     authService.logout()
     setUser(null)
+    refreshSavedAccounts()
+  }
+
+  const removeSavedAccount = (email: string) => {
+    const updated = authService.removeSavedAccount(email)
+    setSavedAccounts(updated)
   }
 
   return (
@@ -75,11 +63,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
-        login,
-        loginAsDefault,
-        register,
-        requestPasswordReset,
+        savedAccounts,
+        loginWithGoogle,
         logout,
+        removeSavedAccount,
       }}
     >
       {children}

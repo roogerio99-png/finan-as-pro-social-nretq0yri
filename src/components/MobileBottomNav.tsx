@@ -8,15 +8,15 @@ import {
   Target,
   Sparkles,
   CreditCard,
-  MoreHorizontal,
+  Menu,
   BadgeAlert,
   Users,
   Database,
   Compass,
   BookOpen,
   LogOut,
-  X,
-  UserCheck,
+  ChevronRight,
+  Smartphone,
 } from 'lucide-react'
 import {
   Sheet,
@@ -34,70 +34,113 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
 
 export const MobileBottomNav: React.FC = () => {
   const { user, logout } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
   const [glossaryOpen, setGlossaryOpen] = useState(false)
 
-  // Itens de acesso rápido e mais frequentes na barra inferior
+  const handleLogout = () => {
+    setMoreOpen(false)
+    logout()
+    toast({
+      title: 'Sessão encerrada',
+      description: 'Você saiu da sua conta. Para acessar novamente, selecione sua Conta Google.',
+    })
+    navigate('/')
+  }
+
+  // 4 itens principais mais frequentes + Botão Menu
   const primaryTabs = [
     { to: '/painel', label: 'Painel', icon: LayoutDashboard },
     { to: '/lancamentos', label: 'Lançamentos', icon: Receipt },
-    { to: '/conciliacao', label: 'Conciliar', icon: FileSpreadsheet },
+    { to: '/faturas', label: 'Faturas', icon: CreditCard },
     { to: '/orcamento', label: 'Orçamento', icon: Target },
-    { to: '/sonhos', label: 'Sonhos', icon: Sparkles },
   ]
 
-  // Rotas complementares dentro da gaveta "Mais"
-  const secondaryItems = [
+  // Módulos organizados por seções na gaveta
+  const sections = [
     {
-      to: '/faturas',
-      label: 'Faturas & Cartões',
-      desc: 'Fechamento, vencimento e limites de crédito',
-      icon: CreditCard,
-      color: 'text-purple-600 bg-purple-50',
+      title: 'Movimentações & Bancos',
+      items: [
+        {
+          to: '/conciliacao',
+          label: 'Conciliação Bancária',
+          desc: 'Conferência de extratos e de-para',
+          icon: FileSpreadsheet,
+          color: 'text-amber-600 bg-amber-50',
+        },
+      ],
     },
     {
-      to: '/dividas',
-      label: 'Quitação de Dívidas',
-      desc: 'Simulador Bola de Neve vs. Avalanche',
-      icon: BadgeAlert,
-      color: 'text-rose-600 bg-rose-50',
+      title: 'Planejamento & Estratégia',
+      items: [
+        {
+          to: '/dividas',
+          label: 'Quitação de Dívidas',
+          desc: 'Bola de neve vs. avalanche com taxas',
+          icon: BadgeAlert,
+          color: 'text-rose-600 bg-rose-50',
+        },
+        {
+          to: '/sonhos',
+          label: 'Sonhos & Metas',
+          desc: 'Reserva e metas com tradutor de cortes',
+          icon: Sparkles,
+          color: 'text-purple-600 bg-purple-50',
+        },
+      ],
     },
     {
-      to: '/familia',
-      label: 'Modo Família',
-      desc: 'Visão individual vs. consolidada do lar',
-      icon: Users,
-      color: 'text-blue-600 bg-blue-50',
-    },
-    {
-      to: '/cadastros',
-      label: 'Cadastros',
-      desc: 'Usuários, contas/cartões e categorias',
-      icon: Database,
-      color: 'text-emerald-600 bg-emerald-50',
-    },
-    {
-      to: '/boas-vindas',
-      label: 'Guia de Boas-vindas',
-      desc: 'Tour de configuração inicial e métodos',
-      icon: Compass,
-      color: 'text-teal-600 bg-teal-50',
+      title: 'Gestão & Núcleo',
+      items: [
+        {
+          to: '/familia',
+          label: 'Modo Família',
+          desc: 'Finanças compartilhadas e membros',
+          icon: Users,
+          color: 'text-blue-600 bg-blue-50',
+        },
+        {
+          to: '/cadastros',
+          label: 'Cadastros',
+          desc: 'Contas bancárias, cartões e categorias',
+          icon: Database,
+          color: 'text-emerald-600 bg-emerald-50',
+        },
+        {
+          to: '/boas-vindas',
+          label: 'Guia de Boas-vindas',
+          desc: 'Tour de conceitos e configuração inicial',
+          icon: Compass,
+          color: 'text-teal-600 bg-teal-50',
+        },
+      ],
     },
   ]
+
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      const parts = name.trim().split(/\s+/)
+      if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      return parts[0].slice(0, 2).toUpperCase()
+    }
+    if (email) return email.slice(0, 2).toUpperCase()
+    return 'GF'
+  }
 
   return (
     <>
-      {/* Barra de Navegação Inferior Fixa (Apenas telas mobile < 768px e quando logado) */}
+      {/* Barra de Navegação Inferior Móvel */}
       <nav
         aria-label="Navegação móvel"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 8px)' }}
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 6px)' }}
       >
-        <div className="grid grid-cols-6 items-center px-1 pt-1.5 pb-1">
+        <div className="grid grid-cols-5 items-center px-2 pt-1.5 pb-1 max-w-lg mx-auto">
           {primaryTabs.map((tab) => {
             const Icon = tab.icon
             return (
@@ -105,7 +148,7 @@ export const MobileBottomNav: React.FC = () => {
                 key={tab.to}
                 to={tab.to}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all duration-150 min-h-[50px] touch-manipulation active:scale-95 ${
+                  `flex flex-col items-center justify-center py-1 rounded-xl transition-all duration-150 min-h-[48px] touch-manipulation active:scale-95 ${
                     isActive
                       ? 'text-emerald-700 font-bold'
                       : 'text-slate-500 hover:text-slate-900 font-medium'
@@ -115,16 +158,13 @@ export const MobileBottomNav: React.FC = () => {
                 {({ isActive }) => (
                   <>
                     <div
-                      className={`relative p-1 rounded-xl transition-colors ${
-                        isActive ? 'bg-emerald-100/70 text-emerald-700' : ''
+                      className={`p-1 rounded-lg transition-colors ${
+                        isActive ? 'bg-emerald-50 text-emerald-700' : ''
                       }`}
                     >
                       <Icon className="w-5 h-5" />
-                      {isActive && (
-                        <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      )}
                     </div>
-                    <span className="text-[10px] leading-tight tracking-tight mt-0.5 truncate max-w-[54px]">
+                    <span className="text-[10px] leading-tight tracking-tight mt-0.5 truncate">
                       {tab.label}
                     </span>
                   </>
@@ -133,97 +173,119 @@ export const MobileBottomNav: React.FC = () => {
             )
           })}
 
-          {/* Botão "Mais" */}
+          {/* Botão Menu Completo */}
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all duration-150 min-h-[50px] touch-manipulation active:scale-95 ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all duration-150 min-h-[48px] touch-manipulation active:scale-95 ${
               moreOpen
                 ? 'text-emerald-700 font-bold'
                 : 'text-slate-500 hover:text-slate-900 font-medium'
             }`}
-            aria-label="Abrir mais opções"
+            aria-label="Abrir menu completo"
           >
             <div
-              className={`p-1 rounded-xl transition-colors ${
-                moreOpen ? 'bg-emerald-100/70 text-emerald-700' : ''
+              className={`p-1 rounded-lg transition-colors ${
+                moreOpen ? 'bg-emerald-50 text-emerald-700' : ''
               }`}
             >
-              <MoreHorizontal className="w-5 h-5" />
+              <Menu className="w-5 h-5" />
             </div>
-            <span className="text-[10px] leading-tight tracking-tight mt-0.5">Mais</span>
+            <span className="text-[10px] leading-tight tracking-tight mt-0.5">Menu</span>
           </button>
         </div>
       </nav>
 
-      {/* Gaveta "Mais" (Sheet no formato bottom drawer moderno) */}
+      {/* Gaveta "Menu Completo" */}
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent
           side="bottom"
-          className="rounded-t-3xl border-t border-slate-200 bg-white px-5 pt-4 pb-8 max-h-[85vh] overflow-y-auto"
+          className="rounded-t-2xl border-t border-slate-200 bg-white px-5 pt-3 pb-8 max-h-[85vh] overflow-y-auto"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
         >
-          <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4" />
+          <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3" />
           <SheetHeader className="text-left pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <SheetTitle className="text-lg font-black text-slate-900">
-                  Mais Módulos &amp; Ferramentas
-                </SheetTitle>
-                <SheetDescription className="text-xs text-slate-500">
-                  Acesse recursos avançados, cadastros e educação financeira.
-                </SheetDescription>
-              </div>
-            </div>
+            <SheetTitle className="text-base font-bold text-slate-900">
+              Menu Completo
+            </SheetTitle>
+            <SheetDescription className="text-xs text-slate-500">
+              Todas as ferramentas e configurações de Gestio Finanças
+            </SheetDescription>
           </SheetHeader>
 
-          <div className="space-y-2 py-3">
-            {secondaryItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.to}
-                  type="button"
-                  onClick={() => {
-                    setMoreOpen(false)
-                    navigate(item.to)
-                  }}
-                  className="w-full flex items-center gap-3.5 p-3 rounded-2xl border border-slate-100 bg-slate-50/60 hover:bg-slate-100/80 active:bg-slate-100 transition-colors text-left"
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.color}`}
-                  >
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{item.label}</p>
-                    <p className="text-xs text-slate-500 leading-tight mt-0.5 truncate">
-                      {item.desc}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
+          <div className="space-y-4 py-2">
+            {sections.map((section, sIdx) => (
+              <div key={sIdx} className="space-y-1.5">
+                <h4 className="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-1">
+                  {section.title}
+                </h4>
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <button
+                        key={item.to}
+                        type="button"
+                        onClick={() => {
+                          setMoreOpen(false)
+                          navigate(item.to)
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-slate-100/80 active:bg-slate-100 transition-colors text-left group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.color}`}
+                          >
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 leading-tight">
+                              {item.label}
+                            </p>
+                            <p className="text-[11px] text-slate-500 leading-tight mt-0.5 truncate">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="pt-3 border-t border-slate-100 space-y-2">
+          <div className="pt-3 mt-2 border-t border-slate-100 space-y-2">
             <Button
               variant="outline"
-              className="w-full justify-start text-slate-700 h-12 rounded-xl text-sm font-semibold border-slate-200"
+              className="w-full justify-start text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/80 border-emerald-200 h-10 rounded-xl text-xs font-bold"
+              onClick={() => {
+                setMoreOpen(false)
+                window.dispatchEvent(new CustomEvent('open-pwa-install'))
+              }}
+            >
+              <Smartphone className="w-4 h-4 text-emerald-600 mr-2" />
+              Instalar Aplicativo no Celular (PWA)
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full justify-start text-slate-700 h-10 rounded-xl text-xs font-semibold border-slate-200"
               onClick={() => {
                 setMoreOpen(false)
                 setGlossaryOpen(true)
               }}
             >
-              <BookOpen className="w-4 h-4 text-emerald-600 mr-2.5" />
-              Glossário Vivo de Finanças
+              <BookOpen className="w-4 h-4 text-emerald-600 mr-2" />
+              Glossário Financeiro Comportamental
             </Button>
 
             {user && (
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
-                    <UserCheck className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    {getInitials(user.name, user.email)}
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 truncate">
@@ -236,11 +298,8 @@ export const MobileBottomNav: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    setMoreOpen(false)
-                    logout()
-                  }}
-                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-bold gap-1 rounded-xl"
+                  onClick={handleLogout}
+                  className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 text-xs font-bold gap-1 rounded-lg h-8 px-2.5"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   Sair
@@ -253,30 +312,27 @@ export const MobileBottomNav: React.FC = () => {
 
       {/* Modal do Glossário Vivo no Mobile */}
       <Dialog open={glossaryOpen} onOpenChange={setGlossaryOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl p-5">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
-              <BookOpen className="w-6 h-6 text-emerald-600" />
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <BookOpen className="w-5 h-5 text-emerald-600" />
               Glossário Vivo de Finanças Conscientes
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-xs">
               Conceitos fundamentais explicados sem jargões para você assumir o controle do seu
               dinheiro.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 pt-2">
+          <div className="space-y-3 pt-2">
             {financeGlossary.map((item, idx) => (
               <div
                 key={idx}
-                className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 transition-colors"
+                className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 transition-colors"
               >
-                <h4 className="font-bold text-emerald-800 text-base">{item.term}</h4>
-                <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                  Significado Comportamental:
-                </p>
-                <p className="text-sm text-slate-800 mt-0.5 leading-relaxed">{item.meaning}</p>
-                <p className="text-xs text-emerald-700 mt-2 font-medium bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
+                <h4 className="font-bold text-emerald-800 text-xs">{item.term}</h4>
+                <p className="text-xs text-slate-800 mt-0.5 leading-relaxed">{item.meaning}</p>
+                <p className="text-[11px] text-emerald-700 mt-1.5 font-medium bg-emerald-50/60 p-2 rounded-lg border border-emerald-100">
                   <span className="font-bold">Exemplo prático:</span> {item.example}
                 </p>
               </div>

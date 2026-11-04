@@ -1,11 +1,9 @@
 import React from 'react'
-import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { DashboardPage } from './DashboardPage'
-import { WelcomePage } from './WelcomePage'
 
 export default function Index() {
-  const { user, loading } = useAuth()
+  const { loading } = useAuth()
 
   if (loading) {
     return (

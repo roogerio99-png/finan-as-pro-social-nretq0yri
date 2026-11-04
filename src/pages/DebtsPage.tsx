@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { debtsService, DebtSimulationResult } from '@/services/debts'
-import { DebtRecord } from '@/types/finance'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { DebtRecord, DebtStatus } from '@/types/finance'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,18 +13,26 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
-  BadgeAlert,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Snowflake,
   Flame,
   PlusCircle,
-  HelpCircle,
   CheckCircle2,
-  DollarSign,
-  TrendingDown,
   PhoneCall,
-  FileText,
-  Percent,
   Sparkles,
+  Pencil,
+  Trash2,
+  Clock,
+  Check,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -42,14 +50,23 @@ export const DebtsPage: React.FC = () => {
     steps: DebtSimulationResult[]
   } | null>(null)
 
-  // Modal de Nova Dívida
+  // Modal de Criação / Edição de Dívida
   const [dialogOpen, setDialogOpen] = useState<boolean>(false)
+  const [editingDebt, setEditingDebt] = useState<DebtRecord | null>(null)
   const [creditor, setCreditor] = useState<string>('')
+  const [totalDebt, setTotalDebt] = useState<string>('')
   const [currentBalance, setCurrentBalance] = useState<string>('')
   const [interestRate, setInterestRate] = useState<string>('8.5')
   const [minimumPayment, setMinimumPayment] = useState<string>('200')
+  const [dueDay, setDueDay] = useState<string>('')
+  const [status, setStatus] = useState<DebtStatus>('active')
   const [notes, setNotes] = useState<string>('')
   const [saving, setSaving] = useState<boolean>(false)
+
+  // Modal de Exclusão
+  const [deletingDebt, setDeletingDebt] = useState<DebtRecord | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -69,46 +86,128 @@ export const DebtsPage: React.FC = () => {
 
   // Executa a simulação sempre que mudar método, dívidas ou aporte extra
   useEffect(() => {
-    if (debts.length > 0) {
+    const activeDebts = debts.filter((d) => (d.status ?? 'active') !== 'paid_off')
+    if (activeDebts.length > 0) {
       const extra = parseFloat(extraMonthlyBudget) || 0
-      const res = debtsService.simulatePayoff(debts, simulationMethod, extra)
+      const res = debtsService.simulatePayoff(activeDebts, simulationMethod, extra)
       setSimulationResult(res)
     } else {
       setSimulationResult(null)
     }
   }, [debts, simulationMethod, extraMonthlyBudget])
 
-  const handleCreateDebt = async (e: React.FormEvent) => {
+  const openCreateDialog = () => {
+    setEditingDebt(null)
+    setCreditor('')
+    setTotalDebt('')
+    setCurrentBalance('')
+    setInterestRate('8.5')
+    setMinimumPayment('200')
+    setDueDay('')
+    setStatus('active')
+    setNotes('')
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (d: DebtRecord) => {
+    setEditingDebt(d)
+    setCreditor(d.creditor)
+    setTotalDebt(String(d.total_debt || d.current_balance))
+    setCurrentBalance(String(d.current_balance))
+    setInterestRate(String(d.interest_rate_monthly))
+    setMinimumPayment(String(d.minimum_payment))
+    setDueDay(d.due_day ? String(d.due_day) : '')
+    setStatus(d.status || 'active')
+    setNotes(d.notes || '')
+    setDialogOpen(true)
+  }
+
+  const handleSaveDebt = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!creditor || !currentBalance) return
 
     setSaving(true)
     try {
       const bal = parseFloat(currentBalance)
-      await debtsService.create({
+      const tot = parseFloat(totalDebt) || bal
+      const payload: Partial<DebtRecord> = {
         creditor,
-        total_debt: bal,
+        total_debt: tot,
         current_balance: bal,
         interest_rate_monthly: parseFloat(interestRate) || 0,
         minimum_payment: parseFloat(minimumPayment) || 50,
-        status: 'active',
+        due_day: dueDay ? parseInt(dueDay, 10) : undefined,
+        status,
         notes: notes || undefined,
-      })
+      }
 
-      toast({
-        title: 'Dívida cadastrada com acolhimento',
-        description: 'Primeiro passo dado: quem conhece seus números domina seu futuro.',
-      })
+      if (editingDebt) {
+        await debtsService.update(editingDebt.id, payload)
+        toast({
+          title: 'Dívida atualizada',
+          description: `Os dados da dívida "${creditor}" foram alterados com sucesso.`,
+        })
+      } else {
+        await debtsService.create(payload)
+        toast({
+          title: 'Dívida cadastrada com acolhimento',
+          description: 'Primeiro passo dado: quem conhece seus números domina seu futuro.',
+        })
+      }
 
       setDialogOpen(false)
-      setCreditor('')
-      setCurrentBalance('')
-      setNotes('')
       loadData()
     } catch (err: any) {
-      toast({ title: 'Erro ao cadastrar', description: err.message, variant: 'destructive' })
+      toast({
+        title: editingDebt ? 'Erro ao atualizar' : 'Erro ao cadastrar',
+        description: err.message,
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDeletePrompt = (d: DebtRecord) => {
+    setDeletingDebt(d)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!deletingDebt) return
+    setIsDeleting(true)
+    try {
+      await debtsService.delete(deletingDebt.id)
+      toast({
+        title: 'Dívida excluída',
+        description: `A dívida com "${deletingDebt.creditor}" foi removida com sucesso.`,
+      })
+      setDeleteConfirmOpen(false)
+      setDeletingDebt(null)
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao excluir dívida', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleToggleStatus = async (d: DebtRecord) => {
+    try {
+      const newStatus: DebtStatus = d.status === 'paid_off' ? 'active' : 'paid_off'
+      await debtsService.update(d.id, {
+        status: newStatus,
+        current_balance: newStatus === 'paid_off' ? 0 : (d.total_debt || d.minimum_payment),
+      })
+      toast({
+        title: newStatus === 'paid_off' ? '🎉 Parabéns! Dívida quitada!' : 'Dívida reativada',
+        description: newStatus === 'paid_off'
+          ? `A dívida com "${d.creditor}" foi marcada como quitada.`
+          : `A dívida com "${d.creditor}" voltou ao status ativo.`,
+      })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao alterar status', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -138,8 +237,8 @@ export const DebtsPage: React.FC = () => {
         </div>
 
         <Button
-          onClick={() => setDialogOpen(true)}
-          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold h-10"
+          onClick={openCreateDialog}
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl text-xs font-bold h-10 shadow-xs"
         >
           <PlusCircle className="w-4 h-4" /> Cadastrar Dívida
         </Button>
@@ -299,52 +398,163 @@ export const DebtsPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Lista de Dívidas Cadastradas */}
+      {/* Lista de Dívidas Cadastradas com Ações de Alteração e Exclusão */}
       <Card className="border-slate-200 shadow-xs rounded-2xl bg-white overflow-hidden p-6 space-y-4">
-        <h3 className="text-base font-bold text-slate-900">Suas Dívidas Atuais ({debts.length})</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-slate-900">
+            Suas Dívidas Cadastradas ({debts.length})
+          </h3>
+          <span className="text-xs text-slate-500 font-medium">
+            Gerencie, altere valores ou exclua débitos a qualquer momento
+          </span>
+        </div>
 
         <div className="space-y-3">
           {debts.length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">
-              Nenhuma dívida cadastrada. Parabéns!
-            </p>
-          ) : (
-            debts.map((d) => (
-              <div
-                key={d.id}
-                className="p-4 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <p className="text-sm font-bold text-slate-800">Nenhuma dívida cadastrada no momento.</p>
+              <p className="text-xs text-slate-500">
+                Caso tenha empréstimos, cheque especial ou faturas pendentes, cadastre-os para planejar a quitação.
+              </p>
+              <Button
+                onClick={openCreateDialog}
+                size="sm"
+                className="mt-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
               >
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">{d.creditor}</h4>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
-                    <span>
-                      Taxa:{' '}
-                      <strong className="text-rose-600">{d.interest_rate_monthly}% ao mês</strong>
-                    </span>
-                    <span>
-                      Mínimo: <strong>{formatCurrency(d.minimum_payment)}</strong>
-                    </span>
-                    {d.due_day && (
+                <PlusCircle className="w-3.5 h-3.5 mr-1.5" /> Cadastrar Dívida
+              </Button>
+            </div>
+          ) : (
+            debts.map((d) => {
+              const isPaid = (d.status ?? 'active') === 'paid_off' || d.current_balance <= 0
+              const isNegotiating = d.status === 'negotiating'
+
+              return (
+                <div
+                  key={d.id}
+                  className={`p-4 rounded-xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                    isPaid
+                      ? 'bg-emerald-50/50 border-emerald-200 opacity-90'
+                      : 'border-slate-200 bg-white hover:border-slate-300 shadow-2xs'
+                  }`}
+                >
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-extrabold text-slate-900 text-base">{d.creditor}</h4>
+                      {isPaid ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <Check className="w-3 h-3" /> Quitada
+                        </span>
+                      ) : isNegotiating ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                          <Clock className="w-3 h-3" /> Em Negociação
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                          Ativa
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
                       <span>
-                        Vence dia: <strong>{d.due_day}</strong>
+                        Taxa de Juros:{' '}
+                        <strong className="text-rose-600 font-bold">{d.interest_rate_monthly}% a.m.</strong>
                       </span>
+                      <span>
+                        Pagamento Mínimo:{' '}
+                        <strong className="text-slate-800 font-bold">{formatCurrency(d.minimum_payment)}</strong>
+                      </span>
+                      {d.due_day && (
+                        <span>
+                          Vencimento: <strong className="text-slate-800 font-bold">Dia {d.due_day}</strong>
+                        </span>
+                      )}
+                      {d.total_debt && d.total_debt > d.current_balance && (
+                        <span className="text-slate-400">
+                          (Original: {formatCurrency(d.total_debt)})
+                        </span>
+                      )}
+                    </div>
+
+                    {d.notes && (
+                      <p className="text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100 max-w-xl">
+                        {d.notes}
+                      </p>
                     )}
                   </div>
-                  {d.notes && <p className="text-xs text-slate-400 mt-1">{d.notes}</p>}
-                </div>
 
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Saldo Devedor
-                    </span>
-                    <span className="text-base font-black text-rose-600">
-                      {formatCurrency(d.current_balance)}
-                    </span>
+                  {/* Saldo e Botões de Ação */}
+                  <div className="flex items-center justify-between md:justify-end gap-4 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    <div className="text-left md:text-right">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        Saldo Devedor Atual
+                      </span>
+                      <span
+                        className={`text-lg font-black ${
+                          isPaid ? 'text-emerald-700 line-through' : 'text-rose-600'
+                        }`}
+                      >
+                        {formatCurrency(d.current_balance)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {/* Botão de Toggle Quitação Rápida */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleToggleStatus(d)}
+                        title={isPaid ? 'Reativar dívida' : 'Marcar como quitada'}
+                        className={`h-8 px-2.5 text-xs font-semibold rounded-lg ${
+                          isPaid
+                            ? 'text-emerald-700 hover:bg-emerald-100'
+                            : 'text-slate-500 hover:text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                      >
+                        {isPaid ? (
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Quitada
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Quitar
+                          </span>
+                        )}
+                      </Button>
+
+                      {/* Botão Alterar / Editar */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditDialog(d)}
+                        className="h-8 px-2.5 text-xs font-bold text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 rounded-lg border-slate-200 gap-1.5 shadow-2xs"
+                        title="Alterar dados desta dívida"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Alterar</span>
+                      </Button>
+
+                      {/* Botão Excluir */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDeletePrompt(d)}
+                        className="h-8 px-2.5 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-300 rounded-lg border-slate-200 gap-1.5 shadow-2xs"
+                        title="Excluir esta dívida"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Excluir</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </Card>
@@ -395,24 +605,28 @@ export const DebtsPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Modal de Criação */}
+      {/* Modal de Criação / Edição de Dívida */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-900">Cadastrar Dívida</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-slate-900">
+              {editingDebt ? 'Alterar Dados da Dívida' : 'Cadastrar Dívida'}
+            </DialogTitle>
             <DialogDescription>
-              Mapeie o credor para traçar o plano de quitação mais rápido.
+              {editingDebt
+                ? `Atualize o saldo, juros, vencimento ou status do credor "${editingDebt.creditor}".`
+                : 'Mapeie o credor para traçar o plano de quitação mais rápido.'}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleCreateDebt} className="space-y-4 pt-2">
+          <form onSubmit={handleSaveDebt} className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <Label htmlFor="cred">Credor / Banco</Label>
+              <Label htmlFor="cred">Credor / Instituição Financeira</Label>
               <Input
                 id="cred"
                 value={creditor}
                 onChange={(e) => setCreditor(e.target.value)}
-                placeholder="Ex: Cartão Santander, Empréstimo Itaú..."
+                placeholder="Ex: Cartão Nubank, Empréstimo Itaú, Financiamento..."
                 required
               />
             </div>
@@ -432,57 +646,131 @@ export const DebtsPage: React.FC = () => {
               </div>
 
               <div className="space-y-1.5">
+                <Label htmlFor="tot">Valor Original / Total (R$)</Label>
+                <Input
+                  id="tot"
+                  type="number"
+                  step="0.01"
+                  value={totalDebt}
+                  onChange={(e) => setTotalDebt(e.target.value)}
+                  placeholder="Ex: 5000.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
                 <Label htmlFor="rate">Juros Mensais (%)</Label>
                 <Input
                   id="rate"
                   type="number"
-                  step="0.1"
+                  step="0.01"
                   value={interestRate}
                   onChange={(e) => setInterestRate(e.target.value)}
                   placeholder="8.5"
                   required
                 />
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="minPay">Parcela / Mínimo (R$)</Label>
+                <Input
+                  id="minPay"
+                  type="number"
+                  step="0.01"
+                  value={minimumPayment}
+                  onChange={(e) => setMinimumPayment(e.target.value)}
+                  placeholder="150.00"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="due">Dia de Vencimento</Label>
+                <Input
+                  id="due"
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={dueDay}
+                  onChange={(e) => setDueDay(e.target.value)}
+                  placeholder="Ex: 10"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dStatus">Status da Dívida</Label>
+                <select
+                  id="dStatus"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as DebtStatus)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                >
+                  <option value="active">Ativa</option>
+                  <option value="negotiating">Em Negociação</option>
+                  <option value="paid_off">Quitada</option>
+                </select>
+              </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="minPay">Pagamento Mínimo Mensal (R$)</Label>
-              <Input
-                id="minPay"
-                type="number"
-                step="0.01"
-                value={minimumPayment}
-                onChange={(e) => setMinimumPayment(e.target.value)}
-                placeholder="150.00"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="dNotes">Anotações (opcional)</Label>
+              <Label htmlFor="dNotes">Anotações e Estratégia de Negociação</Label>
               <Input
                 id="dNotes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex: Renegociar em novembro..."
+                placeholder="Ex: Tentar 50% de desconto no feirão do Desenrola..."
               />
             </div>
 
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
               >
-                {saving ? 'Salvando...' : 'Salvar Dívida'}
+                {saving
+                  ? 'Salvando...'
+                  : editingDebt
+                    ? 'Salvar Alterações'
+                    : 'Cadastrar Dívida'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmação de Exclusão de Dívida */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Excluir Dívida?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600">
+              Tem certeza de que deseja remover o cadastro da dívida com{' '}
+              <strong className="text-slate-900 font-bold">"{deletingDebt?.creditor}"</strong> (Saldo:{' '}
+              {deletingDebt ? formatCurrency(deletingDebt.current_balance) : 'R$ 0,00'})?
+              Esta ação removerá este registro do seu dispositivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

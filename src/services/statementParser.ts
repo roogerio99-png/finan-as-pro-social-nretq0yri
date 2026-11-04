@@ -27,17 +27,29 @@ export const statementParserService = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${pb.baseUrl}/backend/v1/statements/parse-pdf`, {
-      method: 'POST',
-      headers: {
-        ...(pb.authStore.token ? { Authorization: pb.authStore.token } : {}),
-      },
-      body: formData,
-    })
+    let response: Response | null = null
+    try {
+      response = await fetch(`${pb.baseUrl || ''}/backend/v1/statements/parse-pdf`, {
+        method: 'POST',
+        headers: {
+          ...(pb.authStore.token ? { Authorization: pb.authStore.token } : {}),
+        },
+        body: formData,
+      })
+    } catch {
+      throw new Error(
+        'Serviço de extração de PDF indisponível offline. Você pode usar a opção "Carregar Exemplo de Fatura" ou importar arquivos em formato CSV/Planilha.',
+      )
+    }
 
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
+      if (!pb.baseUrl || response.status === 404) {
+        throw new Error(
+          'O processador inteligente de PDF requer conexão com o backend. No ambiente atual, use a opção "Carregar Exemplo de Fatura" para testar a conciliação completa ou importe planilhas CSV.',
+        )
+      }
       const message =
         data?.message ||
         data?.error ||

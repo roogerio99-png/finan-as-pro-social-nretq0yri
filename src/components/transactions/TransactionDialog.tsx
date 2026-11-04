@@ -23,6 +23,7 @@ import { installmentValue, firstCashMonth } from '@/services/installments'
 interface TransactionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  isEditing?: boolean
   type: TransactionType
   setType: (t: TransactionType) => void
   description: string
@@ -55,6 +56,7 @@ interface TransactionDialogProps {
 export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   open,
   onOpenChange,
+  isEditing = false,
   type,
   setType,
   description,
@@ -93,61 +95,73 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-900">Novo Lançamento</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-slate-900">
+            {isEditing ? 'Alterar Lançamento' : 'Novo Lançamento'}
+          </DialogTitle>
           <DialogDescription>
-            Selecione a situação da movimentação bancária: Despesa, Receita, Transferência entre
-            contas ou Pagamento de fatura.
+            {isEditing
+              ? 'Atualize os dados deste lançamento (valor, data, categoria, conta ou observações).'
+              : 'Selecione a situação da movimentação bancária: Despesa, Receita, Transferência entre contas ou Pagamento de fatura.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4 pt-2">
-          {/* 4 Opções de Tipo de Movimento */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setType('expense')}
-              className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                type === 'expense'
-                  ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-2xs'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <TrendingDown className="w-4 h-4 text-rose-600" /> Despesa
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('income')}
-              className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                type === 'income'
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-2xs'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4 text-emerald-600" /> Receita
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('transfer')}
-              className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                type === 'transfer'
-                  ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-2xs'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <ArrowRightLeft className="w-4 h-4 text-blue-600" /> Transferência
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('invoice_payment')}
-              className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
-                type === 'invoice_payment'
-                  ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-2xs'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Receipt className="w-4 h-4 text-purple-600" /> Pagto Fatura
-            </button>
-          </div>
+          {/* Opções de Tipo de Movimento */}
+          {isEditing && (type === 'transfer' || type === 'invoice_payment') ? (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 flex items-center justify-between">
+              <span className="text-slate-500">Tipo de movimentação:</span>
+              <span className="font-bold text-slate-900">
+                {type === 'transfer' ? 'Transferência entre Contas' : 'Pagamento de Fatura'}
+              </span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setType('expense')}
+                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  type === 'expense'
+                    ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-2xs'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <TrendingDown className="w-4 h-4 text-rose-600" /> Despesa
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('income')}
+                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  type === 'income'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-2xs'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 text-emerald-600" /> Receita
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('transfer')}
+                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  type === 'transfer'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-2xs'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <ArrowRightLeft className="w-4 h-4 text-blue-600" /> Transferência
+              </button>
+              <button
+                type="button"
+                onClick={() => setType('invoice_payment')}
+                className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex flex-col items-center justify-center gap-1 transition-all ${
+                  type === 'invoice_payment'
+                    ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-2xs'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Receipt className="w-4 h-4 text-purple-600" /> Pagto Fatura
+              </button>
+            </div>
+          )}
 
           {/* Aviso de movimento neutro */}
           {type === 'transfer' && (
@@ -402,9 +416,15 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
             <Button
               type="submit"
               disabled={saving || (type === 'invoice_payment' && !selectedInvoiceId)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
             >
-              {saving ? 'Salvando...' : 'Salvar Lançamento'}
+              {saving
+                ? isEditing
+                  ? 'Salvando alterações...'
+                  : 'Salvando...'
+                : isEditing
+                  ? 'Salvar Alterações'
+                  : 'Salvar Lançamento'}
             </Button>
           </div>
         </form>

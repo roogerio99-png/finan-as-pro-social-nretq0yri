@@ -3,7 +3,7 @@ import { budgetsService } from '@/services/budgets'
 import { transactionsService } from '@/services/transactions'
 import { categoriesService } from '@/services/categories'
 import { BudgetRecord, TransactionRecord, CategoryRecord, BudgetTargetType } from '@/types/finance'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,16 +15,24 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Target,
-  AlertTriangle,
-  CheckCircle,
   PlusCircle,
   Calendar,
   Sparkles,
-  TrendingDown,
-  Percent,
   Layers,
   Tag,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -50,6 +58,11 @@ export const BudgetPage: React.FC = () => {
   const [dangerThreshold, setDangerThreshold] = useState<string>('90')
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [saving, setSaving] = useState<boolean>(false)
+
+  // Exclusão de Meta com Confirmação Segura
+  const [deletingBudget, setDeletingBudget] = useState<{ id: string; name: string } | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -120,17 +133,27 @@ export const BudgetPage: React.FC = () => {
     setDialogOpen(true)
   }
 
-  const handleDeleteBudget = async (id: string, name: string) => {
-    if (!confirm(`Deseja remover a meta de "${name}" para ${selectedMonth}?`)) return
+  const handleDeleteBudgetPrompt = (id: string, name: string) => {
+    setDeletingBudget({ id, name })
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeleteBudget = async () => {
+    if (!deletingBudget) return
+    setIsDeleting(true)
     try {
-      await budgetsService.delete(id)
+      await budgetsService.delete(deletingBudget.id)
       toast({
         title: 'Meta removida',
-        description: `A meta para ${name} foi excluída.`,
+        description: `A meta para "${deletingBudget.name}" foi excluída com sucesso.`,
       })
+      setDeleteConfirmOpen(false)
+      setDeletingBudget(null)
       loadData()
     } catch (err: any) {
-      toast({ title: 'Erro ao remover', description: err.message, variant: 'destructive' })
+      toast({ title: 'Erro ao remover meta', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -140,24 +163,49 @@ export const BudgetPage: React.FC = () => {
 
     setSaving(true)
     try {
-      await budgetsService.upsert(
-        selectedMonth,
-        categoryGroup,
-        parseFloat(limitAmount),
-        parseInt(warningThreshold, 10) || 75,
-        parseInt(dangerThreshold, 10) || 90,
-        targetType,
-      )
+      const limitVal = parseFloat(limitAmount)
+      const warnVal = parseInt(warningThreshold, 10) || 75
+      const dangVal = parseInt(dangerThreshold, 10) || 90
 
-      toast({
-        title: 'Meta Orçamentária salva!',
-        description: `Teto de R$ ${limitAmount} definido para ${targetType === 'group' ? 'a categoria/grupo' : 'o subgrupo'} "${categoryGroup}".`,
-      })
+      if (editingBudgetId) {
+        await budgetsService.update(editingBudgetId, {
+          category_group: categoryGroup,
+          limit_amount: limitVal,
+          warning_threshold: warnVal,
+          danger_threshold: dangVal,
+          target_type: targetType,
+        })
+
+        toast({
+          title: 'Meta alterada com sucesso!',
+          description: `Novo teto de ${formatCurrency(limitVal)} definido para "${categoryGroup}".`,
+        })
+      } else {
+        await budgetsService.upsert(
+          selectedMonth,
+          categoryGroup,
+          limitVal,
+          warnVal,
+          dangVal,
+          targetType,
+        )
+
+        toast({
+          title: 'Meta orçamentária cadastrada!',
+          description: `Teto de ${formatCurrency(limitVal)} definido para ${
+            targetType === 'group' ? 'a categoria/grupo' : 'o subgrupo'
+          } "${categoryGroup}".`,
+        })
+      }
 
       setDialogOpen(false)
       loadData()
     } catch (err: any) {
-      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' })
+      toast({
+        title: editingBudgetId ? 'Erro ao atualizar meta' : 'Erro ao cadastrar meta',
+        description: err.message,
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
     }
@@ -394,21 +442,28 @@ export const BudgetPage: React.FC = () => {
                         {isDanger ? 'Crítico (>90%)' : isWarning ? 'Atenção (>75%)' : 'No Limite'}
                       </span>
                       <div className="flex items-center gap-1">
-                        <button
+                        <Button
                           type="button"
+                          size="sm"
+                          variant="ghost"
                           onClick={() => openEditDialog(b)}
-                          className="text-[11px] text-slate-500 hover:text-emerald-700 font-semibold px-1"
+                          className="h-7 px-2 text-xs font-bold text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg gap-1"
+                          title="Alterar esta meta"
                         >
-                          Editar
-                        </button>
-                        <span className="text-slate-300">•</span>
-                        <button
+                          <Pencil className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Alterar</span>
+                        </Button>
+                        <Button
                           type="button"
-                          onClick={() => handleDeleteBudget(b.id, b.category_group)}
-                          className="text-[11px] text-slate-400 hover:text-rose-600 font-semibold px-1"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteBudgetPrompt(b.id, b.category_group)}
+                          className="h-7 px-2 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg gap-1"
+                          title="Excluir esta meta"
                         >
-                          Excluir
-                        </button>
+                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Excluir</span>
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -611,14 +666,41 @@ export const BudgetPage: React.FC = () => {
               <Button
                 type="submit"
                 disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
               >
-                {saving ? 'Salvando...' : 'Salvar Meta'}
+                {saving ? 'Salvando...' : editingBudgetId ? 'Salvar Alterações' : 'Salvar Meta'}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmação de Exclusão de Meta Orçamentária */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Excluir Meta Orçamentária?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600">
+              Tem certeza de que deseja remover a meta para{' '}
+              <strong className="text-slate-900 font-bold">"{deletingBudget?.name}"</strong> no mês de{' '}
+              <strong className="text-slate-900 font-bold">{selectedMonth}</strong>?
+              Esta ação removerá este teto de gastos do seu dispositivo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteBudget}
+              disabled={isDeleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir Meta'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

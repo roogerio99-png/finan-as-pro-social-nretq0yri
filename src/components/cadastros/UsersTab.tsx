@@ -318,7 +318,7 @@ export const UsersTab: React.FC = () => {
                 id="usrName"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ex.: Maria Silva"
+                placeholder="Ex.: Maria Coimbra"
                 required
               />
             </div>

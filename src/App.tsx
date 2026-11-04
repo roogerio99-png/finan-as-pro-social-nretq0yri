@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -18,14 +18,19 @@ import { FamilyPage } from './pages/FamilyPage'
 import { CadastrosPage } from './pages/CadastrosPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
+
 const App = () => (
-  <BrowserRouter>
-    <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <Routes>
-          <Route element={<Layout />}>
+  <ErrorBoundary>
+    <BrowserRouter>
+      <TooltipProvider>
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <PwaInstallPrompt />
+          <Routes>
+            <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/boas-vindas" element={<WelcomePage />} />
             <Route path="/painel" element={<DashboardPage />} />
@@ -44,6 +49,7 @@ const App = () => (
       </AuthProvider>
     </TooltipProvider>
   </BrowserRouter>
+</ErrorBoundary>
 )
 
 export default App

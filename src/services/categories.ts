@@ -4,7 +4,11 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export const categoriesService = {
   async list(options?: { includeInactive?: boolean }): Promise<CategoryRecord[]> {
+    const filter = pb.authStore.record
+      ? `user_id = '${pb.authStore.record.id}' || user_id = '' || user_id = 'usr_rogerio'`
+      : ''
     const records = await pb.collection('categories').getFullList<CategoryRecord>({
+      filter: filter || undefined,
       sort: 'group_level1,group_level2,name',
     })
     if (options?.includeInactive) return records
@@ -47,6 +51,16 @@ export const categoriesService = {
     if (ids.length === 0) return
     try {
       await Promise.all(ids.map((id) => pb.collection('categories').update(id, { status })))
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Exclui definitivamente uma lista de IDs do plano de contas */
+  async deleteNodes(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    try {
+      await Promise.all(ids.map((id) => pb.collection('categories').delete(id)))
     } catch (err) {
       throw new Error(getErrorMessage(err))
     }

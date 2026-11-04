@@ -12,6 +12,16 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   FolderTree,
   Plus,
   Pencil,
@@ -20,6 +30,7 @@ import {
   ChevronRight,
   ChevronDown,
   Tags,
+  Trash2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { categoriesService } from '@/services/categories'
@@ -48,6 +59,13 @@ export const CategoriesTab: React.FC = () => {
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState | null>(null)
   const [renameDialog, setRenameDialog] = useState<NodeDialogState | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deletingNode, setDeletingNode] = useState<{
+    name: string
+    ids: string[]
+    level: 1 | 2
+  } | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -224,6 +242,39 @@ export const CategoriesTab: React.FC = () => {
     }
   }
 
+  const openDeleteGroup = (grp: { name: string; items: CategoryRecord[] }) => {
+    setDeletingNode({ name: grp.name, ids: nodeIds(grp.items), level: 1 })
+    setDeleteDialogOpen(true)
+  }
+
+  const openDeleteSub = (sName: string, items: CategoryRecord[]) => {
+    setDeletingNode({ name: sName, ids: nodeIds(items), level: 2 })
+    setDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteNode = async () => {
+    if (!deletingNode) return
+    setIsDeleting(true)
+    try {
+      await categoriesService.deleteNodes(deletingNode.ids)
+      toast({
+        title: `${deletingNode.level === 1 ? 'Grupo' : 'Subgrupo'} excluído!`,
+        description: `"${deletingNode.name}" foi removido do plano de contas.`,
+      })
+      setDeleteDialogOpen(false)
+      setDeletingNode(null)
+      load()
+    } catch (err) {
+      toast({
+        title: 'Erro ao excluir',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const typeBadge =
     type === 'income'
       ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
@@ -344,6 +395,16 @@ export const CategoriesTab: React.FC = () => {
                           <Archive className="w-4 h-4" />
                         )}
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDeleteGroup(g)}
+                        className="h-8 w-8 text-slate-400 hover:text-rose-600"
+                        aria-label={`Excluir grupo ${g.name}`}
+                        title="Excluir grupo definitivamente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
 
@@ -400,6 +461,16 @@ export const CategoriesTab: React.FC = () => {
                                     ) : (
                                       <Archive className="w-3.5 h-3.5" />
                                     )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openDeleteSub(s.name, s.items)}
+                                    className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                                    aria-label={`Excluir subgrupo ${s.name}`}
+                                    title="Excluir subgrupo definitivamente"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
                                 </>
                               )}
@@ -549,6 +620,42 @@ export const CategoriesTab: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Confirmação para Excluir Grupo / Subgrupo */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600 mb-2">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <AlertDialogTitle className="text-lg font-bold text-slate-900">
+              Excluir {deletingNode?.level === 1 ? 'Grupo' : 'Subgrupo'} "{deletingNode?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-slate-600 space-y-2">
+              <p>
+                Tem certeza que deseja excluir este {deletingNode?.level === 1 ? 'grupo' : 'subgrupo'}?
+                {deletingNode?.level === 1
+                  ? ' Todos os subgrupos e categorias vinculadas serão removidos.'
+                  : ' O subgrupo será removido do plano de contas.'}
+              </p>
+              <p className="text-xs text-slate-500">
+                Dica: caso tenha lançamentos antigos nessa categoria e queira apenas ocultá-la dos
+                novos lançamentos, prefira a opção de inativar.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteNode}
+              disabled={isDeleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              {isDeleting ? 'Excluindo...' : 'Sim, Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
