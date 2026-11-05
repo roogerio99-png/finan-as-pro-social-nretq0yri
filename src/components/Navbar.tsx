@@ -20,6 +20,7 @@ import {
   Smartphone,
   ShieldCheck,
   Percent,
+  TrendingUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -84,6 +85,12 @@ export const Navbar: React.FC = () => {
       label: 'Simulações',
       desc: 'Juros compostos e simples',
       icon: Percent,
+    },
+    {
+      to: '/investimentos',
+      label: 'Investimentos',
+      desc: 'Renda variável, preço médio e imposto',
+      icon: TrendingUp,
     },
   ]
 
