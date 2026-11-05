@@ -121,6 +121,26 @@ export interface InvoiceItemEntry {
   index: number // 0 = à vista, 1..N = parcela
   value: number
   description: string
+  date?: string
+  installments_total?: number
+  adjustment_note?: string
+}
+
+export interface InvoiceAdjustmentRecord {
+  id: string
+  user_id: string
+  family_id?: string
+  transaction_id: string
+  installment_index: number
+  action: 'exclude' | 'set_value'
+  amount: number
+  invoice_month: string
+  defer_month?: string
+  invoice_id?: string
+  notes?: string
+  resolved: boolean
+  created: string
+  updated?: string
 }
 
 export interface InvoiceRecord {

@@ -111,23 +111,77 @@ routerAdd(
 
       for (let i = 0; i < installments; i++) {
         const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
-        if (instMonth !== referenceMonth) continue
+        const idx1 = installments > 1 ? i + 1 : 0
 
         const perInst = Math.floor((tx.getFloat('amount') / installments) * 100) / 100
-        const value =
+        const baseValue =
           i === installments - 1
             ? round2(tx.getFloat('amount') - perInst * (installments - 1))
             : perInst
-        if (!(value > 0)) continue
+        if (!(baseValue > 0)) continue
 
-        items.push({
-          transaction_id: tx.id,
-          index: installments > 1 ? i + 1 : 0,
-          value: value,
-          description: tx.getString('description'),
-        })
-        transactionIds.push(tx.id)
-        total += value
+        const pushItem = (val, adjNote) => {
+          items.push({
+            transaction_id: tx.id,
+            index: idx1,
+            value: val,
+            description: tx.getString('description'),
+            date: startDate,
+            installments_total: installments,
+            ...(adjNote ? { adjustment_note: adjNote } : {}),
+          })
+          transactionIds.push(tx.id)
+          total += val
+        }
+
+        // Verifica ajustes abertos da parcela (exclusão ou alteração de valor)
+        let hasExclusion = false
+        try {
+          const excl = e.app.findRecordsByFilter(
+            'invoice_adjustments',
+            `transaction_id = '${tx.id}' && installment_index = ${idx1} && action = 'exclude' && resolved = false`,
+            '-created',
+            1,
+            0,
+          )
+          if (excl.length > 0) {
+            const a = excl[0]
+            const adjMonth = a.getString('invoice_month')
+            const deferMonth = a.getString('defer_month')
+            if (referenceMonth >= adjMonth && referenceMonth !== deferMonth) {
+              hasExclusion = true
+            } else if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
+              const v = a.getFloat('amount') || baseValue
+              pushItem(v, `Adiado da fatura ${adjMonth}`)
+              continue
+            }
+          }
+        } catch (_) {}
+
+        if (hasExclusion) continue
+
+        if (instMonth === referenceMonth) {
+          let adjustedVal = null
+          try {
+            const valAdj = e.app.findRecordsByFilter(
+              'invoice_adjustments',
+              `transaction_id = '${tx.id}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
+              '-installment_index,-created',
+              1,
+              0,
+            )
+            if (valAdj.length > 0 && referenceMonth >= valAdj[0].getString('invoice_month')) {
+              const v = valAdj[0].getFloat('amount')
+              if (v > 0) adjustedVal = v
+            }
+          } catch (_) {}
+
+          if (adjustedVal !== null) {
+            pushItem(adjustedVal, `Valor ajustado para R$ ${adjustedVal.toFixed(2)}`)
+          } else {
+            pushItem(baseValue, null)
+          }
+        }
       }
     }
 

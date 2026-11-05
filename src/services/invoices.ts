@@ -139,4 +139,84 @@ export const invoicesService = {
       throw new Error(getErrorMessage(err))
     }
   },
+
+  /** Exclui um título da fatura (passa a vencer automaticamente na fatura do mês seguinte). */
+  async excludeItem(input: {
+    invoiceId: string
+    transactionId: string
+    installmentIndex: number
+    notes?: string
+  }): Promise<{
+    invoice_id: string
+    reference_month: string
+    total_amount: number
+    items_count: number
+    items: InvoiceRecord['items']
+    deferred_month: string
+    next_invoice?: {
+      id: string
+      reference_month: string
+      total_amount: number
+      items_count: number
+    } | null
+  }> {
+    try {
+      return await pb.send('/backend/v1/invoice-item-exclude', {
+        method: 'POST',
+        body: {
+          invoice_id: input.invoiceId,
+          transaction_id: input.transactionId,
+          installment_index: input.installmentIndex,
+          notes: input.notes,
+        },
+      })
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Altera o valor de um título na fatura (recalcula a atual e as próximas). */
+  async setItemValue(input: {
+    invoiceId: string
+    transactionId: string
+    installmentIndex: number
+    value: number
+    notes?: string
+  }): Promise<{
+    invoice_id: string
+    reference_month: string
+    total_amount: number
+    items_count: number
+    items: InvoiceRecord['items']
+    next_invoices?: Array<{ reference_month: string; total_amount: number }>
+  }> {
+    try {
+      return await pb.send('/backend/v1/invoice-item-value', {
+        method: 'POST',
+        body: {
+          invoice_id: input.invoiceId,
+          transaction_id: input.transactionId,
+          installment_index: input.installmentIndex,
+          value: input.value,
+          notes: input.notes,
+        },
+      })
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
+  /** Lista ajustes registrados para uma fatura. */
+  async listAdjustments(invoiceId: string): Promise<any[]> {
+    try {
+      return await pb.send(
+        `/backend/v1/invoice-adjustments?invoice_id=${encodeURIComponent(invoiceId)}`,
+        {
+          method: 'GET',
+        },
+      )
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
 }

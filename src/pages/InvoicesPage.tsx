@@ -39,6 +39,9 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { InvoiceCard } from '@/components/invoices/InvoiceCard'
+import { EditItemValueDialog } from '@/components/invoices/EditItemValueDialog'
+import { ExcludeItemDialog } from '@/components/invoices/ExcludeItemDialog'
+import { InvoiceItemEntry } from '@/types/finance'
 
 export const InvoicesPage: React.FC = () => {
   const { toast } = useToast()
@@ -52,6 +55,12 @@ export const InvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [creating, setCreating] = useState<boolean>(false)
+
+  // Modais de auditoria de títulos (Excluir e Alterar Valor)
+  const [targetInvoice, setTargetInvoice] = useState<InvoiceRecord | null>(null)
+  const [targetItem, setTargetItem] = useState<InvoiceItemEntry | null>(null)
+  const [excludeDialogOpen, setExcludeDialogOpen] = useState<boolean>(false)
+  const [editItemDialogOpen, setEditItemDialogOpen] = useState<boolean>(false)
 
   // Modal de pagamento de fatura
   const [payDialogOpen, setPayDialogOpen] = useState<boolean>(false)
@@ -316,6 +325,71 @@ export const InvoicesPage: React.FC = () => {
     }
   }
 
+  // Ação: Excluir título da fatura atual (transfere automaticamente para o mês seguinte)
+  const handleConfirmExcludeItem = async (notes?: string) => {
+    if (!targetInvoice || !targetItem) return
+    try {
+      const res = await invoicesService.excludeItem({
+        invoiceId: targetInvoice.id,
+        transactionId: targetItem.transaction_id,
+        installmentIndex: targetItem.index,
+        notes,
+      })
+
+      toast({
+        title: 'Título excluído da fatura',
+        description: `O título foi transferido para a fatura de ${res.deferred_month}. A fatura atual foi recalculada para ${formatCurrency(res.total_amount)}.`,
+      })
+
+      setExcludeDialogOpen(false)
+      setTargetInvoice(null)
+      setTargetItem(null)
+      loadData()
+    } catch (err: unknown) {
+      toast({
+        title: 'Erro ao excluir título da fatura',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
+      throw err
+    }
+  }
+
+  // Ação: Alterar valor de título da fatura (recalcula fatura atual e parcelas futuras)
+  const handleConfirmEditItemValue = async (newValue: number, notes?: string) => {
+    if (!targetInvoice || !targetItem) return
+    try {
+      const res = await invoicesService.setItemValue({
+        invoiceId: targetInvoice.id,
+        transactionId: targetItem.transaction_id,
+        installmentIndex: targetItem.index,
+        value: newValue,
+        notes,
+      })
+
+      toast({
+        title: 'Valor do título atualizado',
+        description: `A fatura atual foi recalculada para ${formatCurrency(res.total_amount)}${
+          res.next_invoices && res.next_invoices.length > 0
+            ? ` e as próximas ${res.next_invoices.length} faturas foram ajustadas.`
+            : '.'
+        }`,
+      })
+
+      setEditItemDialogOpen(false)
+      setTargetInvoice(null)
+      setTargetItem(null)
+      loadData()
+    } catch (err: unknown) {
+      toast({
+        title: 'Erro ao alterar valor do título',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
+      throw err
+    }
+  }
+
   // Ação: Desfazer Pagamento
   const handleUndoPayment = async (invoice: InvoiceRecord) => {
     if (
@@ -482,6 +556,16 @@ export const InvoicesPage: React.FC = () => {
                 onUndo={handleUndoPayment}
                 onEdit={openEditDialog}
                 onDelete={openDeleteDialog}
+                onExcludeItem={(inv, item) => {
+                  setTargetInvoice(inv)
+                  setTargetItem(item)
+                  setExcludeDialogOpen(true)
+                }}
+                onEditItemValue={(inv, item) => {
+                  setTargetInvoice(inv)
+                  setTargetItem(item)
+                  setEditItemDialogOpen(true)
+                }}
                 formatCurrency={formatCurrency}
               />
             ))}
@@ -778,6 +862,25 @@ export const InvoicesPage: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Exclusão de Título da Fatura (Adiantamento automático para o próximo mês) */}
+      <ExcludeItemDialog
+        open={excludeDialogOpen}
+        onOpenChange={setExcludeDialogOpen}
+        item={targetItem}
+        currentMonth={targetInvoice?.reference_month || referenceMonth}
+        onConfirm={handleConfirmExcludeItem}
+        formatCurrency={formatCurrency}
+      />
+
+      {/* Modal de Alteração de Valor de Título da Fatura (Recálculo da atual e futuras) */}
+      <EditItemValueDialog
+        open={editItemDialogOpen}
+        onOpenChange={setEditItemDialogOpen}
+        item={targetItem}
+        onSave={handleConfirmEditItemValue}
+        formatCurrency={formatCurrency}
+      />
     </div>
   )
 }

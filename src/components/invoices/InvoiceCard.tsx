@@ -3,7 +3,18 @@ import { InvoiceRecord, InvoiceItemEntry } from '@/types/finance'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle2, Clock, Undo2, Pencil, Trash2, Calendar, FileText } from 'lucide-react'
+import {
+  CheckCircle2,
+  Clock,
+  Undo2,
+  Pencil,
+  Trash2,
+  Calendar,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+} from 'lucide-react'
 
 interface InvoiceCardProps {
   invoice: InvoiceRecord
@@ -11,6 +22,8 @@ interface InvoiceCardProps {
   onUndo: (invoice: InvoiceRecord) => void
   onEdit: (invoice: InvoiceRecord) => void
   onDelete: (invoice: InvoiceRecord) => void
+  onExcludeItem?: (invoice: InvoiceRecord, item: InvoiceItemEntry) => void
+  onEditItemValue?: (invoice: InvoiceRecord, item: InvoiceItemEntry) => void
   formatCurrency: (val: number) => string
 }
 
@@ -20,11 +33,14 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
   onUndo,
   onEdit,
   onDelete,
+  onExcludeItem,
+  onEditItemValue,
   formatCurrency,
 }) => {
   const isPaid = invoice.status === 'paid'
   const paymentAccount = invoice.expand?.payment_account_id
   const cardAccount = invoice.expand?.card_account_id
+  const [itemsExpanded, setItemsExpanded] = React.useState<boolean>(true)
 
   const parseInvoiceItems = (itemsJson?: any): InvoiceItemEntry[] => {
     if (!itemsJson) return []
@@ -149,32 +165,118 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
         )}
 
         <div className="space-y-2">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-            Compras e Parcelas Agrupadas nesta Fatura:
-          </span>
-          {items.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">
-              Nenhum item avulso detalhado vinculado a esta fatura.
-            </p>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+              <span>Títulos que compõem a Fatura</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px]">
+                {items.length}
+              </span>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setItemsExpanded(!itemsExpanded)}
+              className="h-7 text-xs text-slate-500 hover:text-slate-900 px-2"
+            >
+              {itemsExpanded ? (
+                <>
+                  <span className="text-[11px]">Recolher</span>
+                  <ChevronUp className="w-3.5 h-3.5 ml-1" />
+                </>
+              ) : (
+                <>
+                  <span className="text-[11px]">Expandir títulos</span>
+                  <ChevronDown className="w-3.5 h-3.5 ml-1" />
+                </>
+              )}
+            </Button>
+          </div>
+
+          {!itemsExpanded ? null : items.length === 0 ? (
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-center space-y-1">
+              <p className="text-xs text-slate-500 font-medium">
+                Nenhum título detalhado registrado nesta fatura.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Gere ou atualize a fatura para listar os lançamentos individuais de cartão.
+              </p>
+            </div>
           ) : (
-            <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden bg-slate-50/40">
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
               {items.map((it, idx) => (
                 <div
                   key={idx}
-                  className="p-2.5 sm:p-3 flex items-center justify-between text-xs hover:bg-white transition-colors"
+                  className="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-xs hover:bg-slate-50/70 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                    <span className="font-semibold text-slate-900">
-                      {it.description || 'Compra no cartão'}
-                    </span>
-                    {it.index > 0 && (
-                      <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold">
-                        Parcela {it.index}
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                      <span className="font-bold text-slate-900 truncate">
+                        {it.description || 'Compra no cartão'}
                       </span>
+
+                      {it.index > 0 ? (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold shrink-0">
+                          Parcela {it.index}
+                          {it.installments_total ? `/${it.installments_total}` : ''}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-medium shrink-0">
+                          À vista
+                        </span>
+                      )}
+
+                      {it.date && (
+                        <span className="text-[11px] text-slate-400 shrink-0">
+                          • {it.date.split('-').reverse().join('/')}
+                        </span>
+                      )}
+                    </div>
+
+                    {it.adjustment_note && (
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md w-fit">
+                        <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" />
+                        <span>Ajuste: {it.adjustment_note}</span>
+                      </div>
                     )}
                   </div>
-                  <span className="font-black text-slate-900">{formatCurrency(it.value)}</span>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-1 sm:pt-0 border-t border-slate-100 sm:border-0">
+                    <span className="text-sm font-black text-slate-900">
+                      {formatCurrency(it.value)}
+                    </span>
+
+                    {/* Ações de auditoria do título: Alterar Valor e Excluir */}
+                    {!isPaid && (
+                      <div className="flex items-center gap-1">
+                        {onEditItemValue && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onEditItemValue(invoice, it)}
+                            className="h-7 px-2 text-[11px] font-medium text-slate-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg gap-1"
+                            title="Alterar valor deste título (recalcula fatura atual e futuras)"
+                          >
+                            <Pencil className="w-3 h-3 text-purple-600" />
+                            <span>Alterar Valor</span>
+                          </Button>
+                        )}
+
+                        {onExcludeItem && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onExcludeItem(invoice, it)}
+                            className="h-7 px-2 text-[11px] font-medium text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg gap-1"
+                            title="Excluir da fatura atual (será adiado para a fatura do mês seguinte)"
+                          >
+                            <Trash2 className="w-3 h-3 text-rose-500" />
+                            <span>Excluir</span>
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

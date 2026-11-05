@@ -4,20 +4,19 @@
 // e alterar valor (recalcula a fatura atual e as próximas).
 //
 // POST /backend/v1/invoice-item-exclude
-//   { invoice_id, transaction_id, installment_index }
-//   → registra o ajuste 'exclude' e re-concilia a fatura atual.
+//   { invoice_id, transaction_id, installment_index, notes }
+//   → registra o ajuste 'exclude' e re-concilia a fatura atual e a seguinte.
 //
 // POST /backend/v1/invoice-item-value
-//   { invoice_id, transaction_id, installment_index, value }
+//   { invoice_id, transaction_id, installment_index, value, notes }
 //   → registra o ajuste 'set_value' e re-concilia a fatura atual e as
 //     subsequentes que tenham parcelas da compra.
 //
-// Ambas as rotas devolvem a fatura re-conciliada (itens + total) para a tela
-// atualizar na hora, sem recarregar.
+// GET /backend/v1/invoice-adjustments?invoice_id=...
+//   → lista os ajustes registrados para a fatura ou cartão.
 //
-// Nota: nenhuma declaração de nível superior além de routerAdd — a JSVM do
-// PocketBase executa os callbacks em outro escopo, então TODOS os helpers
-// ficam dentro do corpo de cada callback.
+// Regra do PocketBase pb_hooks: nenhuma declaração de nível superior além de routerAdd.
+// Todos os helpers ficam dentro do callback da rota.
 
 // ---------------------------------------------------------------------------
 // POST /backend/v1/invoice-item-exclude — excluir título da fatura
@@ -28,27 +27,29 @@ routerAdd(
   '/backend/v1/invoice-item-exclude',
   (e) => {
     const round2 = (n) => Math.round(n * 100) / 100
+    const isYYYYMM = (s) => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s)
+
+    const shiftMonth = (month, n) => {
+      const [y, m] = month.split('-').map(Number)
+      const total = y * 12 + (m - 1) + n
+      const ny = Math.floor(total / 12)
+      const nm = (total % 12) + 1
+      return `${ny}-${String(nm).padStart(2, '0')}`
+    }
+
+    const monthOfIndex = (year, monthIndex) => {
+      const ny = Math.floor(monthIndex / 12) + year
+      const nm = (monthIndex % 12) + 1
+      return `${ny}-${String(nm).padStart(2, '0')}`
+    }
 
     // Concilia a fatura formal (cartão, mês): coleta as parcelas que vencem no
     // mês, aplica os ajustes abertos e grava total + itens.
     const concileInvoice = (app, auth, card, referenceMonth) => {
-      const isYYYYMM = (s) => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s)
       if (!isYYYYMM(referenceMonth)) return null
 
       const closingDay = card.getInt('closing_day') || 0
       const dueDay = card.getInt('due_day') || 0
-      const monthOfIndex = (year, monthIndex) => {
-        const ny = Math.floor(monthIndex / 12) + year
-        const nm = (monthIndex % 12) + 1
-        return `${ny}-${String(nm).padStart(2, '0')}`
-      }
-      const shiftMonth = (month, n) => {
-        const [y, m] = month.split('-').map(Number)
-        const total = y * 12 + (m - 1) + n
-        const ny = Math.floor(total / 12)
-        const nm = (total % 12) + 1
-        return `${ny}-${String(nm).padStart(2, '0')}`
-      }
 
       const candidates = app.findRecordsByFilter(
         'transactions',
@@ -80,28 +81,27 @@ routerAdd(
 
         for (let i = 0; i < installments; i++) {
           const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
-          if (instMonth !== referenceMonth) continue
+          const idx1 = installments > 1 ? i + 1 : 0
 
           const baseValue =
             i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
           if (!(baseValue > 0)) continue
 
-          const idx1 = installments > 1 ? i + 1 : 0
-          const pushItem = (value, adjusted) => {
+          const pushItem = (val, adjNote) => {
             items.push({
               transaction_id: txId,
               index: idx1,
-              value: value,
+              value: val,
               description: tx.getString('description'),
               date: startDate,
-              ...(adjusted ? { adjusted: true } : {}),
+              installments_total: installments,
+              ...(adjNote ? { adjustment_note: adjNote } : {}),
             })
             transactionIds.push(txId)
-            total += value
+            total += val
           }
 
-          // Exclusão (ajuste por índice exato): a parcela some da fatura do
-          // ajuste em diante, MAS APARECE na fatura para onde foi adiado.
+          // Ajustes do título (exclusão com adiamento ou alteração de valor)
           const excl = app.findRecordsByFilter(
             'invoice_adjustments',
             `transaction_id = '${txId}' && installment_index = ${idx1} && action = 'exclude' && resolved = false`,
@@ -109,42 +109,44 @@ routerAdd(
             1,
             0,
           )
+
           if (excl.length > 0) {
             const a = excl[0]
             const adjMonth = a.getString('invoice_month')
             const deferMonth = a.getString('defer_month')
-            if (referenceMonth >= adjMonth && referenceMonth !== deferMonth) continue
-            if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
-              const v = a.getFloat('amount')
-              if (v > 0) {
-                pushItem(v, true)
-                continue
-              }
+            // Se esta é a fatura de onde foi excluído, pula
+            if (referenceMonth >= adjMonth && referenceMonth !== deferMonth) {
+              continue
             }
-          }
-
-          // Alteração de valor: vale para a parcela editada e para todas as
-          // seguintes da mesma compra (o ajuste de índice mais alto manda).
-          const vals = app.findRecordsByFilter(
-            'invoice_adjustments',
-            `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
-            '-installment_index,-created',
-            1,
-            0,
-          )
-          if (
-            vals.length > 0 &&
-            referenceMonth >= vals[0].getString('invoice_month')
-          ) {
-            const v = vals[0].getFloat('amount')
-            if (v > 0) {
-              pushItem(v, true)
+            // Se esta é a fatura para onde foi adiado, adiciona
+            if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
+              const v = a.getFloat('amount') || baseValue
+              pushItem(v, `Adiado da fatura ${adjMonth}`)
               continue
             }
           }
 
-          pushItem(baseValue, false)
-=======
+          // Se a parcela original cai no mês da fatura
+          if (instMonth === referenceMonth) {
+            // Verifica se há alteração de valor para esta parcela
+            const valAdj = app.findRecordsByFilter(
+              'invoice_adjustments',
+              `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
+              '-installment_index,-created',
+              1,
+              0,
+            )
+
+            if (valAdj.length > 0 && referenceMonth >= valAdj[0].getString('invoice_month')) {
+              const v = valAdj[0].getFloat('amount')
+              if (v > 0) {
+                pushItem(v, `Valor ajustado para R$ ${v.toFixed(2)}`)
+                continue
+              }
+            }
+
+            pushItem(baseValue, null)
+          }
         }
       }
 
@@ -161,7 +163,7 @@ routerAdd(
       let invoice = null
       if (existing.length > 0) {
         invoice = existing[0]
-        if (invoice.getString('status') === 'paid') return invoice // não mexe em fatura paga
+        if (invoice.getString('status') === 'paid') return invoice
         invoice.set('total_amount', total)
         invoice.set('transactions', transactionIds)
         invoice.set('items', JSON.stringify(items))
@@ -224,8 +226,6 @@ routerAdd(
       if (!txBelongs) throw new ForbiddenError('Esse lançamento não pertence a você.')
 
       const card = app.findRecordById('accounts', invoice.getString('card_account_id'))
-      const closingDay = card.getInt('closing_day') || 0
-      const dueDay = card.getInt('due_day') || 0
       const installments = Math.max(1, Math.floor(tx.getInt('installments_total') || 1))
 
       if (installments > 1) {
@@ -251,7 +251,7 @@ routerAdd(
       const t = yy * 12 + (mm - 1) + 1
       const deferMonth = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`
 
-      // Ajustes anteriores do mesmo título são suplantados pelo novo.
+      // Desativa ajustes anteriores abertos para esta mesma compra/parcela
       const older = app.findRecordsByFilter(
         'invoice_adjustments',
         `transaction_id = '${tx.id}' && installment_index = ${installmentIndex} && resolved = false`,
@@ -280,12 +280,11 @@ routerAdd(
       adj.set('resolved', false)
       app.save(adj)
 
-      // Re-concilia a fatura atual: o título sai dela e o total cai na hora.
+      // Re-concilia a fatura atual
       const updated = concileInvoice(app, e.auth, card, refMonth)
       const items = updated ? JSON.parse(updated.getString('items') || '[]') : []
 
-      // A fatura do mês seguinte também é re-conciliada — é para lá que o
-      // título excluído passa a vencer (a fatura é criada se ainda não existe).
+      // A fatura do mês seguinte também é re-conciliada (título entra lá)
       const nextInvoice = concileInvoice(app, e.auth, card, deferMonth)
       const nextItems = nextInvoice ? JSON.parse(nextInvoice.getString('items') || '[]') : []
 
@@ -321,25 +320,27 @@ routerAdd(
   '/backend/v1/invoice-item-value',
   (e) => {
     const round2 = (n) => Math.round(n * 100) / 100
+    const isYYYYMM = (s) => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s)
+
+    const shiftMonth = (month, n) => {
+      const [y, m] = month.split('-').map(Number)
+      const total = y * 12 + (m - 1) + n
+      const ny = Math.floor(total / 12)
+      const nm = (total % 12) + 1
+      return `${ny}-${String(nm).padStart(2, '0')}`
+    }
+
+    const monthOfIndex = (year, monthIndex) => {
+      const ny = Math.floor(monthIndex / 12) + year
+      const nm = (monthIndex % 12) + 1
+      return `${ny}-${String(nm).padStart(2, '0')}`
+    }
 
     const concileInvoice = (app, auth, card, referenceMonth) => {
-      const isYYYYMM = (s) => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s)
       if (!isYYYYMM(referenceMonth)) return null
 
       const closingDay = card.getInt('closing_day') || 0
       const dueDay = card.getInt('due_day') || 0
-      const monthOfIndex = (year, monthIndex) => {
-        const ny = Math.floor(monthIndex / 12) + year
-        const nm = (monthIndex % 12) + 1
-        return `${ny}-${String(nm).padStart(2, '0')}`
-      }
-      const shiftMonth = (month, n) => {
-        const [y, m] = month.split('-').map(Number)
-        const total = y * 12 + (m - 1) + n
-        const ny = Math.floor(total / 12)
-        const nm = (total % 12) + 1
-        return `${ny}-${String(nm).padStart(2, '0')}`
-      }
 
       const candidates = app.findRecordsByFilter(
         'transactions',
@@ -371,28 +372,26 @@ routerAdd(
 
         for (let i = 0; i < installments; i++) {
           const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
-          if (instMonth !== referenceMonth) continue
+          const idx1 = installments > 1 ? i + 1 : 0
 
           const baseValue =
             i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
           if (!(baseValue > 0)) continue
 
-          const idx1 = installments > 1 ? i + 1 : 0
-          const pushItem = (value, adjusted) => {
+          const pushItem = (val, adjNote) => {
             items.push({
               transaction_id: txId,
               index: idx1,
-              value: value,
+              value: val,
               description: tx.getString('description'),
               date: startDate,
-              ...(adjusted ? { adjusted: true } : {}),
+              installments_total: installments,
+              ...(adjNote ? { adjustment_note: adjNote } : {}),
             })
             transactionIds.push(txId)
-            total += value
+            total += val
           }
 
-          // Exclusão (ajuste por índice exato): a parcela some da fatura do
-          // ajuste em diante, MAS APARECE na fatura para onde foi adiado.
           const excl = app.findRecordsByFilter(
             'invoice_adjustments',
             `transaction_id = '${txId}' && installment_index = ${idx1} && action = 'exclude' && resolved = false`,
@@ -404,37 +403,34 @@ routerAdd(
             const a = excl[0]
             const adjMonth = a.getString('invoice_month')
             const deferMonth = a.getString('defer_month')
-            if (referenceMonth >= adjMonth && referenceMonth !== deferMonth) continue
-            if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
-              const v = a.getFloat('amount')
-              if (v > 0) {
-                pushItem(v, true)
-                continue
-              }
+            if (referenceMonth >= adjMonth && referenceMonth !== deferMonth) {
+              continue
             }
-          }
-
-          // Alteração de valor: vale para a parcela editada e para todas as
-          // seguintes da mesma compra (o ajuste de índice mais alto manda).
-          const vals = app.findRecordsByFilter(
-            'invoice_adjustments',
-            `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
-            '-installment_index,-created',
-            1,
-            0,
-          )
-          if (
-            vals.length > 0 &&
-            referenceMonth >= vals[0].getString('invoice_month')
-          ) {
-            const v = vals[0].getFloat('amount')
-            if (v > 0) {
-              pushItem(v, true)
+            if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
+              const v = a.getFloat('amount') || baseValue
+              pushItem(v, `Adiado da fatura ${adjMonth}`)
               continue
             }
           }
 
-          pushItem(baseValue, false)
+          if (instMonth === referenceMonth) {
+            const valAdj = app.findRecordsByFilter(
+              'invoice_adjustments',
+              `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
+              '-installment_index,-created',
+              1,
+              0,
+            )
+            if (valAdj.length > 0 && referenceMonth >= valAdj[0].getString('invoice_month')) {
+              const v = valAdj[0].getFloat('amount')
+              if (v > 0) {
+                pushItem(v, `Valor ajustado para R$ ${v.toFixed(2)}`)
+                continue
+              }
+            }
+
+            pushItem(baseValue, null)
+          }
         }
       }
 
@@ -528,7 +524,7 @@ routerAdd(
 
       const refMonth = invoice.getString('reference_month')
 
-      // Ajustes anteriores do mesmo título são suplantados pelo novo.
+      // Ajustes anteriores do mesmo título são desativados
       const older = app.findRecordsByFilter(
         'invoice_adjustments',
         `transaction_id = '${tx.id}' && installment_index = ${installmentIndex} && resolved = false`,
@@ -556,11 +552,10 @@ routerAdd(
       adj.set('resolved', false)
       app.save(adj)
 
-      // Re-concilia a fatura atual...
+      // Re-concilia a fatura atual
       const updated = concileInvoice(app, e.auth, card, refMonth)
 
-      // ...e as próximas que tenham parcelas desta compra (o novo valor vale
-      // para todas as faturas futuras do título).
+      // Re-concilia as próximas faturas da compra
       const affected = []
       if (installments > 1) {
         const startDate = tx.getString('date')
@@ -570,14 +565,10 @@ routerAdd(
           let month = m - 1
           if (d > closingDay) month += 1
           if (dueDay < closingDay) month += 1
-          const ny = Math.floor(month / 12) + y
-          const nm = (month % 12) + 1
-          startMonth = `${ny}-${String(nm).padStart(2, '0')}`
+          startMonth = monthOfIndex(y, month)
         }
         for (let k = 1; k < installments; k++) {
-          const [sy, sm] = startMonth.split('-').map(Number)
-          const t = sy * 12 + (sm - 1) + k
-          const m2 = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`
+          const m2 = shiftMonth(startMonth, k)
           if (m2 <= refMonth) continue
           const inv2 = concileInvoice(app, e.auth, card, m2)
           if (inv2) {
@@ -601,6 +592,50 @@ routerAdd(
     })
 
     return e.json(200, payload)
+  },
+  $apis.requireAuth(),
+)
+
+// ---------------------------------------------------------------------------
+// GET /backend/v1/invoice-adjustments — listar ajustes de uma fatura
+// ---------------------------------------------------------------------------
+routerAdd(
+  'GET',
+  '/backend/v1/invoice-adjustments',
+  (e) => {
+    const invoiceId = e.request.url.query().get('invoice_id')
+    if (!invoiceId) throw new BadRequestError('invoice_id é obrigatório.')
+
+    const invoice = e.app.findRecordById('invoices', invoiceId)
+    const userFamily = e.auth.getString('family_id')
+    const invFamily = invoice.getString('family_id')
+    const belongs =
+      invoice.getString('user_id') === e.auth.id ||
+      (userFamily && invFamily && userFamily === invFamily)
+    if (!belongs) throw new ForbiddenError('Essa fatura não pertence a você.')
+
+    const adjustments = e.app.findRecordsByFilter(
+      'invoice_adjustments',
+      `invoice_id = '${invoiceId}' || (defer_month = '${invoice.getString('reference_month')}' && resolved = false)`,
+      '-created',
+      100,
+      0,
+    )
+
+    const list = adjustments.map((a) => ({
+      id: a.id,
+      transaction_id: a.getString('transaction_id'),
+      installment_index: a.getInt('installment_index'),
+      action: a.getString('action'),
+      amount: a.getFloat('amount'),
+      invoice_month: a.getString('invoice_month'),
+      defer_month: a.getString('defer_month'),
+      notes: a.getString('notes'),
+      resolved: a.getBool('resolved'),
+      created: a.getString('created'),
+    }))
+
+    return e.json(200, list)
   },
   $apis.requireAuth(),
 )
