@@ -16,10 +16,14 @@ export const categoriesService = {
     return records.filter((c) => (c.status ?? 'active') === 'active')
   },
 
+  /** Payload base para criar categoria: sempre user_id do usuário logado e
+   * family_id do seu núcleo (a regra de create exige vínculo com a família —
+   * sem family_id a criação é recusada quando o auth não tem family_id). */
   async create(data: Partial<CategoryRecord>): Promise<CategoryRecord> {
     const payload = {
       ...data,
       user_id: pb.authStore.record?.id,
+      family_id: data.family_id ?? pb.authStore.record?.family_id ?? '',
     }
     return await pb.collection('categories').create<CategoryRecord>(payload)
   },
@@ -37,6 +41,7 @@ export const categoriesService = {
     const payload = {
       ...data,
       user_id: pb.authStore.record?.id,
+      family_id: data.family_id ?? pb.authStore.record?.family_id ?? '',
       status: data.status || 'active',
     }
     try {

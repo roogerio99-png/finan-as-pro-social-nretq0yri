@@ -44,6 +44,7 @@ export interface AccountRecord {
 export interface CategoryRecord {
   id: string
   user_id?: string
+  family_id?: string
   name: string
   type: 'income' | 'expense'
   group_level1: string // Ex: Custos Fixos, Estilo de Vida, Investimentos e Sonhos, Dívidas, Receitas
