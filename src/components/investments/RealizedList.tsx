@@ -43,8 +43,24 @@ export const RealizedList: React.FC<RealizedListProps> = ({ sales, saleTax }) =>
               <span className="text-xs text-slate-500">{formatDayBR(s.date)}</span>
               <span className="font-bold text-slate-900">{s.ticker}</span>
               <Badge variant="outline">{ASSET_CLASS_LABELS[s.assetClass]}</Badge>
-              {s.dayTrade && <Badge variant="outline">Day trade</Badge>}
+              {s.manualDayTrade && <Badge variant="outline">Day trade</Badge>}
+              {s.dayTradeDetected && (
+                <Badge variant="outline" className="border-amber-400 text-amber-700">
+                  Day trade (detectado)
+                </Badge>
+              )}
             </div>
+            {s.dayTradeQuantity < s.quantity - 1e-9 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                Venda mista:{' '}
+                {s.dayTradeQuantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })} un. em
+                day trade (regime 20%) e{' '}
+                {(s.quantity - s.dayTradeQuantity).toLocaleString('pt-BR', {
+                  maximumFractionDigits: 8,
+                })}{' '}
+                un. no regime normal da classe.
+              </p>
+            )}
             <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 text-sm">
               <div>
                 <dt className="text-xs text-slate-500">Quantidade</dt>

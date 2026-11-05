@@ -1,10 +1,10 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { InvestmentOperation } from '@/services/investments'
-import { ASSET_CLASS_LABELS, brl, formatDayBR } from '@/services/investmentsCalc'
+import { ASSET_CLASS_LABELS, brl, detectDayTradeOps, formatDayBR } from '@/services/investmentsCalc'
 
 interface OperationsListProps {
   operations: InvestmentOperation[]
@@ -14,6 +14,9 @@ interface OperationsListProps {
 
 // Lista em ordem cronológica (data e criação), empilhada em cards para caber no celular.
 export const OperationsList: React.FC<OperationsListProps> = ({ operations, onEdit, onDelete }) => {
+  // Quantidade casada como day trade pela detecção automática (compra e venda no mesmo dia).
+  const detected = useMemo(() => detectDayTradeOps(operations), [operations])
+
   if (operations.length === 0) {
     return (
       <p className="text-sm text-slate-500 text-center py-8">
@@ -39,6 +42,11 @@ export const OperationsList: React.FC<OperationsListProps> = ({ operations, onEd
                   <span className="font-bold text-slate-900">{op.ticker}</span>
                   <Badge variant="outline">{ASSET_CLASS_LABELS[op.asset_class]}</Badge>
                   {op.day_trade && <Badge variant="outline">Day trade</Badge>}
+                  {!op.day_trade && (detected.get(op.id) ?? 0) > 1e-9 && (
+                    <Badge variant="outline" className="border-amber-400 text-amber-700">
+                      Day trade (detectado)
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm text-slate-700">
                   {op.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })} ×{' '}

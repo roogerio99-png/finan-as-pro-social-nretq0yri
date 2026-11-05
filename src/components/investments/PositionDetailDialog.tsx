@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { InvestmentOperation } from '@/services/investments'
-import { ASSET_CLASS_LABELS, brl, formatDayBR } from '@/services/investmentsCalc'
+import { ASSET_CLASS_LABELS, brl, detectDayTradeOps, formatDayBR } from '@/services/investmentsCalc'
 
 const EPS = 1e-9
 
@@ -26,6 +26,10 @@ export interface PositionDetailRow {
   date: string
   type: 'buy' | 'sell'
   dayTrade: boolean
+  // true quando o casamento day trade veio da detecção automática (compra e venda no mesmo dia).
+  dayTradeDetected: boolean
+  // Quantidade casada como day trade pela detecção automática (0 quando não há casamento).
+  dayTradeQuantity: number
   quantity: number
   unitPrice: number
   total: number
@@ -46,6 +50,10 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
       (a.created ?? '').localeCompare(b.created ?? '') ||
       a.id.localeCompare(b.id),
   )
+
+  // Mesma detecção de investmentsCalc.computeLedger: o volume casado entre compra e venda
+  // do MESMO dia (mínimo entre comprado e vendido do dia) é day trade, sem flag manual.
+  const detected = detectDayTradeOps(sorted)
 
   let qty = 0
   let cost = 0
@@ -77,11 +85,17 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
       avgAfter = qty > EPS ? cost / qty : null
     }
 
+    const manual = !!op.day_trade
+    const detectedQty = detected.get(op.id) ?? 0
+    const dayTradeQty = manual ? op.quantity : Math.min(detectedQty, op.quantity)
+
     rows.push({
       id: op.id,
       date: op.op_date,
       type: op.op_type,
-      dayTrade: !!op.day_trade,
+      dayTrade: manual || dayTradeQty > EPS,
+      dayTradeDetected: !manual && dayTradeQty > EPS,
+      dayTradeQuantity: dayTradeQty,
       quantity: op.quantity,
       unitPrice: op.unit_price,
       total,
@@ -121,6 +135,22 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
   const totalValue = rows.reduce((acc, r) => acc + r.total, 0)
   const totalFees = rows.reduce((acc, r) => acc + r.fees, 0)
   const totalBuyCost = rows.reduce((acc, r) => acc + (r.costWithFees ?? 0), 0)
+  const detectedPairs = rows.filter((r) => r.dayTradeDetected)
+
+  const DayTradeBadge: React.FC<{ row: PositionDetailRow }> = ({ row }) => {
+    if (row.dayTradeDetected) {
+      return (
+        <Badge variant="outline" className="border-amber-400 text-amber-700">
+          Day trade (detectado)
+          {row.dayTradeQuantity < row.quantity - EPS
+            ? ` · ${fmtQty(row.dayTradeQuantity)} un.`
+            : ''}
+        </Badge>
+      )
+    }
+    if (row.dayTrade) return <Badge variant="outline">Day trade</Badge>
+    return null
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,6 +171,12 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
           </p>
         ) : (
           <div className="space-y-3">
+            {detectedPairs.length > 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5">
+                Day trade detectado por compra e venda na mesma data: a parte casada entra no regime
+                de 20% na apuração mensal, mesmo sem a marcação manual.
+              </p>
+            )}
             {/* Rolagem horizontal no celular para manter a tabela legível. */}
             <div className="overflow-x-auto -mx-1 px-1">
               <Table className="min-w-[640px] text-xs sm:text-sm">
@@ -169,7 +205,7 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
                           <Badge className={r.type === 'buy' ? 'bg-emerald-600' : 'bg-rose-600'}>
                             {r.type === 'buy' ? 'Compra' : 'Venda'}
                           </Badge>
-                          {r.dayTrade && <Badge variant="outline">Day trade</Badge>}
+                          <DayTradeBadge row={r} />
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{fmtQty(r.quantity)}</TableCell>
