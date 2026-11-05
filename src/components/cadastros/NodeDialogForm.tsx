@@ -13,6 +13,8 @@ export interface NodeDialogFormProps {
   submitLabel: string
   submitTitle?: string
   codePlaceholder?: string
+  /** Grupo pai (nível 2): exibido como campo somente leitura para contexto. */
+  parentLabel?: string
 }
 
 export const NodeDialogForm: React.FC<NodeDialogFormProps> = ({
@@ -24,6 +26,7 @@ export const NodeDialogForm: React.FC<NodeDialogFormProps> = ({
   submitLabel,
   submitTitle,
   codePlaceholder,
+  parentLabel,
 }) => (
   <>
     <form
@@ -33,6 +36,18 @@ export const NodeDialogForm: React.FC<NodeDialogFormProps> = ({
       }}
       className="space-y-4 pt-2"
     >
+      {dialog.level === 2 && (
+        <div className="space-y-1.5">
+          <Label htmlFor="nodeParent">Grupo</Label>
+          <Input
+            id="nodeParent"
+            value={parentLabel ?? dialog.parent ?? ''}
+            readOnly
+            disabled
+            className="bg-slate-50 text-slate-500"
+          />
+        </div>
+      )}
       <div className="grid grid-cols-[1fr_auto] gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="nodeName">Nome</Label>

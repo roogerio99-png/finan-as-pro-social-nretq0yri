@@ -35,12 +35,10 @@ import { categoriesService } from '@/services/categories'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { CategoryRecord } from '@/types/finance'
 import { expenseGroupSuggestions } from '@/types/cadastros'
-import { Label } from '@/components/ui/label'
 import { buildGroups, nextGroupCode, nextSubCode, subLabel, CategoryType } from './categoriesTree'
 import { NodeDialogState, emptyNode } from './nodeDialogState'
 import { NodeDialogForm } from './NodeDialogForm'
 import { CATEGORY_COLUMNS, CategoryCodeBadge, CategoryGridHeader } from './CategoryTablePieces'
-import { Input } from '@/components/ui/input'
 
 type CatType = 'expense' | 'income'
 
@@ -103,6 +101,7 @@ export const CategoriesTab: React.FC = () => {
       ...emptyNode(),
       level: 1,
       code: nextGroupCode(all, type),
+      type,
     })
   const openCreateSub = (parent: string) =>
     setNodeDialog({
@@ -110,9 +109,37 @@ export const CategoriesTab: React.FC = () => {
       level: 2,
       parent,
       code: nextSubCode(all, parent),
+      type,
     })
-  const openRename = (level: 1 | 2, name: string, parent?: string) =>
-    setRenameDialog({ level, name, original: name, parent, code: '', description: '' })
+  // Edição completa do nó (antes era só renomear): pré-carrega código e descrição
+  // do registro canônico do nó — grupo: linha sem group_level2; subgrupo: linha
+  // sem subgroup_level3. Registros antigos sem código (ex.: "Renda Ativa") abrem
+  // com os campos vazios, prontos para serem completados pela tela.
+  const openRename = (level: 1 | 2, label: string, parent?: string) => {
+    const inScope = all.filter((c) => {
+      if (c.type !== type) return false
+      if (level === 1)
+        return label === 'Sem grupo' ? !(c.group_level1 || '') : (c.group_level1 || '') === label
+      return (c.group_level1 || '') === (parent || '') && (c.group_level2 || '') === label
+    })
+    const canonical =
+      level === 1
+        ? inScope.find((c) => !c.group_level2 && !c.subgroup_level3)
+        : inScope.find((c) => !c.subgroup_level3)
+    const code = (level === 1 ? canonical?.group_code : canonical?.code) || ''
+    const description = canonical?.description || ''
+    setRenameDialog({
+      level,
+      name: label,
+      original: label,
+      parent,
+      code,
+      description,
+      originalCode: code,
+      originalDescription: description,
+      type,
+    })
+  }
 
   const saveNode = async () => {
     if (saving) return
@@ -204,37 +231,72 @@ export const CategoriesTab: React.FC = () => {
     }
     setSaving(true)
     try {
+      // Código e descrição do plano de contas: grava no registro canônico do nó
+      // (cria o canônico quando o registro é antigo e não o tem). Vai ANTES do
+      // renomear: a busca do nó usa o rótulo antigo, e o rename seguinte alcança
+      // também o canônico recém-criado. Só toca no banco quando algo mudou de fato.
+      const oldValue = renameDialog.original ?? renameDialog.name
+      const code = renameDialog.code.trim()
+      const changedCode = code !== (renameDialog.originalCode || '')
+      const changedDesc =
+        renameDialog.description.trim() !== (renameDialog.originalDescription || '')
+      if (changedCode || changedDesc) {
+        await categoriesService.updateNodeMeta({
+          level: renameDialog.level,
+          label: oldValue,
+          parent: renameDialog.parent,
+          type: renameDialog.type || type,
+          code,
+          description: renameDialog.description.trim(),
+        })
+      }
+
+      // Renomear o rótulo (nome): vale para todos os registros que o compartilham.
       // Para subgrupos, o campo editável é o nome do subgrupo (renameDialog.name);
       // o grupo pai (parent) serve apenas para desambiguação no service.
       const field = renameDialog.level === 1 ? 'group_level1' : 'group_level2'
-      const oldValue = renameDialog.original ?? renameDialog.name
-      const changed = await categoriesService.renameLabel(
-        field,
-        oldValue,
-        renameDialog.name.trim(),
-        renameDialog.level === 1 ? undefined : renameDialog.parent,
-      )
-      if (changed === 0) {
+      const newName = renameDialog.name.trim()
+      let renamed = 0
+      if (newName && oldValue && oldValue !== newName) {
+        renamed = await categoriesService.renameLabel(
+          field,
+          oldValue,
+          newName,
+          renameDialog.level === 1 ? undefined : renameDialog.parent,
+        )
+        if (renamed === 0) {
+          toast({
+            title: 'Nada foi renomeado',
+            description:
+              'Nenhum registro com esse nome foi encontrado. Recarregue a página e tente novamente.',
+            variant: 'destructive',
+          })
+          return
+        }
+      }
+
+      if (renamed === 0 && !changedCode && !changedDesc) {
         toast({
-          title: 'Nada foi renomeado',
-          description:
-            'Nenhum registro com esse nome foi encontrado. Recarregue a página e tente novamente.',
+          title: 'Nada foi alterado',
+          description: 'Os campos estão iguais aos valores atuais do registro.',
           variant: 'destructive',
         })
         return
       }
       toast({
-        title: 'Renomeado!',
+        title: 'Alterações salvas!',
         description:
-          changed === 1
+          renamed === 1
             ? '1 ocorrência foi atualizada.'
-            : `Todas as ${changed} ocorrências foram atualizadas.`,
+            : renamed > 1
+              ? `Todas as ${renamed} ocorrências foram atualizadas.`
+              : 'Código e descrição do plano de contas foram atualizados.',
       })
       setRenameDialog(null)
       load()
     } catch (err) {
       toast({
-        title: 'Erro ao renomear',
+        title: 'Erro ao salvar alterações',
         description: getErrorMessage(err),
         variant: 'destructive',
       })
@@ -614,53 +676,39 @@ export const CategoriesTab: React.FC = () => {
               onSubmit={saveNode}
               submitLabel="Criar"
               codePlaceholder={nodeDialog.level === 1 ? '11.0' : '1.7'}
+              parentLabel={nodeDialog.parent}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Modal renomear */}
+      {/* Modal editar grupo/subgrupo: edição completa do nó (código, nome e
+          descrição do gasto) — o antigo "Renomear" só tinha o nome. */}
       <Dialog open={!!renameDialog} onOpenChange={(open) => !open && setRenameDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900">
-              Renomear {renameDialog?.level === 1 ? 'grupo' : 'subgrupo'}
+              Editar {renameDialog?.level === 1 ? 'grupo' : 'subgrupo'}
             </DialogTitle>
             <DialogDescription>
-              O novo nome vale para todos os registros que usam "{renameDialog?.name}".
+              {renameDialog?.level === 1
+                ? `O nome vale para todos os registros que usam "${renameDialog?.name}". Código e descrição identificam o nó no plano de contas.`
+                : `Edite o código, o nome e a descrição do gasto do subgrupo em "${renameDialog?.parent}".`}
             </DialogDescription>
           </DialogHeader>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveRename()
-            }}
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="renameValue">Novo nome</Label>
-              <Input
-                id="renameValue"
-                value={renameDialog?.name ?? ''}
-                onChange={(e) => setRenameDialog((n) => (n ? { ...n, name: e.target.value } : n))}
-                required
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setRenameDialog(null)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {saving ? 'Salvando...' : 'Renomear'}
-              </Button>
-            </div>
-          </form>
+          {renameDialog && (
+            <NodeDialogForm
+              dialog={renameDialog}
+              saving={saving}
+              onChange={(patch) => setRenameDialog((n) => (n ? { ...n, ...patch } : n))}
+              onCancel={() => setRenameDialog(null)}
+              onSubmit={saveRename}
+              submitLabel="Salvar"
+              codePlaceholder={renameDialog.level === 1 ? '0.0' : '1.3'}
+              parentLabel={renameDialog.parent}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

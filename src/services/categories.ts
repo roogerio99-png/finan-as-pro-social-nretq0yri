@@ -113,6 +113,103 @@ export const categoriesService = {
     }
   },
 
+  /**
+   * Grava código e descrição do plano de contas no nó informado (edição completa
+   * do grupo/subgrupo). Esses metadados vivem no registro canônico do nó —
+   * grupo: linha sem group_level2; subgrupo: linha sem subgroup_level3.
+   * Registros antigos sem canônico (ex.: "Renda Ativa") ganham um na primeira
+   * edição, sempre com user_id + family_id do authStore (padrão da criação).
+   */
+  async updateNodeMeta(opts: {
+    level: 1 | 2
+    label: string
+    parent?: string
+    type: 'income' | 'expense'
+    code?: string
+    description?: string
+  }): Promise<void> {
+    const fresh = await this.list({ includeInactive: true })
+    const rows = fresh.filter((c) => c.type === opts.type)
+    const inScope =
+      opts.level === 1
+        ? rows.filter((c) =>
+            opts.label === 'Sem grupo'
+              ? !(c.group_level1 || '')
+              : (c.group_level1 || '') === opts.label,
+          )
+        : rows.filter(
+            (c) =>
+              (c.group_level1 || '') === (opts.parent || '') &&
+              (c.group_level2 || '') === opts.label,
+          )
+    const canonical =
+      opts.level === 1
+        ? inScope.find((c) => !c.group_level2 && !c.subgroup_level3)
+        : inScope.find((c) => !c.subgroup_level3)
+
+    const patch: Partial<CategoryRecord> = {
+      description: opts.description || '',
+    }
+    if (opts.level === 1) patch.group_code = opts.code || ''
+    else patch.code = opts.code || ''
+
+    try {
+      if (canonical) {
+        await pb.collection('categories').update(canonical.id, patch)
+        // O código do grupo identifica o grupo inteiro: propaga para as linhas filhas
+        // (novos subgrupos herdam o group_code do pai ao serem criados).
+        if (opts.level === 1) {
+          const others = inScope.filter((c) => c.id !== canonical.id)
+          await Promise.all(
+            others.map((c) =>
+              pb.collection('categories').update(c.id, { group_code: patch.group_code }),
+            ),
+          )
+        }
+        return
+      }
+      if (opts.level === 1 && opts.label === 'Sem grupo') {
+        // O pseudo-grupo "Sem grupo" não tem registro próprio: grava nas linhas.
+        await Promise.all(inScope.map((c) => pb.collection('categories').update(c.id, patch)))
+        return
+      }
+      if (opts.level === 1) {
+        await this.createNode({
+          name: opts.label,
+          type: opts.type,
+          group_level1: opts.label,
+          group_level2: '',
+          group_code: opts.code || '',
+          code: '',
+          description: opts.description || '',
+          status: 'active',
+          color: opts.type === 'income' ? '#059669' : '#0284C7',
+        })
+      } else {
+        const parentRec = fresh.find(
+          (c) =>
+            c.type === opts.type &&
+            (c.group_level1 || '') === (opts.parent || '') &&
+            !c.group_level2 &&
+            !c.subgroup_level3,
+        )
+        await this.createNode({
+          name: opts.label,
+          type: opts.type,
+          group_level1: opts.parent || '',
+          group_level2: opts.label,
+          group_code: parentRec?.group_code || '',
+          code: opts.code || '',
+          description: opts.description || '',
+          status: 'active',
+          color: parentRec?.color || (opts.type === 'income' ? '#10B981' : '#06B6D4'),
+        })
+      }
+    } catch (err) {
+      throw new Error(getErrorMessage(err))
+    }
+  },
+
   /** Converte o plano de contas em árvore: grupos (nível 1) -> subgrupos (nível 2) -> categorias. */
   buildTree(
     all: CategoryRecord[],
