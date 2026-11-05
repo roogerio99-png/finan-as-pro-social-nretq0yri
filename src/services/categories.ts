@@ -66,19 +66,34 @@ export const categoriesService = {
     }
   },
 
-  /** Renomeia todos os registros que compartilham o mesmo rótulo de grupo/subgrupo. */
+  /**
+   * Renomeia todos os registros que compartilham o mesmo rótulo de grupo/subgrupo.
+   * Busca a lista fresca do banco (o estado da tela pode estar defasado) e retorna
+   * quantos registros foram alterados — 0 significa que nenhum rótulo foi encontrado,
+   * o que o chamador deve tratar como erro (não como sucesso silencioso).
+   */
   async renameLabel(
-    cats: CategoryRecord[],
     field: 'group_level1' | 'group_level2',
     oldValue: string,
     newValue: string,
-  ): Promise<void> {
-    const targets = cats.filter((c) => (c[field] || '') === oldValue)
-    if (targets.length === 0) return
+  ): Promise<number> {
+    if (!oldValue || !newValue || oldValue === newValue) return 0
+    const fresh = await this.list({ includeInactive: true })
+    // "Sem grupo" é o rótulo exibido para registros com group_level1 vazio.
+    const targets = fresh.filter((c) =>
+      oldValue === 'Sem grupo' ? !(c[field] || '') : (c[field] || '') === oldValue,
+    )
+    if (targets.length === 0) return 0
     try {
       await Promise.all(
-        targets.map((c) => pb.collection('categories').update(c.id, { [field]: newValue })),
+        targets.map((c) => {
+          const patch: Partial<CategoryRecord> = { [field]: newValue }
+          // Mantém o nome canônico do nó em sincronia com o rótulo renomeado.
+          if ((c.name || '') === oldValue && !c.subgroup_level3) patch.name = newValue
+          return pb.collection('categories').update(c.id, patch)
+        }),
       )
+      return targets.length
     } catch (err) {
       throw new Error(getErrorMessage(err))
     }

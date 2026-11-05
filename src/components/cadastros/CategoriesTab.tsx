@@ -181,8 +181,23 @@ export const CategoriesTab: React.FC = () => {
     try {
       const field = renameDialog.level === 1 ? 'group_level1' : 'group_level2'
       const oldValue = renameDialog.level === 1 ? renameDialog.name : renameDialog.parent!
-      await categoriesService.renameLabel(all, field, oldValue, renameDialog.name.trim())
-      toast({ title: 'Renomeado!', description: `Todas as ocorrências foram atualizadas.` })
+      const changed = await categoriesService.renameLabel(field, oldValue, renameDialog.name.trim())
+      if (changed === 0) {
+        toast({
+          title: 'Nada foi renomeado',
+          description:
+            'Nenhum registro com esse nome foi encontrado. Recarregue a página e tente novamente.',
+          variant: 'destructive',
+        })
+        return
+      }
+      toast({
+        title: 'Renomeado!',
+        description:
+          changed === 1
+            ? '1 ocorrência foi atualizada.'
+            : `Todas as ${changed} ocorrências foram atualizadas.`,
+      })
       setRenameDialog(null)
       load()
     } catch (err) {
