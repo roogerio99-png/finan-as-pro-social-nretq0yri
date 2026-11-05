@@ -3,7 +3,7 @@
 // NUNCA cachear requisições para a API do PocketBase (/api/* ou requisições dinâmicas de backend),
 // garantindo que os dados financeiros estejam SEMPRE frescos e em tempo real.
 
-const CACHE_NAME = 'gestio-financas-shell-v2'
+const CACHE_NAME = 'gestio-financas-shell-v3'
 
 const PRECACHE_ASSETS = [
   '/',
@@ -82,7 +82,10 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Ativos estáticos locais (JS, CSS, imagens SVG/PNG): Stale-While-Revalidate
+  // Ativos estáticos locais (JS, CSS, imagens SVG/PNG): Network-first com fallback ao cache.
+  // O código do app (bundle) SEMPRE vem da rede quando disponível — cache só serve
+  // quando o usuário está offline. Assim nenhuma versão defasada do app roda no PWA
+  // e um clique em "Criar" nunca cai num código antigo que não dispara a requisição.
   const isStaticAsset =
     url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.js') ||
@@ -94,19 +97,24 @@ self.addEventListener('fetch', (event) => {
 
   if (isStaticAsset) {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const cachedResponse = await cache.match(req)
-        const fetchPromise = fetch(req)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              cache.put(req, networkResponse.clone())
-            }
-            return networkResponse
-          })
-          .catch(() => cachedResponse)
-
-        return cachedResponse || fetchPromise
-      }),
+      fetch(req)
+        .then(async (networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cache = await caches.open(CACHE_NAME)
+            cache.put(req, networkResponse.clone())
+          }
+          return networkResponse
+        })
+        .catch(async () => {
+          const cached = await caches.match(req)
+          return (
+            cached ||
+            new Response('Sem conexão com a internet.', {
+              status: 503,
+              statusText: 'Offline',
+            })
+          )
+        }),
     )
   }
 })

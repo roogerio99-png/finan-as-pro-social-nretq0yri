@@ -134,10 +134,30 @@ export const CategoriesTab: React.FC = () => {
     setRenameDialog({ level, name, original: name, parent })
 
   const saveNode = async () => {
-    if (!nodeDialog || !nodeDialog.name.trim()) return
+    if (saving) return
+    if (!nodeDialog) {
+      // Nunca falhar em silêncio: se o clique não puder criar, o usuário precisa saber o motivo.
+      toast({
+        title: 'Não foi possível criar',
+        description: 'O formulário foi fechado antes de salvar. Abra novamente e tente de novo.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const name = nodeDialog.name.trim()
+    if (!name) {
+      toast({
+        title: 'Digite um nome',
+        description:
+          nodeDialog.level === 1
+            ? 'Informe o nome do novo grupo para poder criá-lo.'
+            : `Informe o nome do novo subgrupo em "${nodeDialog.parent || '—'}" para poder criá-lo.`,
+        variant: 'destructive',
+      })
+      return
+    }
     setSaving(true)
     try {
-      const name = nodeDialog.name.trim()
       if (nodeDialog.level === 1) {
         // Grupo novo: semeia uma categoria canônica de mesmo nome.
         await categoriesService.createNode({
@@ -177,7 +197,23 @@ export const CategoriesTab: React.FC = () => {
   }
 
   const saveRename = async () => {
-    if (!renameDialog || !renameDialog.name.trim()) return
+    if (saving) return
+    if (!renameDialog) {
+      toast({
+        title: 'Não foi possível renomear',
+        description: 'O formulário foi fechado antes de salvar. Abra novamente e tente de novo.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!renameDialog.name.trim()) {
+      toast({
+        title: 'Digite um nome',
+        description: 'O novo nome não pode ficar vazio.',
+        variant: 'destructive',
+      })
+      return
+    }
     setSaving(true)
     try {
       // Para subgrupos, o campo editável é o nome do subgrupo (renameDialog.name);
@@ -579,7 +615,6 @@ export const CategoriesTab: React.FC = () => {
                 value={nodeDialog?.name ?? ''}
                 onChange={(e) => setNodeDialog((n) => (n ? { ...n, name: e.target.value } : n))}
                 placeholder={nodeDialog?.level === 1 ? 'Ex.: Custos Fixos' : 'Ex.: Moradia'}
-                required
                 autoFocus
               />
             </div>
@@ -587,8 +622,11 @@ export const CategoriesTab: React.FC = () => {
               <Button type="button" variant="outline" onClick={() => setNodeDialog(null)}>
                 Cancelar
               </Button>
+              {/* Clique dispara saveNode diretamente: nunca depende do submit nativo do form
+                  (que o navegador pode cancelar em silêncio com validação HTML). */}
               <Button
-                type="submit"
+                type="button"
+                onClick={saveNode}
                 disabled={saving}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >

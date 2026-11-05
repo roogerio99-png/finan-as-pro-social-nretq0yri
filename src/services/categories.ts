@@ -38,9 +38,14 @@ export const categoriesService = {
 
   /** Cria uma nova linha do plano de contas (grupo nível 1 ou subgrupo nível 2). */
   async createNode(data: Partial<CategoryRecord>): Promise<CategoryRecord> {
+    const userId = pb.authStore.record?.id
+    if (!userId) {
+      // Nada será enviado sem sessão: falhar com mensagem clara, nunca em silêncio.
+      throw new Error('Sua sessão expirou. Faça login novamente para criar grupos ou subgrupos.')
+    }
     const payload = {
       ...data,
-      user_id: pb.authStore.record?.id,
+      user_id: userId,
       family_id: data.family_id ?? pb.authStore.record?.family_id ?? '',
       status: data.status || 'active',
     }
