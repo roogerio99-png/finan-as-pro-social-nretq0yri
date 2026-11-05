@@ -1091,6 +1091,94 @@ export class MockPocketBase {
       return { ok: true } as unknown as T
     }
 
+    // POST /backend/v1/invoice-item-exclude
+    if (path === '/backend/v1/invoice-item-exclude' && method === 'POST') {
+      const { invoice_id, transaction_id, installment_index, notes } = body
+      const invoice = this.collections.invoices?.find((i) => i.id === invoice_id)
+      const tx = this.collections.transactions?.find((t) => t.id === transaction_id)
+      const refMonth = invoice?.reference_month || ''
+      const [yy, mm] = (refMonth || '2026-11').split('-').map(Number)
+      const t = yy * 12 + (mm - 1) + 1
+      const deferMonth = `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`
+
+      if (!this.collections.invoice_adjustments) {
+        this.collections.invoice_adjustments = []
+      }
+      const adj = {
+        id: 'adj_' + Date.now(),
+        user_id: this.authStore.record?.id,
+        family_id: invoice?.family_id,
+        transaction_id,
+        installment_index: installment_index || 0,
+        action: 'exclude',
+        amount: tx?.amount || 0,
+        invoice_month: refMonth,
+        defer_month: deferMonth,
+        invoice_id,
+        notes,
+        resolved: false,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      }
+      this.collections.invoice_adjustments.push(adj)
+      this.persist('invoice_adjustments')
+
+      return {
+        invoice_id,
+        reference_month: refMonth,
+        total_amount: invoice?.total_amount || 0,
+        items_count: 0,
+        items: [],
+        deferred_month: deferMonth,
+      } as unknown as T
+    }
+
+    // POST /backend/v1/invoice-item-value
+    if (path === '/backend/v1/invoice-item-value' && method === 'POST') {
+      const { invoice_id, transaction_id, installment_index, value, notes } = body
+      const invoice = this.collections.invoices?.find((i) => i.id === invoice_id)
+      const refMonth = invoice?.reference_month || ''
+
+      if (!this.collections.invoice_adjustments) {
+        this.collections.invoice_adjustments = []
+      }
+      const adj = {
+        id: 'adj_' + Date.now(),
+        user_id: this.authStore.record?.id,
+        family_id: invoice?.family_id,
+        transaction_id,
+        installment_index: installment_index || 0,
+        action: 'set_value',
+        amount: Number(value) || 0,
+        invoice_month: refMonth,
+        invoice_id,
+        notes,
+        resolved: false,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      }
+      this.collections.invoice_adjustments.push(adj)
+      this.persist('invoice_adjustments')
+
+      if (invoice) {
+        invoice.total_amount = Number(value) || 0
+        this.persist('invoices')
+      }
+
+      return {
+        invoice_id,
+        reference_month: refMonth,
+        total_amount: Number(value) || 0,
+        items_count: 1,
+        items: [],
+      } as unknown as T
+    }
+
+    // GET /backend/v1/invoice-adjustments?invoice_id=...
+    if (path.startsWith('/backend/v1/invoice-adjustments')) {
+      return (this.collections.invoice_adjustments || []) as unknown as T
+    }
+
     // Skip connectors API
     if (path.startsWith('/api/skip/connectors')) {
       return [] as unknown as T

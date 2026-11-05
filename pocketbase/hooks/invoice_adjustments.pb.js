@@ -79,29 +79,77 @@ routerAdd(
           startMonth = monthOfIndex(y, month)
         }
 
+        // Calcula os valores de cada parcela levando em conta possíveis ajustes de valor (set_value)
+        // com rateio proporcional da diferença nas parcelas futuras restantes
+        const installmentValues = []
+        for (let i = 0; i < installments; i++) {
+          const base =
+            i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
+          installmentValues.push(base)
+        }
+
+        const valAdjustments = app.findRecordsByFilter(
+          'invoice_adjustments',
+          `transaction_id = '${txId}' && action = 'set_value' && resolved = false`,
+          'installment_index,created',
+          50,
+          0,
+        )
+
+        const adjNotesByInst = {}
+        for (const va of valAdjustments) {
+          const adjIdx = va.getInt('installment_index') // 1-based (ou 0 para compra à vista)
+          const newV = va.getFloat('amount')
+          const iZero = installments > 1 ? Math.max(0, adjIdx - 1) : 0
+          if (iZero < installmentValues.length) {
+            const oldV = installmentValues[iZero]
+            const diff = round2(newV - oldV)
+            installmentValues[iZero] = newV
+            adjNotesByInst[adjIdx] = `Valor ajustado para R$ ${newV.toFixed(2)}`
+
+            const remaining = installments - 1 - iZero
+            if (remaining > 0 && Math.abs(diff) > 0.001) {
+              const share = Math.floor((diff / remaining) * 100) / 100
+              for (let k = iZero + 1; k < installments; k++) {
+                if (k === installments - 1) {
+                  const alreadyDistributed = round2(share * (remaining - 1))
+                  const lastShare = round2(diff - alreadyDistributed)
+                  installmentValues[k] = round2(installmentValues[k] - lastShare)
+                } else {
+                  installmentValues[k] = round2(installmentValues[k] - share)
+                }
+                const k1 = k + 1
+                adjNotesByInst[k1] =
+                  `Parcela recalculada após ajuste (R$ ${installmentValues[k].toFixed(2)})`
+              }
+            }
+          }
+        }
+
         for (let i = 0; i < installments; i++) {
           const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
           const idx1 = installments > 1 ? i + 1 : 0
-
-          const baseValue =
-            i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
-          if (!(baseValue > 0)) continue
+          const computedVal = installmentValues[i]
+          if (!(computedVal > 0)) continue
 
           const pushItem = (val, adjNote) => {
-            items.push({
+            const itemObj = {
               transaction_id: txId,
               index: idx1,
               value: val,
               description: tx.getString('description'),
               date: startDate,
               installments_total: installments,
-              ...(adjNote ? { adjustment_note: adjNote } : {}),
-            })
+            }
+            if (adjNote) {
+              itemObj.adjustment_note = adjNote
+            }
+            items.push(itemObj)
             transactionIds.push(txId)
             total += val
           }
 
-          // Ajustes do título (exclusão com adiamento ou alteração de valor)
+          // Ajustes do título (exclusão com adiamento)
           const excl = app.findRecordsByFilter(
             'invoice_adjustments',
             `transaction_id = '${txId}' && installment_index = ${idx1} && action = 'exclude' && resolved = false`,
@@ -120,7 +168,7 @@ routerAdd(
             }
             // Se esta é a fatura para onde foi adiado, adiciona
             if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
-              const v = a.getFloat('amount') || baseValue
+              const v = a.getFloat('amount') || computedVal
               pushItem(v, `Adiado da fatura ${adjMonth}`)
               continue
             }
@@ -128,24 +176,8 @@ routerAdd(
 
           // Se a parcela original cai no mês da fatura
           if (instMonth === referenceMonth) {
-            // Verifica se há alteração de valor para esta parcela
-            const valAdj = app.findRecordsByFilter(
-              'invoice_adjustments',
-              `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
-              '-installment_index,-created',
-              1,
-              0,
-            )
-
-            if (valAdj.length > 0 && referenceMonth >= valAdj[0].getString('invoice_month')) {
-              const v = valAdj[0].getFloat('amount')
-              if (v > 0) {
-                pushItem(v, `Valor ajustado para R$ ${v.toFixed(2)}`)
-                continue
-              }
-            }
-
-            pushItem(baseValue, null)
+            const note = adjNotesByInst[idx1] || null
+            pushItem(computedVal, note)
           }
         }
       }
@@ -370,24 +402,72 @@ routerAdd(
           startMonth = monthOfIndex(y, month)
         }
 
+        // Calcula os valores de cada parcela levando em conta possíveis ajustes de valor (set_value)
+        // com rateio proporcional da diferença nas parcelas futuras restantes
+        const installmentValues = []
+        for (let i = 0; i < installments; i++) {
+          const base =
+            i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
+          installmentValues.push(base)
+        }
+
+        const valAdjustments = app.findRecordsByFilter(
+          'invoice_adjustments',
+          `transaction_id = '${txId}' && action = 'set_value' && resolved = false`,
+          'installment_index,created',
+          50,
+          0,
+        )
+
+        const adjNotesByInst = {}
+        for (const va of valAdjustments) {
+          const adjIdx = va.getInt('installment_index') // 1-based (ou 0 para compra à vista)
+          const newV = va.getFloat('amount')
+          const iZero = installments > 1 ? Math.max(0, adjIdx - 1) : 0
+          if (iZero < installmentValues.length) {
+            const oldV = installmentValues[iZero]
+            const diff = round2(newV - oldV)
+            installmentValues[iZero] = newV
+            adjNotesByInst[adjIdx] = `Valor ajustado para R$ ${newV.toFixed(2)}`
+
+            const remaining = installments - 1 - iZero
+            if (remaining > 0 && Math.abs(diff) > 0.001) {
+              const share = Math.floor((diff / remaining) * 100) / 100
+              for (let k = iZero + 1; k < installments; k++) {
+                if (k === installments - 1) {
+                  const alreadyDistributed = round2(share * (remaining - 1))
+                  const lastShare = round2(diff - alreadyDistributed)
+                  installmentValues[k] = round2(installmentValues[k] - lastShare)
+                } else {
+                  installmentValues[k] = round2(installmentValues[k] - share)
+                }
+                const k1 = k + 1
+                adjNotesByInst[k1] =
+                  `Parcela recalculada após ajuste (R$ ${installmentValues[k].toFixed(2)})`
+              }
+            }
+          }
+        }
+
         for (let i = 0; i < installments; i++) {
           const instMonth = installments > 1 ? shiftMonth(startMonth, i) : startMonth
           const idx1 = installments > 1 ? i + 1 : 0
-
-          const baseValue =
-            i === installments - 1 ? round2(txAmount - perInst * (installments - 1)) : perInst
-          if (!(baseValue > 0)) continue
+          const computedVal = installmentValues[i]
+          if (!(computedVal > 0)) continue
 
           const pushItem = (val, adjNote) => {
-            items.push({
+            const itemObj = {
               transaction_id: txId,
               index: idx1,
               value: val,
               description: tx.getString('description'),
               date: startDate,
               installments_total: installments,
-              ...(adjNote ? { adjustment_note: adjNote } : {}),
-            })
+            }
+            if (adjNote) {
+              itemObj.adjustment_note = adjNote
+            }
+            items.push(itemObj)
             transactionIds.push(txId)
             total += val
           }
@@ -407,29 +487,15 @@ routerAdd(
               continue
             }
             if (referenceMonth === deferMonth && referenceMonth > adjMonth) {
-              const v = a.getFloat('amount') || baseValue
+              const v = a.getFloat('amount') || computedVal
               pushItem(v, `Adiado da fatura ${adjMonth}`)
               continue
             }
           }
 
           if (instMonth === referenceMonth) {
-            const valAdj = app.findRecordsByFilter(
-              'invoice_adjustments',
-              `transaction_id = '${txId}' && action = 'set_value' && installment_index <= ${idx1} && resolved = false`,
-              '-installment_index,-created',
-              1,
-              0,
-            )
-            if (valAdj.length > 0 && referenceMonth >= valAdj[0].getString('invoice_month')) {
-              const v = valAdj[0].getFloat('amount')
-              if (v > 0) {
-                pushItem(v, `Valor ajustado para R$ ${v.toFixed(2)}`)
-                continue
-              }
-            }
-
-            pushItem(baseValue, null)
+            const note = adjNotesByInst[idx1] || null
+            pushItem(computedVal, note)
           }
         }
       }
