@@ -482,18 +482,34 @@ export const SimulationsPage: React.FC = () => {
         </header>
 
         <Tabs defaultValue="compostos">
-          <TabsList className="grid w-full grid-cols-4 max-w-3xl mb-4">
-            <TabsTrigger value="compostos" className="text-xs sm:text-sm font-bold">
-              Juros Compostos
+          <TabsList className="grid h-auto grid-rows-2 gap-1 w-full grid-cols-2 sm:grid-cols-4 sm:grid-rows-1 sm:h-10 max-w-3xl mb-4">
+            <TabsTrigger
+              value="compostos"
+              className="min-w-0 px-2 py-2 sm:py-1.5 text-xs sm:text-sm font-bold text-center leading-tight"
+            >
+              <span className="sm:hidden">Compostos</span>
+              <span className="hidden sm:inline">Juros Compostos</span>
             </TabsTrigger>
-            <TabsTrigger value="simples" className="text-xs sm:text-sm font-bold">
-              Juros Simples
+            <TabsTrigger
+              value="simples"
+              className="min-w-0 px-2 py-2 sm:py-1.5 text-xs sm:text-sm font-bold text-center leading-tight"
+            >
+              <span className="sm:hidden">Simples</span>
+              <span className="hidden sm:inline">Juros Simples</span>
             </TabsTrigger>
-            <TabsTrigger value="valor-futuro" className="text-xs sm:text-sm font-bold">
-              Valor Futuro de um Capital
+            <TabsTrigger
+              value="valor-futuro"
+              className="min-w-0 px-2 py-2 sm:py-1.5 text-xs sm:text-sm font-bold text-center leading-tight"
+            >
+              <span className="sm:hidden">Valor Futuro</span>
+              <span className="hidden sm:inline">Valor Futuro de um Capital</span>
             </TabsTrigger>
-            <TabsTrigger value="aporte-fixo" className="text-xs sm:text-sm font-bold">
-              Aplicação com Aporte Fixo
+            <TabsTrigger
+              value="aporte-fixo"
+              className="min-w-0 px-2 py-2 sm:py-1.5 text-xs sm:text-sm font-bold text-center leading-tight"
+            >
+              <span className="sm:hidden">Aporte Fixo</span>
+              <span className="hidden sm:inline">Aplicação com Aporte Fixo</span>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="compostos">
