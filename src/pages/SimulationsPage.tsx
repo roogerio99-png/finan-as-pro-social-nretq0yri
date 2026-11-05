@@ -12,6 +12,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
 import { Calculator, TrendingUp, Percent, Coins, Info } from 'lucide-react'
 import { FormulaBlock } from '@/components/simulations/FormulaBlock'
+import { FutureValueCalculator } from '@/components/simulations/FutureValueCalculator'
 
 const brl = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -480,12 +481,15 @@ export const SimulationsPage: React.FC = () => {
         </header>
 
         <Tabs defaultValue="compostos">
-          <TabsList className="grid w-full grid-cols-2 max-w-md mb-4">
+          <TabsList className="grid w-full grid-cols-3 max-w-2xl mb-4">
             <TabsTrigger value="compostos" className="text-xs sm:text-sm font-bold">
               Juros Compostos
             </TabsTrigger>
             <TabsTrigger value="simples" className="text-xs sm:text-sm font-bold">
               Juros Simples
+            </TabsTrigger>
+            <TabsTrigger value="valor-futuro" className="text-xs sm:text-sm font-bold">
+              Valor Futuro de um Capital
             </TabsTrigger>
           </TabsList>
           <TabsContent value="compostos">
@@ -493,6 +497,9 @@ export const SimulationsPage: React.FC = () => {
           </TabsContent>
           <TabsContent value="simples">
             <SimpleCalculator />
+          </TabsContent>
+          <TabsContent value="valor-futuro">
+            <FutureValueCalculator />
           </TabsContent>
         </Tabs>
       </div>
