@@ -19,6 +19,7 @@ import {
   Settings,
   Smartphone,
   ShieldCheck,
+  Percent,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -77,6 +78,12 @@ export const Navbar: React.FC = () => {
       label: 'Sonhos & Metas',
       desc: 'Reserva e objetivos de vida',
       icon: Sparkles,
+    },
+    {
+      to: '/simulacoes',
+      label: 'Simulações',
+      desc: 'Juros compostos e simples',
+      icon: Percent,
     },
   ]
 
