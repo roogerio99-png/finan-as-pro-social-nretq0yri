@@ -514,6 +514,7 @@ export const TransactionsPage: React.FC = () => {
           onStart={startVoice}
           onStop={stopVoice}
           onClear={resetVoice}
+          onExampleClick={applyVoiceResult}
         />
       ) : (
         <VoiceUnsupportedNote />

@@ -5,6 +5,15 @@ import { AccountRecord } from '@/types/finance'
  * formulário de lançamentos. Não usa nenhum serviço externo: é apenas
  * processamento de texto local sobre a transcrição da Web Speech API.
  * Nenhum dado é inventado: campos não reconhecidos voltam vazios com dica.
+ *
+ * A fala é livre e desordenada: valor, data, conta, tipo e descrição podem
+ * aparecer em qualquer posição e são extraídos por padrões, não por posição.
+ * Exemplos aceitos:
+ *  - "ontem paguei duzentos reais de mercado no Nubank"
+ *  - "gastei 89,90 de internet pelo cartão Ultravioleta hoje"
+ *  - "mil e duzentos de aluguel dia 5"
+ *  - "recebi dois mil do freelance dia quinze de outubro na conta BB"
+ *  - "comprei sofá de 1.500 em 10 vezes no cartão"
  */
 
 export type VoiceFieldKey = 'type' | 'description' | 'amount' | 'date' | 'account' | 'installments'
@@ -33,6 +42,8 @@ const normalizeText = (s: string): string =>
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    // Pontuação fora de números vira espaço ("então," → "entao"); "1.250,90" intacto.
+    .replace(/(?<!\d)[.,;!?]|[;!?](?!\d)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -115,10 +126,15 @@ const NUM_WORD_ALT = [
   'mil',
   'milhao',
   'milhoes',
-  'e',
 ].join('|')
 
-/** Converte palavras-número ("duzentos e cinquenta", "mil e quinhentos") em valor. */
+/**
+ * Sequência de palavras-número ligadas por "e" (ou espaço), ex.:
+ * "duzentos e cinquenta", "mil e duzentos", "dois mil e quinhentos".
+ */
+const NUMBER_WORDS_PATTERN = `(?:${NUM_WORD_ALT})(?:(?:\\s+e\\s+|\\s+)(?:${NUM_WORD_ALT}))*`
+
+/** Converte palavras-número ("duzentos e cinquenta", "mil e duzentos") em valor. */
 const wordToNumber = (phrase: string): number | null => {
   const tokens = normalizeText(phrase).split(' ').filter(Boolean)
   if (tokens.length === 0) return null
@@ -193,6 +209,8 @@ const similarity = (a: string, b: string): number => {
 /**
  * Casa o meio de pagamento dito na fala com as contas reais do usuário.
  * "cartão" prioriza contas tipo cartão de crédito; "conta" prioriza as demais.
+ * Apelidos parciais casam ("ultravioleta" → "Cartão Ultravioleta").
+ * Em empate entre contas parecidas NÃO adivinha: devolve null (o usuário escolhe).
  */
 export const matchAccountByVoice = (
   query: string,
@@ -214,15 +232,20 @@ export const matchAccountByVoice = (
   const pool = kind === 'card' && cards.length > 0 ? cards : accounts
   let best: AccountRecord | null = null
   let bestScore = 0
+  let tie = false
   for (const acc of pool) {
     let score = similarity(nq, normalizeText(acc.name))
     if (kind === 'card' && acc.type === 'credit_card') score += 0.15
     if (kind === 'account' && acc.type !== 'credit_card') score += 0.1
-    if (score > bestScore) {
+    if (score > bestScore + 0.001) {
       bestScore = score
       best = acc
+      tie = false
+    } else if (score >= 0.34 && Math.abs(score - bestScore) <= 0.001) {
+      tie = true
     }
   }
+  if (tie) return null
   return bestScore >= 0.34 ? best : null
 }
 
@@ -235,6 +258,57 @@ const HINTS = {
     `Não encontrei a conta "${q}" no seu cadastro. Selecione manualmente.`,
   accountEmpty: 'Não entendi a conta/meio de pagamento pela fala. Selecione manualmente.',
 }
+
+/** Preenchimentos e gírias de fala solta — removidos antes de interpretar. */
+const FILLERS = new Set([
+  'entao',
+  'ai',
+  'assim',
+  'tipo',
+  'to',
+  'tou',
+  'estou',
+  'tava',
+  'estava',
+  'quero',
+  'queria',
+  'faz',
+  'favor',
+  'porfavor',
+  'beleza',
+  'belezinha',
+  'blz',
+  'ne',
+  'opa',
+  'ola',
+  'oi',
+  'tudo',
+  'bem',
+  'bom',
+  'bora',
+  'vamos',
+  'vamo',
+  'cara',
+  'mano',
+  'poxa',
+  'puxa',
+  'certo',
+  'certinho',
+  'ok',
+  'okay',
+  'hmm',
+  'ahn',
+  'ham',
+  'eh',
+  'tah',
+  'ta',
+  'sera',
+  'gente',
+  'meudeus',
+  'porfavorzinho',
+])
+
+const MONTH_NAMES = Object.keys(MONTHS)
 
 const DESCRIPTION_STOPWORDS = new Set([
   'crie',
@@ -331,6 +405,19 @@ const DESCRIPTION_STOPWORDS = new Set([
   'sendo',
   'total',
   'x',
+  'pix',
+  'passado',
+  'ultimo',
+  'centavos',
+  'centavo',
+  'virgula',
+  ...Object.keys(UNITS),
+  ...Object.keys(TENS),
+  ...Object.keys(HUNDREDS),
+  'mil',
+  'milhao',
+  'milhoes',
+  ...MONTH_NAMES,
 ])
 
 const ACCOUNT_TAIL_STOPWORDS = new Set([
@@ -369,23 +456,72 @@ const ACCOUNT_TAIL_STOPWORDS = new Set([
   'paguei',
   'recebi',
   'comprei',
+  'pix',
+  ...MONTH_NAMES,
 ])
+
+/** Conectivos residuais que não entram na descrição (fica só o assunto). */
+const DESC_CONNECTIVES = new Set([
+  'de',
+  'do',
+  'da',
+  'dos',
+  'das',
+  'na',
+  'no',
+  'em',
+  'valor',
+  'pago',
+  'paga',
+  'pelo',
+  'pela',
+  'com',
+  'por',
+  'que',
+  'para',
+  'e',
+  'a',
+  'o',
+  'os',
+  'as',
+  'um',
+  'uma',
+  'uns',
+  'umas',
+  'meio',
+  'foi',
+  'sendo',
+  'reais',
+  'real',
+])
+
+/** Remove preenchimentos e ruído de fala solta ("então", "aí", "tô", "né"...). */
+const stripFillers = (text: string): string =>
+  text
+    .split(' ')
+    .filter((w) => w.length > 0 && !FILLERS.has(w))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const ANO_PASSADO_RE = /\b(?:no\s+)?(?:ano\s+passado|ultimo\s+ano)\b/
 
 /**
  * Interpreta a transcrição da fala e devolve o que foi reconhecido.
- * A ordem de consumo importa: parcelas → data → valor → conta → descrição,
- * para que um número extraído num campo não vire valor de outro.
+ * Ordem de consumo: preenchimentos → parcelas → data → valor → conta →
+ * tipo → descrição, para que um trecho extraído num campo não vire outro.
  */
 export const parseVoiceTransaction = (
   rawTranscript: string,
   accounts: AccountRecord[],
 ): VoiceParseResult => {
   const transcript = rawTranscript.trim()
-  let text = normalizeText(transcript)
+  let text = stripFillers(normalizeText(transcript))
   const today = new Date()
   const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth() + 1
 
-  // 1. Parcelamento ("em 10 vezes", "10x", "parcelado em 12") — antes do valor
+  // 1. Parcelamento ("em 10 vezes", "10x", "10 parcelas", "em dez vezes") — antes do valor
   let installments: number | null = null
   const instDigits = consume(
     text,
@@ -399,9 +535,7 @@ export const parseVoiceTransaction = (
   if (installments === null) {
     const instWords = consume(
       text,
-      new RegExp(
-        `\\b(?:em\\s+)?((?:${NUM_WORD_ALT})(?:\\s+(?:${NUM_WORD_ALT}))*)\\s*(?:vezes|parcelas)\\b`,
-      ),
+      new RegExp(`\\b(?:em\\s+)?((?:${NUMBER_WORDS_PATTERN}))\\s*(?:vezes|parcelas)\\b`),
     )
     text = instWords.text
     if (instWords.value) {
@@ -410,8 +544,13 @@ export const parseVoiceTransaction = (
     }
   }
 
-  // 2. Data ("hoje", "ontem", "dia 5", "5 de novembro", "05/11", "05/11/2026")
+  // 2. Data — "hoje", "ontem", "anteontem", "dia 5", "primeiro de maio",
+  //    "5 de novembro", "15/10", "15 de outubro", "… do ano passado"
   let date: string | null = null
+  const anoPassado = ANO_PASSADO_RE.test(text)
+  text = consume(text, ANO_PASSADO_RE).text
+  const yearFor = (): number => (anoPassado ? currentYear - 1 : currentYear)
+
   const fixed = consume(text, /\b(anteontem|ontem|hoje)\b/)
   text = fixed.text
   if (fixed.value) {
@@ -421,33 +560,31 @@ export const parseVoiceTransaction = (
     date = buildISODate(d.getFullYear(), d.getMonth() + 1, d.getDate())
   }
   if (!date) {
-    const monthAlt = Object.keys(MONTHS).join('|')
-    const dayAlt = `(\\d{1,2}|primeiro|(?:${NUM_WORD_ALT})(?:\\s+(?:${NUM_WORD_ALT}))*)`
-    const dayRe = new RegExp(`\\b(?:dia\\s+)?(${dayAlt})\\s+de\\s+(${monthAlt})\\b`)
+    const dayAlt = `(\\d{1,2}|primeiro|(?:${NUMBER_WORDS_PATTERN}))`
+    const dayRe = new RegExp(`\\b(?:dia\\s+)?(${dayAlt})\\s+de\\s+(${MONTH_NAMES.join('|')})\\b`)
     const dm = dayRe.exec(text)
-    if (dm) {
+    const dayNum = dm
+      ? dm[1] === 'primeiro'
+        ? 1
+        : /^\d+$/.test(dm[1])
+          ? parseInt(dm[1], 10)
+          : wordToNumber(dm[1])
+      : null
+    if (dm && dayNum && dayNum >= 1 && dayNum <= 31) {
       text = consume(text, dayRe).text
-      const dayPart = dm[1]
-      const monthName = dm[2]
-      const dayNum =
-        dayPart === 'primeiro'
-          ? 1
-          : /^\d+$/.test(dayPart)
-            ? parseInt(dayPart, 10)
-            : wordToNumber(dayPart)
-      if (dayNum) date = buildISODate(currentYear, MONTHS[monthName], dayNum)
+      date = buildISODate(yearFor(), MONTHS[dm[2]], dayNum)
     }
   }
   if (!date) {
     const numRe = /\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?\b/
     const reNum = numRe.exec(text)
     if (reNum) {
-      text = consume(text, numRe).text
       const day = parseInt(reNum[1], 10)
       const month = parseInt(reNum[2], 10)
-      const year = reNum[3] ? parseInt(reNum[3], 10) : currentYear
       if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-        date = buildISODate(year, month, day)
+        text = consume(text, numRe).text
+        const y = reNum[3] ? parseInt(reNum[3], 10) : yearFor()
+        date = buildISODate(y, month, day)
       }
     }
   }
@@ -456,49 +593,121 @@ export const parseVoiceTransaction = (
     text = dayOnly.text
     if (dayOnly.value) {
       const day = dayOnly.value === 'primeiro' ? 1 : parseInt(dayOnly.value, 10)
-      if (day >= 1 && day <= 31) date = buildISODate(currentYear, today.getMonth() + 1, day)
+      if (day >= 1 && day <= 31) date = buildISODate(yearFor(), currentMonth, day)
     }
   }
 
-  // 3. Valor ("250 reais", "R$ 250", "1.000,00", "duzentos e cinquenta reais")
+  // 3. Valor — por extenso composto, com centavos e formatos numéricos.
+  //    A data já saiu antes, então "dia 5" nunca é confundido com valor.
   let amount: number | null = null
-  const wordAmount = consume(
-    text,
-    new RegExp(`\\b((?:${NUM_WORD_ALT})(?:\\s+(?:${NUM_WORD_ALT}))*)\\s*(?:reais|real)\\b`),
+  let cents = 0
+
+  // 3a. "duzentos e cinquenta reais e trinta centavos" / "… reais com 30 centavos"
+  //      (o conector pode sumir na pontuação da transcrição: "reais, trinta centavos")
+  const reaisCentsRe = new RegExp(
+    `\\b((?:${NUMBER_WORDS_PATTERN}))\\s*(?:reais|real)\\s*(?:e|com|virgula)?\\s*((?:${NUMBER_WORDS_PATTERN})|\\d{1,2})\\s*centavos\\b`,
   )
-  text = wordAmount.text
-  if (wordAmount.value) {
-    const n = wordToNumber(wordAmount.value)
-    if (n && n > 0) amount = n
+  const rc = reaisCentsRe.exec(text)
+  if (rc) {
+    text = consume(text, reaisCentsRe).text
+    const n = wordToNumber(rc[1])
+    const c = /^\d+$/.test(rc[2]) ? parseInt(rc[2], 10) : wordToNumber(rc[2])
+    if (n && n > 0) {
+      amount = n
+      cents = c && c >= 0 && c < 100 ? c : 0
+    }
   }
+  // 3b. "duzentos reais", "duzentos e cinquenta reais", "dois mil reais"
+  if (amount === null) {
+    const wordAmount = consume(
+      text,
+      new RegExp(`\\b((?:${NUMBER_WORDS_PATTERN}))\\s*(?:reais|real)\\b`),
+    )
+    text = wordAmount.text
+    if (wordAmount.value) {
+      const n = wordToNumber(wordAmount.value)
+      if (n && n > 0) amount = n
+    }
+  }
+  // 3c. centavos por extenso depois do valor: "… reais e trinta centavos"
+  if (amount !== null && cents === 0) {
+    const centsWords = consume(
+      text,
+      new RegExp(`\\b(?:e|com|virgula)?\\s*((?:${NUMBER_WORDS_PATTERN}))\\s*centavos\\b`),
+    )
+    text = centsWords.text
+    if (centsWords.value) {
+      const c = wordToNumber(centsWords.value)
+      if (c !== null && c >= 0 && c < 100) cents = c
+    }
+  }
+  // 3d. "vírgula noventa" / "vírgula 90" — centavos ditos após vírgula
+  if (amount !== null && cents === 0) {
+    const centsComma = consume(
+      text,
+      new RegExp(`\\b(?:virgula)\\s+((?:${NUMBER_WORDS_PATTERN})|\\d{1,2})\\b`),
+    )
+    text = centsComma.text
+    if (centsComma.value) {
+      const c = /^\d+$/.test(centsComma.value)
+        ? parseInt(centsComma.value, 10)
+        : wordToNumber(centsComma.value)
+      if (c !== null && c >= 0 && c < 100) cents = c
+    }
+  }
+  // 3e. "R$ 2500", "R$1.250,90"
   if (amount === null) {
     const r$ = consume(text, /(?:r\$|rs)\s*([\d.,]+)\b/)
     text = r$.text
     if (r$.value) amount = parseAmountToken(r$.value)
   }
+  // 3f. "1.250,90 reais", "250 reais", "89,90 reais"
   if (amount === null) {
     const realSuffix = consume(text, /\b([\d.,]+)\s*(?:reais|real)\b/)
     text = realSuffix.text
     if (realSuffix.value) amount = parseAmountToken(realSuffix.value)
   }
+  // 3g. "valor de 250" / "valor 250"
   if (amount === null) {
     const valorPrefix = consume(text, /\bvalor\s+(?:de\s+)?([\d.,]+)\b/)
     text = valorPrefix.text
     if (valorPrefix.value) amount = parseAmountToken(valorPrefix.value)
   }
+  // 3h. número com separador explícito: "1.250,90", "89,90", "1250.90", "1.500"
   if (amount === null) {
-    const bare = consume(text, /\b(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{1,2}|\d+\.\d{1,2}|\d+)\b/)
+    const bare = consume(
+      text,
+      /\b(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{1,2}|\d+\.\d{1,2}|\d{1,3}(?:\.\d{3})+)\b/,
+    )
     text = bare.text
     if (bare.value) amount = parseAmountToken(bare.value)
   }
+  // 3i. por extenso sem "reais": "mil e duzentos de aluguel", "recebi dois mil do freelance"
+  if (amount === null) {
+    const wordBare = consume(text, new RegExp(`\\b((?:${NUMBER_WORDS_PATTERN}))\\b`))
+    text = wordBare.text
+    if (wordBare.value) {
+      const n = wordToNumber(wordBare.value)
+      if (n && n >= 2) amount = n
+    }
+  }
+  // 3j. inteiro solto ("gastei 80 de água") — por último, após data/parcelas saírem
+  if (amount === null) {
+    const plain = consume(text, /\b(\d+)\b/)
+    text = plain.text
+    if (plain.value) amount = parseAmountToken(plain.value)
+  }
+  if (amount !== null) {
+    amount = Math.round((amount + cents / 100) * 100) / 100
+  }
 
-  // 4. Conta / meio de pagamento ("pago por meio da conta Nubank", "no cartão Ultravioleta")
+  // 4. Conta / meio de pagamento ("no Nubank", "na Caixa", "pelo cartão",
+  //    "no cartão X", "pela conta Y", "no PIX do Nubank")
   let accountQuery = ''
   let accountKind: 'card' | 'account' = 'account'
-  // "no cartão", "pela conta", "no cartão de crédito" sem nome — a conta é
-  // casada contra as contas reais do usuário pelo nome.
+  // 4a. Com a palavra "conta"/"cartão"/"PIX" explícita — pega até 4 palavras do nome.
   const accRe =
-    /\b(?:por\s+meio\s+d[oa]|pel[oa]|no|na|em|com|usando)\s+(?:meu|minha\s+)?(conta|cartao)(?:\s+de\s+(?:credito|debito))?\s+(?:d[oa]\s+|de\s+)?([a-z0-9]+(?:\s+[a-z0-9]+){0,3})/
+    /\b(?:por\s+meio\s+d[oa]|pel[oa]|no|na|em|com|usando)\s+(?:meu|minha\s+)?(conta|cartao|pix)\b(?:\s+d[oe]\s+(?:credito|debito))?(?:\s+d[oa]\s+|\s+de\s+)?\s*([a-z0-9]+(?:\s+[a-z0-9]+){0,3})/
   const accFull = accRe.exec(text)
   if (accFull) {
     text = consume(text, accRe).text
@@ -509,35 +718,44 @@ export const parseVoiceTransaction = (
     }
     accountQuery = words.join(' ').trim()
   } else {
-    // Fala sem a palavra "conta"/"cartão" — tenta casar o resto da frase com
-    // o nome de alguma conta real (ex.: "pago pelo Nubank hoje").
-    const looseRe =
-      /\b(?:pel[oa]|no|na|em|com|usando)\s+(?:meu|minha\s+)?([a-z][a-z0-9]*(?:\s+[a-z0-9]+){0,2})/
-    const loose = looseRe.exec(text)
-    if (loose) {
-      let words = loose[1].split(' ')
-      while (words.length > 0 && ACCOUNT_TAIL_STOPWORDS.has(words[words.length - 1])) {
-        words = words.slice(0, -1)
-      }
-      const cand = words.join(' ').trim()
-      if (
-        cand &&
-        accounts.some((a) => similarity(normalizeText(cand), normalizeText(a.name)) >= 0.5)
-      ) {
-        accountQuery = cand
-        accountKind = 'account'
-        text = consume(text, looseRe).text
+    // 4b. Sem nome: "no cartão", "pela conta", "no PIX" — tipo definido, nome vazio.
+    const bareKindRe = /\b(?:pel[oa]|no|na|em|com|usando)\s+(?:meu|minha\s+)?(conta|cartao|pix)\b/
+    const bareKind = bareKindRe.exec(text)
+    if (bareKind) {
+      text = consume(text, bareKindRe).text
+      accountKind = bareKind[1] === 'cartao' ? 'card' : 'account'
+      accountQuery = ''
+    } else {
+      // 4c. Só o nome: "no Nubank", "na Caixa", "pelo Nubank" — só se casar
+      //     claramente com alguma conta real do cadastro.
+      const looseRe =
+        /\b(?:pel[oa]|no|na|em|com|usando)\s+(?:meu|minha\s+)?([a-z][a-z0-9]*(?:\s+[a-z0-9]+){0,2})/
+      const loose = looseRe.exec(text)
+      if (loose) {
+        let words = loose[1].split(' ')
+        while (words.length > 0 && ACCOUNT_TAIL_STOPWORDS.has(words[words.length - 1])) {
+          words = words.slice(0, -1)
+        }
+        const cand = words.join(' ').trim()
+        if (
+          cand &&
+          accounts.some((a) => similarity(normalizeText(cand), normalizeText(a.name)) >= 0.5)
+        ) {
+          accountQuery = cand
+          accountKind = 'account'
+          text = consume(text, looseRe).text
+        }
       }
     }
   }
   const matchedAccount = matchAccountByVoice(accountQuery, accountKind, accounts)
 
-  // 5. Tipo (despesa vs receita)
+  // 5. Tipo (despesa vs receita) — mais verbos e gírias.
   const expenseIdx = text.search(
-    /\b(despesa|gastei|gasto|paguei|pago|paga|comprei|compra|debito|saiu)\b/,
+    /\b(despesa|gasto|gastos|gastei|paguei|pagou|pago|paga|pagos|pagas|comprei|compra|debito|debitou|saiu)\b/,
   )
   const incomeIdx = text.search(
-    /\b(receita|recebi|recebimento|recebido|ganhei|ganho|salario|entrada)\b/,
+    /\b(receita|recebi|recebimento|recebido|ganhei|ganho|salario|entrada|entrou|vendi|venda|deposito|depositou|depositaram)\b/,
   )
   let type: 'expense' | 'income' = 'expense'
   let typeFound = false
@@ -549,11 +767,12 @@ export const parseVoiceTransaction = (
     typeFound = true
   }
 
-  // 6. Descrição: sobram os tokens que não fazem parte da estrutura do comando
+  // 6. Descrição: sobram os tokens que não fazem parte da estrutura do comando.
   const descWords = text
     .split(' ')
     .map((w) => w.trim())
-    .filter((w) => w.length >= 2 && !/^\d+[.,]?\d*$/.test(w) && !DESCRIPTION_STOPWORDS.has(w))
+    .filter((w) => w.length >= 2 && !/^\d+([.,]\d+)?$/.test(w) && !DESCRIPTION_STOPWORDS.has(w))
+    .filter((w) => !DESC_CONNECTIVES.has(w))
   const description = descWords.length
     ? descWords.join(' ').charAt(0).toUpperCase() + descWords.join(' ').slice(1)
     : ''

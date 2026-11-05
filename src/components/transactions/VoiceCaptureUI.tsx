@@ -11,6 +11,7 @@ export interface VoiceCaptureBarProps {
   onStart: () => void
   onStop: () => void
   onClear: () => void
+  onExampleClick?: (phrase: string) => void
   className?: string
 }
 
@@ -26,6 +27,7 @@ export const VoiceCaptureBar: React.FC<VoiceCaptureBarProps> = ({
   onStart,
   onStop,
   onClear,
+  onExampleClick,
   className,
 }) => (
   <div
@@ -58,9 +60,44 @@ export const VoiceCaptureBar: React.FC<VoiceCaptureBarProps> = ({
         )}
       </div>
       <p className="text-[11px] sm:text-xs text-slate-500 leading-snug">
-        {listening
-          ? 'Ouvindo... diga, por exemplo: "crie uma despesa mercado de valor 250 reais na data 5 de novembro pago pela conta Nubank".'
-          : 'Fale algo como "paguei 89 reais de internet pelo cartão Ultravioleta hoje" — o formulário será preenchido para você revisar antes de salvar.'}
+        {listening ? (
+          <>
+            Ouvindo... fale naturalmente, por exemplo: "ontem paguei duzentos reais de mercado no
+            Nubank".
+          </>
+        ) : (
+          <>
+            Fale do jeito que sair — a ordem não importa. Exemplos:{' '}
+            <button
+              type="button"
+              onClick={() => onExampleClick?.('ontem paguei duzentos reais de mercado no Nubank')}
+              className="underline decoration-dotted hover:text-emerald-700"
+            >
+              "ontem paguei duzentos reais de mercado no Nubank"
+            </button>
+            ,{' '}
+            <button
+              type="button"
+              onClick={() =>
+                onExampleClick?.('gastei 89,90 de internet pelo cartão Ultravioleta hoje')
+              }
+              className="underline decoration-dotted hover:text-emerald-700"
+            >
+              "gastei 89,90 de internet pelo cartão Ultravioleta hoje"
+            </button>{' '}
+            ou{' '}
+            <button
+              type="button"
+              onClick={() =>
+                onExampleClick?.('recebi dois mil do freelance dia quinze de outubro na conta BB')
+              }
+              className="underline decoration-dotted hover:text-emerald-700"
+            >
+              "recebi dois mil do freelance dia quinze de outubro na conta BB"
+            </button>
+            . O formulário será preenchido para você revisar antes de salvar.
+          </>
+        )}
       </p>
     </div>
 
