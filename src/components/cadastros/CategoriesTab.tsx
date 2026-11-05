@@ -45,6 +45,7 @@ interface NodeDialogState {
   parent?: string // nome do grupo quando level = 2
   id?: string // presente quando editando
   name: string
+  original?: string // nome original ao renomear (name é o campo editável)
 }
 
 const emptyNode = (): NodeDialogState => ({ level: 1, name: '' })
@@ -130,7 +131,7 @@ export const CategoriesTab: React.FC = () => {
   const openCreateGroup = () => setNodeDialog({ level: 1, name: '' })
   const openCreateSub = (parent: string) => setNodeDialog({ level: 2, parent, name: '' })
   const openRename = (level: 1 | 2, name: string, parent?: string) =>
-    setRenameDialog({ level, name, parent })
+    setRenameDialog({ level, name, original: name, parent })
 
   const saveNode = async () => {
     if (!nodeDialog || !nodeDialog.name.trim()) return
@@ -179,9 +180,16 @@ export const CategoriesTab: React.FC = () => {
     if (!renameDialog || !renameDialog.name.trim()) return
     setSaving(true)
     try {
+      // Para subgrupos, o campo editável é o nome do subgrupo (renameDialog.name);
+      // o grupo pai (parent) serve apenas para desambiguação no service.
       const field = renameDialog.level === 1 ? 'group_level1' : 'group_level2'
-      const oldValue = renameDialog.level === 1 ? renameDialog.name : renameDialog.parent!
-      const changed = await categoriesService.renameLabel(field, oldValue, renameDialog.name.trim())
+      const oldValue = renameDialog.original ?? renameDialog.name
+      const changed = await categoriesService.renameLabel(
+        field,
+        oldValue,
+        renameDialog.name.trim(),
+        renameDialog.level === 1 ? undefined : renameDialog.parent,
+      )
       if (changed === 0) {
         toast({
           title: 'Nada foi renomeado',

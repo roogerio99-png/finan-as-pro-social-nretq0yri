@@ -76,11 +76,15 @@ export const categoriesService = {
     field: 'group_level1' | 'group_level2',
     oldValue: string,
     newValue: string,
+    parentGroup?: string,
   ): Promise<number> {
     if (!oldValue || !newValue || oldValue === newValue) return 0
     const fresh = await this.list({ includeInactive: true })
+    const inScope = parentGroup
+      ? fresh.filter((c) => (c.group_level1 || '') === parentGroup)
+      : fresh
     // "Sem grupo" é o rótulo exibido para registros com group_level1 vazio.
-    const targets = fresh.filter((c) =>
+    const targets = inScope.filter((c) =>
       oldValue === 'Sem grupo' ? !(c[field] || '') : (c[field] || '') === oldValue,
     )
     if (targets.length === 0) return 0
