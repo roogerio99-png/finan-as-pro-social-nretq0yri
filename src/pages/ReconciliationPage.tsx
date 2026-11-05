@@ -40,6 +40,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { statementParserService, ParsedStatementTransaction } from '@/services/statementParser'
 import { categoryOptionLabel } from '@/components/cadastros/categoriesTree'
+import { CategoryCascadeSelect } from '@/components/transactions/CategoryCascadeSelect'
 
 export const ReconciliationPage: React.FC = () => {
   const { toast } = useToast()
@@ -606,10 +607,11 @@ export const ReconciliationPage: React.FC = () => {
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                     Categoria (De-Para):
                   </label>
-                  <select
-                    value={line.selected_category_id}
-                    onChange={(e) => {
-                      const val = e.target.value
+                  <CategoryCascadeSelect
+                    categories={categories}
+                    type={line.type === 'income' ? 'income' : 'expense'}
+                    categoryId={line.selected_category_id || ''}
+                    onCategoryChange={(val) => {
                       setImportLines((prev) =>
                         prev.map((item) =>
                           item.id === line.id
@@ -618,23 +620,14 @@ export const ReconciliationPage: React.FC = () => {
                         ),
                       )
                     }}
-                    className={`border rounded-xl px-2.5 py-1.5 text-xs w-full ${
+                    variant="compact"
+                    idPrefix={`cat-mobile-${line.id}`}
+                    selectClassName={
                       line.is_suggested && line.selected_category_id
                         ? 'border-purple-300 bg-purple-50 text-purple-900'
                         : 'bg-white border-slate-200 text-slate-800'
-                    }`}
-                  >
-                    <option value="">Selecione categoria...</option>
-                    {categories
-                      .filter((c) =>
-                        line.type === 'income' ? c.type === 'income' : c.type === 'expense',
-                      )
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {categoryOptionLabel(c)}
-                        </option>
-                      ))}
-                  </select>
+                    }
+                  />
                   {line.is_suggested && line.selected_category_id && (
                     <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
                       <Sparkles className="w-2.5 h-2.5" /> sugerido
@@ -697,10 +690,11 @@ export const ReconciliationPage: React.FC = () => {
 
                     <td className="py-2.5 px-3">
                       <div className="space-y-1">
-                        <select
-                          value={line.selected_category_id}
-                          onChange={(e) => {
-                            const val = e.target.value
+                        <CategoryCascadeSelect
+                          categories={categories}
+                          type={line.type === 'income' ? 'income' : 'expense'}
+                          categoryId={line.selected_category_id || ''}
+                          onCategoryChange={(val) => {
                             setImportLines((prev) =>
                               prev.map((item) =>
                                 item.id === line.id
@@ -709,31 +703,21 @@ export const ReconciliationPage: React.FC = () => {
                               ),
                             )
                           }}
-                          className={`border rounded-lg px-2.5 py-1 text-xs w-full max-w-[220px] ${
+                          variant="compact"
+                          idPrefix={`cat-desktop-${line.id}`}
+                          selectClassName={`max-w-[220px] ${
                             line.is_suggested && line.selected_category_id
                               ? 'border-purple-300 bg-purple-50 text-purple-900'
                               : 'bg-white border-slate-200 text-slate-800'
                           }`}
-                        >
-                          <option value="">Selecione categoria...</option>
-                          {categories
-                            .filter((c) =>
-                              line.type === 'income' ? c.type === 'income' : c.type === 'expense',
-                            )
-                            .map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {categoryOptionLabel(c)}
-                              </option>
-                            ))}
-                        </select>
+                        />
                         {line.is_suggested && line.selected_category_id && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                            <Sparkles className="w-2.5 h-2.5" /> sugerido
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            <Sparkles className="w-3 h-3" /> sugerido
                           </span>
                         )}
                       </div>
                     </td>
-
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {line.is_duplicate ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">

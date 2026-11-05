@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Mic, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { categoryOptionLabel } from '@/components/cadastros/categoriesTree'
+import { CategoryCascadeSelect } from '@/components/transactions/CategoryCascadeSelect'
 import {
   TrendingUp,
   TrendingDown,
@@ -426,25 +426,15 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
             </div>
           )}
 
-          {/* Categoria: Apenas para Despesa e Receita */}
+          {/* Categoria e Subgrupo em cascata: Apenas para Despesa e Receita */}
           {(type === 'expense' || type === 'income') && (
             <div className="space-y-1.5">
-              <Label htmlFor="cat">Categoria (Plano de Contas)</Label>
-              <select
-                id="cat"
-                value={categoryId}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">Selecione uma categoria...</option>
-                {categories
-                  .filter((c) => (type === 'income' ? c.type === 'income' : c.type === 'expense'))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {categoryOptionLabel(c)}
-                    </option>
-                  ))}
-              </select>
+              <CategoryCascadeSelect
+                categories={categories}
+                type={type === 'income' ? 'income' : 'expense'}
+                categoryId={categoryId}
+                onCategoryChange={handleCategoryChange}
+              />
               {suggestedLabel && (
                 <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3" /> {suggestedLabel}
