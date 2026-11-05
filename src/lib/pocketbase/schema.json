@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T01:39:44.467Z",
+  "generatedAt": "2026-11-05T02:28:57.920Z",
   "collections": [
     {
       "name": "users",
@@ -292,6 +292,30 @@
           "required": false,
           "system": false,
           "collectionRef": "families"
+        },
+        {
+          "name": "group_code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "code",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_seed",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

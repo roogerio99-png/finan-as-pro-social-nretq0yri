@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { statementParserService, ParsedStatementTransaction } from '@/services/statementParser'
+import { categoryOptionLabel } from '@/components/cadastros/categoriesTree'
 
 export const ReconciliationPage: React.FC = () => {
   const { toast } = useToast()
@@ -630,7 +631,7 @@ export const ReconciliationPage: React.FC = () => {
                       )
                       .map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} ({c.group_level2})
+                          {categoryOptionLabel(c)}
                         </option>
                       ))}
                   </select>
@@ -721,7 +722,7 @@ export const ReconciliationPage: React.FC = () => {
                             )
                             .map((c) => (
                               <option key={c.id} value={c.id}>
-                                {c.name} ({c.group_level2})
+                                {categoryOptionLabel(c)}
                               </option>
                             ))}
                         </select>
@@ -806,7 +807,7 @@ export const ReconciliationPage: React.FC = () => {
                 <option value="">Selecione a categoria...</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.group_level1} &gt; {c.name}
+                    {categoryOptionLabel(c)}
                   </option>
                 ))}
               </select>
@@ -952,7 +953,7 @@ export const ReconciliationPage: React.FC = () => {
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.group_level1} &gt; {c.name}
+                    {categoryOptionLabel(c)}
                   </option>
                 ))}
               </select>

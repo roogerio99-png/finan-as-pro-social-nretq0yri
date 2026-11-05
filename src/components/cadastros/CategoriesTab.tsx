@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
@@ -36,19 +34,15 @@ import { useToast } from '@/hooks/use-toast'
 import { categoriesService } from '@/services/categories'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { CategoryRecord } from '@/types/finance'
-import { expenseGroupSuggestions, subgroupSuggestions } from '@/types/cadastros'
+import { expenseGroupSuggestions } from '@/types/cadastros'
+import { Label } from '@/components/ui/label'
+import { buildGroups, nextGroupCode, nextSubCode, subLabel, CategoryType } from './categoriesTree'
+import { NodeDialogState, emptyNode } from './nodeDialogState'
+import { NodeDialogForm } from './NodeDialogForm'
+import { CATEGORY_COLUMNS, CategoryCodeBadge, CategoryGridHeader } from './CategoryTablePieces'
+import { Input } from '@/components/ui/input'
 
 type CatType = 'expense' | 'income'
-
-interface NodeDialogState {
-  level: 1 | 2
-  parent?: string // nome do grupo quando level = 2
-  id?: string // presente quando editando
-  name: string
-  original?: string // nome original ao renomear (name é o campo editável)
-}
-
-const emptyNode = (): NodeDialogState => ({ level: 1, name: '' })
 
 export const CategoriesTab: React.FC = () => {
   const { toast } = useToast()
@@ -88,35 +82,11 @@ export const CategoriesTab: React.FC = () => {
   }, [load])
 
   // === Agrupamento plano de contas ========================================
-  const rows = useMemo(() => all.filter((c) => c.type === type), [all, type])
-
-  const groups = useMemo(() => {
-    const map = new Map<string, CategoryRecord[]>()
-    for (const r of rows) {
-      const key = r.group_level1 || 'Sem grupo'
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(r)
-    }
-    return Array.from(map.entries())
-      .map(([name, items]) => {
-        const status = items.some((i) => (i.status ?? 'active') === 'active')
-          ? 'active'
-          : 'inactive'
-        const subMap = new Map<string, CategoryRecord[]>()
-        for (const it of items) {
-          const sk = it.group_level2 || ''
-          if (!subMap.has(sk)) subMap.set(sk, [])
-          subMap.get(sk)!.push(it)
-        }
-        const subgroups = Array.from(subMap.entries()).map(([sName, sItems]) => ({
-          name: sName,
-          status: sItems.some((i) => (i.status ?? 'active') === 'active') ? 'active' : 'inactive',
-          items: sItems,
-        }))
-        return { name, status, items, subgroups }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-  }, [rows])
+  const groups = useMemo(() => buildGroups(all, type as CategoryType), [all, type])
+  const visibleGroups = useMemo(
+    () => (showInactive ? groups : groups.filter((g) => g.status === 'active')),
+    [groups, showInactive],
+  )
 
   // Seções existentes apenas como sugestão ao criar novos nós
   const existingGroupNames = useMemo(
@@ -128,10 +98,21 @@ export const CategoriesTab: React.FC = () => {
 
   // === Ações ==============================================================
 
-  const openCreateGroup = () => setNodeDialog({ level: 1, name: '' })
-  const openCreateSub = (parent: string) => setNodeDialog({ level: 2, parent, name: '' })
+  const openCreateGroup = () =>
+    setNodeDialog({
+      ...emptyNode(),
+      level: 1,
+      code: nextGroupCode(all, type),
+    })
+  const openCreateSub = (parent: string) =>
+    setNodeDialog({
+      ...emptyNode(),
+      level: 2,
+      parent,
+      code: nextSubCode(all, parent),
+    })
   const openRename = (level: 1 | 2, name: string, parent?: string) =>
-    setRenameDialog({ level, name, original: name, parent })
+    setRenameDialog({ level, name, original: name, parent, code: '', description: '' })
 
   const saveNode = async () => {
     if (saving) return
@@ -165,6 +146,9 @@ export const CategoriesTab: React.FC = () => {
           type,
           group_level1: name,
           group_level2: '',
+          group_code: nodeDialog.code.trim() || undefined,
+          code: '',
+          description: nodeDialog.description.trim() || undefined,
           status: 'active',
           color: type === 'income' ? '#059669' : '#0284C7',
         })
@@ -174,13 +158,17 @@ export const CategoriesTab: React.FC = () => {
         })
       } else {
         // Subgrupo novo sob o grupo pai.
+        const parentRec = all.find((c) => c.group_level1 === nodeDialog.parent && !c.group_level2)
         await categoriesService.createNode({
           name,
           type,
           group_level1: nodeDialog.parent || '',
           group_level2: name,
+          group_code: parentRec?.group_code || undefined,
+          code: nodeDialog.code.trim() || undefined,
+          description: nodeDialog.description.trim() || undefined,
           status: 'active',
-          color: type === 'income' ? '#10B981' : '#06B6D4',
+          color: parentRec?.color || (type === 'income' ? '#10B981' : '#06B6D4'),
         })
         toast({
           title: 'Subgrupo criado!',
@@ -387,26 +375,29 @@ export const CategoriesTab: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {groups.map((g) => {
+          <div className="hidden md:grid px-1">
+            <CategoryGridHeader />
+          </div>
+          {visibleGroups.map((g) => {
             const isInactive = g.status === 'inactive'
             const visibleSubs = showInactive
               ? g.subgroups
               : g.subgroups.filter((s) => s.status === 'active')
-            const open = expanded[g.name]
+            const open = expanded[g.key] ?? false
 
             return (
               <Card
-                key={g.name}
+                key={g.key}
                 className={`border shadow-xs rounded-2xl bg-white ${
                   isInactive && !showInactive ? 'border-slate-200 opacity-70' : 'border-slate-200'
                 }`}
               >
-                <CardContent className="p-4 space-y-3">
+                <CardContent className="p-3 space-y-2">
                   {/* Cabeçalho do grupo */}
                   <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
-                      onClick={() => toggleGroup(g.name)}
+                      onClick={() => toggleGroup(g.key)}
                       className="flex items-center gap-2 text-left min-w-0 flex-1"
                     >
                       {open ? (
@@ -414,7 +405,10 @@ export const CategoriesTab: React.FC = () => {
                       ) : (
                         <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
                       )}
-                      <FolderTree className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <CategoryCodeBadge
+                        code={g.groupCode}
+                        className="bg-slate-800 text-white border-slate-800"
+                      />
                       <div className="min-w-0">
                         <h3
                           className={`font-bold text-slate-900 text-sm truncate ${
@@ -423,9 +417,9 @@ export const CategoriesTab: React.FC = () => {
                         >
                           {g.name}
                         </h3>
-                        <p className="text-[11px] text-slate-500">
-                          {g.items.length} {g.items.length === 1 ? 'registro' : 'registros'} ·{' '}
-                          {g.subgroups.length} {g.subgroups.length === 1 ? 'subgrupo' : 'subgrupos'}
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {g.description ||
+                            `${g.items.length} registros · ${g.subgroups.length} subgrupos`}
                         </p>
                       </div>
                     </button>
@@ -468,71 +462,81 @@ export const CategoriesTab: React.FC = () => {
                   </div>
 
                   {open && (
-                    <div className="pl-6 space-y-2">
-                      {/* Subgrupos */}
+                    <div className="pl-4 space-y-1.5">
+                      <div className="md:hidden">
+                        <CategoryGridHeader className="px-2" />
+                      </div>
                       {visibleSubs.map((s) => {
                         const subInactive = s.status === 'inactive'
                         return (
                           <div
-                            key={s.name || '(sem subgrupo)'}
-                            className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border ${
+                            key={s.key}
+                            className={`${CATEGORY_COLUMNS} px-2.5 py-2 rounded-xl border ${
                               subInactive
                                 ? 'bg-slate-50 border-slate-100'
                                 : 'bg-slate-50/60 border-slate-100'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <CategoryCodeBadge code={s.record?.code} />
+                            <div className="flex items-center gap-1.5 min-w-0">
                               <Tags className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
                               <span
                                 className={`text-xs font-bold text-slate-800 truncate ${
                                   subInactive ? 'line-through opacity-60' : ''
                                 }`}
                               >
-                                {s.name || '(sem subgrupo)'}
-                              </span>
-                              <span className="text-[10px] text-slate-400 flex-shrink-0">
-                                {s.items.length} cat.
+                                {subLabel(s)}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {s.name && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openRename(2, s.name, g.name)}
-                                    className="h-7 w-7 text-slate-500 hover:text-slate-900"
-                                    aria-label={`Renomear subgrupo ${s.name}`}
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => toggleSubStatus(g.name, s)}
-                                    className="h-7 w-7 text-slate-500 hover:text-slate-900"
-                                    aria-label={
-                                      subInactive ? `Reativar ${s.name}` : `Inativar ${s.name}`
-                                    }
-                                  >
-                                    {subInactive ? (
-                                      <ArchiveRestore className="w-3.5 h-3.5" />
-                                    ) : (
-                                      <Archive className="w-3.5 h-3.5" />
-                                    )}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => openDeleteSub(s.name, s.items)}
-                                    className="h-7 w-7 text-slate-400 hover:text-rose-600"
-                                    aria-label={`Excluir subgrupo ${s.name}`}
-                                    title="Excluir subgrupo definitivamente"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                </>
-                              )}
+                            <span
+                              className={`text-[11px] text-slate-500 truncate hidden md:block ${
+                                subInactive ? 'line-through opacity-60' : ''
+                              }`}
+                            >
+                              {s.record?.description || '—'}
+                            </span>
+                            <span
+                              className={`text-[11px] text-slate-500 truncate md:hidden ${
+                                subInactive ? 'line-through opacity-60' : ''
+                              }`}
+                            >
+                              {s.record?.description || '—'}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openRename(2, s.name, g.name)}
+                                className="h-7 w-7 text-slate-500 hover:text-slate-900"
+                                aria-label={`Renomear subgrupo ${s.name}`}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleSubStatus(g.name, s)}
+                                className="h-7 w-7 text-slate-500 hover:text-slate-900"
+                                aria-label={
+                                  subInactive ? `Reativar ${s.name}` : `Inativar ${s.name}`
+                                }
+                              >
+                                {subInactive ? (
+                                  <ArchiveRestore className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Archive className="w-3.5 h-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openDeleteSub(s.name, s.items)}
+                                className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                                aria-label={`Excluir subgrupo ${s.name}`}
+                                title="Excluir subgrupo definitivamente"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
                             </div>
                           </div>
                         )
@@ -559,15 +563,15 @@ export const CategoriesTab: React.FC = () => {
             )
           })}
 
-          {groups.length === 0 && (
+          {visibleGroups.length === 0 && (
             <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-3">
               <FolderTree className="w-10 h-10 text-emerald-500 mx-auto" />
               <h3 className="text-base font-bold text-slate-900">
                 Nenhum grupo de {type === 'income' ? 'receitas' : 'despesas'}
               </h3>
               <p className="text-xs max-w-md mx-auto">
-                Crie grupos como Custos Fixos, Estilo de Vida, Investimentos e Sonhos, Dívidas e
-                Empréstimos.
+                Crie grupos como Habitação e Moradia, Alimentação e Despensa, Transporte e
+                Mobilidade, Saúde e Prevenção.
               </p>
               <div className="flex flex-wrap justify-center gap-1.5 pt-1">
                 {expenseGroupSuggestions.map((s) => (
@@ -596,44 +600,22 @@ export const CategoriesTab: React.FC = () => {
             </DialogTitle>
             <DialogDescription>
               {nodeDialog?.level === 1
-                ? 'Ex.: Custos Fixos/Essenciais, Estilo de Vida/Variáveis, Investimentos e Sonhos, Dívidas e Empréstimos.'
-                : 'Ex.: Moradia, Alimentação, Saúde, Educação, Transporte.'}
+                ? 'O código é sugerido automaticamente como o próximo número livre (ex.: 11.0).'
+                : `O código é sugerido como o próximo número livre dentro de "${nodeDialog?.parent}".`}
             </DialogDescription>
           </DialogHeader>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveNode()
-            }}
-            className="space-y-4 pt-2"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="nodeName">Nome</Label>
-              <Input
-                id="nodeName"
-                value={nodeDialog?.name ?? ''}
-                onChange={(e) => setNodeDialog((n) => (n ? { ...n, name: e.target.value } : n))}
-                placeholder={nodeDialog?.level === 1 ? 'Ex.: Custos Fixos' : 'Ex.: Moradia'}
-                autoFocus
-              />
-            </div>
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setNodeDialog(null)}>
-                Cancelar
-              </Button>
-              {/* Clique dispara saveNode diretamente: nunca depende do submit nativo do form
-                  (que o navegador pode cancelar em silêncio com validação HTML). */}
-              <Button
-                type="button"
-                onClick={saveNode}
-                disabled={saving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {saving ? 'Salvando...' : 'Criar'}
-              </Button>
-            </div>
-          </form>
+          {nodeDialog && (
+            <NodeDialogForm
+              dialog={nodeDialog}
+              saving={saving}
+              onChange={(patch) => setNodeDialog((n) => (n ? { ...n, ...patch } : n))}
+              onCancel={() => setNodeDialog(null)}
+              onSubmit={saveNode}
+              submitLabel="Criar"
+              codePlaceholder={nodeDialog.level === 1 ? '11.0' : '1.7'}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

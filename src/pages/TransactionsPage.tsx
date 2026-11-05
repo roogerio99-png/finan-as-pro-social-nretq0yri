@@ -1047,10 +1047,16 @@ export const TransactionsPage: React.FC = () => {
                         ) : (
                           <>
                             <div className="text-xs font-bold text-slate-800">
-                              {category?.name || 'Sem Categoria'}
+                              {category
+                                ? category.code
+                                  ? `${category.code} ${category.name}`
+                                  : category.name
+                                : 'Sem Categoria'}
                             </div>
                             <div className="text-[11px] text-slate-400">
-                              {category?.group_level1} • {category?.group_level2}
+                              {category?.group_code ? `${category.group_code} ` : ''}
+                              {category?.group_level1}
+                              {category?.group_level2 ? ` • ${category.group_level2}` : ''}
                             </div>
                           </>
                         )}

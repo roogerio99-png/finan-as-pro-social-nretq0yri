@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Mic, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { categoryOptionLabel } from '@/components/cadastros/categoriesTree'
 import {
   TrendingUp,
   TrendingDown,
@@ -440,7 +441,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                   .filter((c) => (type === 'income' ? c.type === 'income' : c.type === 'expense'))
                   .map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.group_level1} &gt; {c.group_level2} &gt; {c.name}
+                      {categoryOptionLabel(c)}
                     </option>
                   ))}
               </select>

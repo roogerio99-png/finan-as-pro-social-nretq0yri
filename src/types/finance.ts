@@ -47,8 +47,11 @@ export interface CategoryRecord {
   family_id?: string
   name: string
   type: 'income' | 'expense'
-  group_level1: string // Ex: Custos Fixos, Estilo de Vida, Investimentos e Sonhos, Dívidas, Receitas
-  group_level2: string // Ex: Habitação, Alimentação, Lazer...
+  group_level1: string // Ex: Habitação e Moradia (plano ERP) ou Custos Fixos (legado)
+  group_level2: string // Ex: Concessionárias e Utilidades (plano ERP)
+  group_code?: string // Código do grupo no plano ERP, ex: "1.0", "10.0"
+  code?: string // Código do subgrupo no plano ERP, ex: "1.3"
+  description?: string // Descrição do gasto (plano de contas profissional)
   subgroup_level3?: string
   icon?: string
   color?: string

@@ -3,6 +3,7 @@ import { budgetsService } from '@/services/budgets'
 import { transactionsService } from '@/services/transactions'
 import { categoriesService } from '@/services/categories'
 import { BudgetRecord, TransactionRecord, CategoryRecord, BudgetTargetType } from '@/types/finance'
+import { categoryOptionLabel } from '@/components/cadastros/categoriesTree'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -600,11 +601,23 @@ export const BudgetPage: React.FC = () => {
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 required
               >
-                {availableOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
+                {availableOptions.map((opt) => {
+                  const isGroup = targetType === 'group'
+                  const rec = categories.find(
+                    (c) =>
+                      c.type === 'expense' &&
+                      (c.status ?? 'active') === 'active' &&
+                      (isGroup
+                        ? c.group_level1 === opt && !c.group_level2
+                        : c.group_level2 === opt),
+                  )
+                  const code = isGroup ? rec?.group_code : rec?.code
+                  return (
+                    <option key={opt} value={opt}>
+                      {code ? `${code} ${opt}` : opt}
+                    </option>
+                  )
+                })}
               </select>
               <p className="text-[11px] text-slate-500">
                 {targetType === 'group'
