@@ -13,6 +13,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } f
 import { Calculator, TrendingUp, Percent, Coins, Info } from 'lucide-react'
 import { FormulaBlock } from '@/components/simulations/FormulaBlock'
 import { FutureValueCalculator } from '@/components/simulations/FutureValueCalculator'
+import { FixedDepositCalculator } from '@/components/simulations/FixedDepositCalculator'
 
 const brl = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -481,7 +482,7 @@ export const SimulationsPage: React.FC = () => {
         </header>
 
         <Tabs defaultValue="compostos">
-          <TabsList className="grid w-full grid-cols-3 max-w-2xl mb-4">
+          <TabsList className="grid w-full grid-cols-4 max-w-3xl mb-4">
             <TabsTrigger value="compostos" className="text-xs sm:text-sm font-bold">
               Juros Compostos
             </TabsTrigger>
@@ -490,6 +491,9 @@ export const SimulationsPage: React.FC = () => {
             </TabsTrigger>
             <TabsTrigger value="valor-futuro" className="text-xs sm:text-sm font-bold">
               Valor Futuro de um Capital
+            </TabsTrigger>
+            <TabsTrigger value="aporte-fixo" className="text-xs sm:text-sm font-bold">
+              Aplicação com Aporte Fixo
             </TabsTrigger>
           </TabsList>
           <TabsContent value="compostos">
@@ -500,6 +504,9 @@ export const SimulationsPage: React.FC = () => {
           </TabsContent>
           <TabsContent value="valor-futuro">
             <FutureValueCalculator />
+          </TabsContent>
+          <TabsContent value="aporte-fixo">
+            <FixedDepositCalculator />
           </TabsContent>
         </Tabs>
       </div>
