@@ -26,8 +26,6 @@ export interface PositionDetailRow {
   date: string
   type: 'buy' | 'sell' | 'provento'
   dayTrade: boolean
-  // true quando o casamento day trade veio da detecção automática (compra e venda no mesmo dia).
-  dayTradeDetected: boolean
   // Quantidade casada como day trade pela detecção automática (0 quando não há casamento).
   dayTradeQuantity: number
   quantity: number
@@ -36,13 +34,17 @@ export interface PositionDetailRow {
   fees: number
   // Somente compras: custo da operação incluindo taxas (o que entra no PM).
   costWithFees: number | null
+  // Somente compras: quantidade que entrou na posição (a casada com venda no mesmo
+  // dia fecha no próprio dia e não entra).
+  positionQty: number | null
   // Preço médio vigente após a operação (null quando a posição zera ou a venda é inválida).
   avgAfter: number | null
   invalid: boolean
 }
 
-// Mesma regra de investmentsCalc.computeLedger: compra soma custo com taxas e recalcula o PM;
-// venda não altera o PM — apenas baixa PM × quantidade do custo total.
+// Mesma regra de investmentsCalc.computeLedger: compra soma à posição apenas a parte
+// não casada com venda no mesmo dia (a casada fecha no próprio dia, sem alterar o PM
+// do estoque antigo); venda não altera o PM — baixa PM × quantidade do custo total.
 export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDetailRow[] {
   const sorted = [...ops].sort(
     (a, b) =>
@@ -63,6 +65,7 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
     const fees = op.fees || 0
     const total = op.quantity * op.unit_price
     let costWithFees: number | null = null
+    let positionQty: number | null = null
     let avgAfter: number | null = null
     let invalid = false
 
@@ -74,13 +77,13 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
         date: op.op_date,
         type: 'provento',
         dayTrade: false,
-        dayTradeDetected: false,
         dayTradeQuantity: 0,
         quantity: op.quantity,
         unitPrice: op.unit_price,
         total,
         fees: 0,
         costWithFees: null,
+        positionQty: null,
         avgAfter,
         invalid: false,
       })
@@ -88,9 +91,12 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
     }
 
     if (op.op_type === 'buy') {
-      qty += op.quantity
-      cost += total + fees
+      const matchedQty = Math.min(detected.get(op.id)?.qty ?? 0, op.quantity)
+      const posQty = op.quantity - matchedQty
+      qty += posQty
+      cost += posQty * op.unit_price + (posQty > EPS ? (fees * posQty) / op.quantity : 0)
       costWithFees = total + fees
+      positionQty = posQty
       avgAfter = qty > EPS ? cost / qty : null
     } else if (op.quantity > qty + EPS) {
       // Venda maior que a posição: o ledger ignora esta operação.
@@ -106,22 +112,20 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
       avgAfter = qty > EPS ? cost / qty : null
     }
 
-    const manual = !!op.day_trade
-    const detectedQty = detected.get(op.id) ?? 0
-    const dayTradeQty = manual ? op.quantity : Math.min(detectedQty, op.quantity)
+    const dayTradeQty = Math.min(detected.get(op.id)?.qty ?? 0, op.quantity)
 
     rows.push({
       id: op.id,
       date: op.op_date,
       type: op.op_type,
-      dayTrade: manual || dayTradeQty > EPS,
-      dayTradeDetected: !manual && dayTradeQty > EPS,
+      dayTrade: dayTradeQty > EPS,
       dayTradeQuantity: dayTradeQty,
       quantity: op.quantity,
       unitPrice: op.unit_price,
       total,
       fees,
       costWithFees,
+      positionQty,
       avgAfter,
       invalid,
     })
@@ -156,21 +160,16 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
   const totalValue = rows.reduce((acc, r) => acc + r.total, 0)
   const totalFees = rows.reduce((acc, r) => acc + r.fees, 0)
   const totalBuyCost = rows.reduce((acc, r) => acc + (r.costWithFees ?? 0), 0)
-  const detectedPairs = rows.filter((r) => r.dayTradeDetected)
+  const detectedPairs = rows.filter((r) => r.dayTradeQuantity > EPS)
 
   const DayTradeBadge: React.FC<{ row: PositionDetailRow }> = ({ row }) => {
-    if (row.dayTradeDetected) {
-      return (
-        <Badge variant="outline" className="border-amber-400 text-amber-700">
-          Day trade (detectado)
-          {row.dayTradeQuantity < row.quantity - EPS
-            ? ` · ${fmtQty(row.dayTradeQuantity)} un.`
-            : ''}
-        </Badge>
-      )
-    }
-    if (row.dayTrade) return <Badge variant="outline">Day trade</Badge>
-    return null
+    if (!row.dayTrade) return null
+    return (
+      <Badge variant="outline" className="border-amber-400 text-amber-700">
+        Day trade (detectado)
+        {row.dayTradeQuantity < row.quantity - EPS ? ` · ${fmtQty(row.dayTradeQuantity)} un.` : ''}
+      </Badge>
+    )
   }
 
   return (
@@ -194,8 +193,9 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
           <div className="space-y-3">
             {detectedPairs.length > 0 && (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5">
-                Day trade detectado por compra e venda na mesma data: a parte casada entra no regime
-                de 20% na apuração mensal, mesmo sem a marcação manual.
+                Day trade detectado por compra e venda na mesma data: a parte casada fecha no
+                próprio dia e entra no regime de 20% na apuração mensal — o preço médio do estoque
+                antigo não é alterado por essa movimentação.
               </p>
             )}
             {/* Rolagem horizontal no celular para manter a tabela legível. */}
@@ -214,6 +214,7 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
                     <TableHead className="text-right whitespace-nowrap">
                       Custo total c/ taxas
                     </TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Qtd. na posição</TableHead>
                     <TableHead className="text-right whitespace-nowrap">PM após</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -245,6 +246,9 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
                       </TableCell>
                       <TableCell className="text-right">
                         {r.costWithFees !== null ? brl.format(r.costWithFees) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.positionQty !== null ? fmtQty(r.positionQty) : '—'}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         {r.invalid ? (
@@ -288,8 +292,8 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
                 )
               })()}
               <p className="text-slate-500">
-                Preço médio vigente é o da última linha com posição aberta (a venda não altera o
-                PM).
+                Preço médio vigente é o da última linha com posição aberta (a venda não altera o PM
+                e a compra casada no mesmo dia não entra na posição).
               </p>
             </div>
           </div>

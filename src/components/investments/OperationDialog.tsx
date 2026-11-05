@@ -36,7 +36,6 @@ interface FormState {
   op_date: string
   fees: string
   asset_class: AssetClass
-  day_trade: boolean
   notes: string
   provent_type: ProventType
   cnpj: string
@@ -51,7 +50,6 @@ const emptyForm = (): FormState => ({
   op_date: todayISO(),
   fees: '',
   asset_class: 'stock',
-  day_trade: false,
   notes: '',
   provent_type: 'dividendo',
   cnpj: '',
@@ -90,7 +88,6 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
         op_date: editing.op_date,
         fees: editing.fees ? String(editing.fees) : '',
         asset_class: editing.asset_class,
-        day_trade: !!editing.day_trade,
         notes: editing.notes ?? '',
         provent_type: editing.provent_type ?? 'dividendo',
         cnpj: editing.cnpj ?? '',
@@ -122,9 +119,6 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
       return fail('O preço unitário deve ser maior que zero.')
     if (!isProvent) {
       if (!Number.isFinite(fees) || fees < 0) return fail('As taxas não podem ser negativas.')
-      if (form.op_type === 'sell' && form.day_trade && !isProvent) {
-        // Day trade segue marcável manualmente — sem validação extra.
-      }
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.op_date)) return fail('Informe a data da operação.')
     if (isProvent) {
@@ -144,7 +138,9 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
       op_date: form.op_date,
       fees: isProvent ? 0 : fees,
       asset_class: form.asset_class,
-      day_trade: isProvent ? false : form.day_trade,
+      // O enquadramento em day trade é calculado pelo sistema (compra e venda no mesmo
+      // dia); a coluna manual segue no banco apenas por compatibilidade e é zerada aqui.
+      day_trade: false,
       notes: form.notes.trim(),
       provent_type: isProvent ? form.provent_type : undefined,
       cnpj: isProvent && cnpj ? cnpj : undefined,
@@ -301,18 +297,10 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
                   placeholder="0,00"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Day trade</Label>
-                <select
-                  className={selectClass}
-                  value={form.day_trade ? 'sim' : 'nao'}
-                  onChange={(e) => set('day_trade', e.target.value === 'sim')}
-                  aria-label="Day trade"
-                >
-                  <option value="nao">Não</option>
-                  <option value="sim">Sim</option>
-                </select>
-              </div>
+              <p className="col-span-2 sm:col-span-1 text-xs text-slate-500 self-end pb-1.5">
+                O enquadramento em day trade é automático: compra e venda do mesmo ticker no mesmo
+                dia.
+              </p>
             </>
           )}
 

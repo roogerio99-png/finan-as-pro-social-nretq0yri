@@ -72,7 +72,7 @@ const GroupCard: React.FC<{ group: GroupTax }> = ({ group: g }) => (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5">
           Day trade detectado por compra e venda na mesma data:{' '}
           <span className="font-semibold">{fmtQty(g.detectedQty)} un.</span> entraram neste regime
-          automaticamente, sem marcação manual.
+          automaticamente (20%, sem isenção).
         </p>
       </CardContent>
     )}
@@ -129,7 +129,7 @@ export const MonthlyTaxPanel: React.FC<MonthlyTaxPanelProps> = ({
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5">
               Day trade detectado neste mês por compra e venda do mesmo ticker na mesma data (
               {current.detectedTickers.join(', ')}): a parte casada entra no regime de 20% sem
-              isenção, mesmo sem marcação manual.
+              isenção, com preferência sobre o estoque antigo.
             </p>
           )}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

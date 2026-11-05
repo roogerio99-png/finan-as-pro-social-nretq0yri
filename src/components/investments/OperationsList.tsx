@@ -21,7 +21,8 @@ interface OperationsListProps {
 
 // Lista em ordem cronológica (data e criação), empilhada em cards para caber no celular.
 export const OperationsList: React.FC<OperationsListProps> = ({ operations, onEdit, onDelete }) => {
-  // Quantidade casada como day trade pela detecção automática (compra e venda no mesmo dia).
+  // Quantidade casada como day trade pela detecção automática (compra e venda no mesmo
+  // dia) — o enquadramento é sempre calculado pelo sistema, nunca marcado na operação.
   const detected = useMemo(() => detectDayTradeOps(operations), [operations])
   const [showProvents, setShowProvents] = useState(true)
 
@@ -52,8 +53,7 @@ export const OperationsList: React.FC<OperationsListProps> = ({ operations, onEd
                   </Badge>
                   <span className="font-bold text-slate-900">{op.ticker}</span>
                   <Badge variant="outline">{ASSET_CLASS_LABELS[op.asset_class]}</Badge>
-                  {op.day_trade && <Badge variant="outline">Day trade</Badge>}
-                  {!op.day_trade && (detected.get(op.id) ?? 0) > 1e-9 && (
+                  {(detected.get(op.id)?.qty ?? 0) > 1e-9 && (
                     <Badge variant="outline" className="border-amber-400 text-amber-700">
                       Day trade (detectado)
                     </Badge>

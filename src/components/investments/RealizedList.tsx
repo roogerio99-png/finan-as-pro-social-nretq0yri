@@ -43,8 +43,7 @@ export const RealizedList: React.FC<RealizedListProps> = ({ sales, saleTax }) =>
               <span className="text-xs text-slate-500">{formatDayBR(s.date)}</span>
               <span className="font-bold text-slate-900">{s.ticker}</span>
               <Badge variant="outline">{ASSET_CLASS_LABELS[s.assetClass]}</Badge>
-              {s.manualDayTrade && <Badge variant="outline">Day trade</Badge>}
-              {s.dayTradeDetected && (
+              {s.dayTrade && (
                 <Badge variant="outline" className="border-amber-400 text-amber-700">
                   Day trade (detectado)
                 </Badge>
@@ -68,7 +67,11 @@ export const RealizedList: React.FC<RealizedListProps> = ({ sales, saleTax }) =>
                   {s.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}
                 </dd>
               </div>
-              <Money label="PM na venda" value={s.avgPrice} />
+              {/* PM só existe para a fatia swing (estoque antigo); venda 100% day trade
+                  é casada com a compra do próprio dia e não usa PM. */}
+              {s.dayTradeQuantity < s.quantity - 1e-9 && (
+                <Money label="PM na venda" value={s.avgPrice} />
+              )}
               <Money label="Preço de venda" value={s.sellPrice} />
               <Money label="Taxas" value={s.fees} />
               <Money label="Resultado bruto" value={s.gross} colored />

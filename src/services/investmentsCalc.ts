@@ -38,7 +38,7 @@ export interface PositionView {
 }
 
 // Uma venda pode ser dividida em fatias por regime: a parte casada com compras do
-// mesmo dia (day trade, 20%, com ou sem flag manual) e o excedente (regime normal
+// mesmo dia (day trade, 20%, detectado automaticamente) e o excedente (regime normal
 // da classe do ativo — swing/FII/cripto).
 export interface SaleSlice {
   quantity: number
@@ -54,16 +54,13 @@ export interface RealizedSale {
   month: string
   ticker: string
   assetClass: AssetClass
-  // true quando a venda (inteira ou em parte) está no regime day trade —
-  // por flag manual OU por detecção automática (compra e venda no mesmo dia).
+  // true quando a venda (inteira ou em parte) está no regime day trade — detectado
+  // automaticamente pela compra e venda do mesmo ticker no mesmo dia (única fonte).
   dayTrade: boolean
-  // true só quando o casamento veio da detecção automática (sem flag manual).
-  dayTradeDetected: boolean
   // Quantidade da venda classificada como day trade (≤ quantity).
   dayTradeQuantity: number
-  // true quando a operação foi marcada manualmente (preserva o comportamento antigo).
-  manualDayTrade: boolean
   quantity: number
+  // PM vigente do estoque antigo na data da venda: base do resultado da fatia swing.
   avgPrice: number
   sellPrice: number
   sellValue: number
@@ -116,9 +113,10 @@ export function computeLedger(
       a.id.localeCompare(b.id),
   )
 
-  // Detecção de day trade por pareamento de datas: para cada ticker, quando o mesmo dia
-  // tem compra E venda, o volume casado (mínimo entre comprado e vendido do dia) é day
-  // trade — mesmo sem a flag manual. Compra e venda do mesmo dia fecham posição no dia.
+  // Enquadramento em day trade (única fonte): para cada ticker, quando o mesmo dia tem
+  // compra E venda, o volume casado (mínimo entre comprado e vendido do dia) é day trade.
+  // O casamento do mesmo dia tem PREFERÊNCIA sobre o estoque antigo: a compra e a venda
+  // casadas fecham posição entre si e não alteram o preço médio do estoque.
   const matchedByOp = detectDayTradeOps(sorted)
 
   const states = new Map<string, TickerState>()
@@ -132,8 +130,13 @@ export function computeLedger(
     const fees = op.fees || 0
 
     if (op.op_type === 'buy') {
-      st.qty += op.quantity
-      st.cost += op.quantity * op.unit_price + fees
+      // A parte da compra casada com venda no mesmo dia não entra na posição: fecha
+      // dentro do próprio dia (day trade) e não altera o PM do estoque antigo. As taxas
+      // da compra são rateadas: a parte casada vai ao resultado do day trade.
+      const matchedQty = Math.min(matchedByOp.get(op.id)?.qty ?? 0, op.quantity)
+      const posQty = op.quantity - matchedQty
+      st.qty += posQty
+      st.cost += posQty * op.unit_price + (posQty > EPS ? (fees * posQty) / op.quantity : 0)
       continue
     }
 
@@ -144,35 +147,40 @@ export function computeLedger(
       continue
     }
 
-    if (op.quantity > st.qty + EPS) {
+    // O casamento do mesmo dia tem preferência sobre o estoque antigo: a fatia casada é
+    // day trade e a venda só consome o estoque antigo no excedente (swing, PM vigente).
+    const match = matchedByOp.get(op.id)
+    const dayTradeQty = Math.min(match?.qty ?? 0, op.quantity)
+    const normalQty = op.quantity - dayTradeQty
+
+    if (normalQty > st.qty + EPS) {
       errors.push(
-        `Venda de ${op.quantity} ${op.ticker} em ${formatDayBR(op.op_date)} maior que a posição (${st.qty})`,
+        `Venda de ${op.quantity} ${op.ticker} em ${formatDayBR(op.op_date)} maior que a posição disponível (${st.qty})`,
       )
       continue
     }
 
     const avg = st.qty > EPS ? st.cost / st.qty : 0
-    st.cost -= avg * op.quantity
-    st.qty -= op.quantity
+    // A fatia swing baixa o estoque antigo pelo PM vigente; a fatia day trade não passa
+    // pela posição — seu custo é o preço das compras casadas do mesmo dia.
+    st.cost -= avg * normalQty
+    st.qty -= normalQty
     if (st.qty <= EPS) {
       st.qty = 0
       st.cost = 0
     }
 
-    const gross = (op.unit_price - avg) * op.quantity
-    const manualDayTrade = !!op.day_trade
-    const matched = matchedByOp.get(op.id) ?? 0
-    // Flag manual: a venda inteira é day trade, como antes. Sem a flag, a parte
-    // casada com compras do mesmo dia é day trade e o excedente segue no regime normal.
-    const dayTradeQty = manualDayTrade ? op.quantity : Math.min(matched, op.quantity)
-    const dayTradeDetected = !manualDayTrade && dayTradeQty > EPS
-    const normalQty = Math.max(0, op.quantity - dayTradeQty)
+    const swingGross = (op.unit_price - avg) * normalQty
+    const dayGross = (op.unit_price - (match?.avgBuyPrice ?? 0)) * dayTradeQty
+    const gross = swingGross + dayGross
+    // Taxas do dia: as da venda somadas à parcela das taxas das compras casadas.
+    const totalFees = fees + (match?.buyFees ?? 0)
 
     // Taxas e resultado são prorrateados entre as fatias pela quantidade, com acerto
     // de centavos na última fatia para somar exatamente o total (sem duplicar nem
     // perder centavos).
     const grossParts = distributeCents(gross, [dayTradeQty, normalQty])
-    const feeParts = distributeCents(fees, [dayTradeQty, normalQty])
+    const feeParts = distributeCents(totalFees, [dayTradeQty, normalQty])
     const slices: SaleSlice[] = []
     if (dayTradeQty > EPS) {
       slices.push({
@@ -197,17 +205,15 @@ export function computeLedger(
       month: monthOf(op.op_date),
       ticker: op.ticker,
       assetClass: op.asset_class,
-      dayTrade: manualDayTrade || dayTradeDetected,
-      dayTradeDetected,
+      dayTrade: dayTradeQty > EPS,
       dayTradeQuantity: dayTradeQty,
-      manualDayTrade,
       quantity: op.quantity,
       avgPrice: avg,
       sellPrice: op.unit_price,
       sellValue: op.quantity * op.unit_price,
       gross,
-      fees,
-      net: gross - fees,
+      fees: totalFees,
+      net: gross - totalFees,
       slices,
     })
   }
@@ -234,10 +240,20 @@ export function computeLedger(
   return { positions, sales, errors }
 }
 
-// Quantidade de cada operação casada como day trade pela detecção automática
-// (compra e venda do mesmo ticker no mesmo dia, sem considerar a flag manual).
+export interface DayTradeMatch {
+  // Quantidade da operação casada como day trade (compra e venda do mesmo dia).
+  qty: number
+  // Preço médio das compras casadas do dia: base do lucro do day trade na venda.
+  avgBuyPrice: number
+  // Parcela das taxas das compras casadas do dia que cabe a esta operação.
+  buyFees: number
+}
+
+// Quantidade e base de custo de cada operação casada como day trade pela detecção
+// automática (compra e venda do mesmo ticker no mesmo dia). O casamento do mesmo dia
+// tem preferência sobre o estoque antigo: é ele que define a fatia day trade da venda.
 // Usado para rotular as operações envolvidas nas listas e no detalhe da posição.
-export function detectDayTradeOps(ops: InvestmentOperation[]): Map<string, number> {
+export function detectDayTradeOps(ops: InvestmentOperation[]): Map<string, DayTradeMatch> {
   const sorted = [...ops].sort(
     (a, b) =>
       dayOf(a.op_date).localeCompare(dayOf(b.op_date)) ||
@@ -246,26 +262,50 @@ export function detectDayTradeOps(ops: InvestmentOperation[]): Map<string, numbe
   )
   const byTickerDay = new Map<
     string,
-    { buy: number; sell: number; buyOps: InvestmentOperation[]; sellOps: InvestmentOperation[] }
+    {
+      buy: number
+      sell: number
+      buyFees: number
+      buyOps: InvestmentOperation[]
+      sellOps: InvestmentOperation[]
+    }
   >()
   for (const op of sorted) {
     if (op.op_type === 'provento') continue
     const key = `${op.ticker}|${dayOf(op.op_date)}`
-    const entry = byTickerDay.get(key) ?? { buy: 0, sell: 0, buyOps: [], sellOps: [] }
-    if (op.op_type === 'buy') entry.buy += op.quantity
-    else entry.sell += op.quantity
+    const entry = byTickerDay.get(key) ?? { buy: 0, sell: 0, buyFees: 0, buyOps: [], sellOps: [] }
+    if (op.op_type === 'buy') {
+      entry.buy += op.quantity
+      entry.buyFees += op.fees || 0
+    } else {
+      entry.sell += op.quantity
+    }
     ;(op.op_type === 'buy' ? entry.buyOps : entry.sellOps).push(op)
     byTickerDay.set(key, entry)
   }
-  const matched = new Map<string, number>()
+  const matched = new Map<string, DayTradeMatch>()
   for (const entry of byTickerDay.values()) {
     if (entry.buy <= EPS || entry.sell <= EPS) continue
     const volume = Math.min(entry.buy, entry.sell)
+    // Compras casadas: quantidade casada de cada compra, preço médio ponderado do dia
+    // e parcela das taxas de compra que compõe o custo do day trade.
+    let matchedBuyFees = 0
+    let weightedPrice = 0
     for (const op of entry.buyOps) {
-      matched.set(op.id, (matched.get(op.id) ?? 0) + (volume * op.quantity) / entry.buy)
+      const qty = (volume * op.quantity) / entry.buy
+      const feeShare = qty > EPS ? ((op.fees || 0) * qty) / op.quantity : 0
+      matched.set(op.id, { qty, avgBuyPrice: op.unit_price, buyFees: feeShare })
+      matchedBuyFees += feeShare
+      weightedPrice += op.unit_price * qty
     }
+    const avgBuyPrice = volume > EPS ? weightedPrice / volume : 0
     for (const op of entry.sellOps) {
-      matched.set(op.id, (matched.get(op.id) ?? 0) + (volume * op.quantity) / entry.sell)
+      const qty = (volume * op.quantity) / entry.sell
+      matched.set(op.id, {
+        qty,
+        avgBuyPrice,
+        buyFees: volume > EPS ? (matchedBuyFees * qty) / volume : 0,
+      })
     }
   }
   return matched
@@ -284,9 +324,8 @@ export const TAX_GROUPS: Record<
   other: { label: 'Outros ativos (sem regra específica)', rate: 0.15, exemptionLimit: null },
 }
 
-// Grupo de uma fatia: a fatia day trade vai para o grupo 'day' apenas em ações e ETFs
-// (como a flag manual sempre fez); em FII, cripto e outros, a classe manda — igual ao
-// comportamento anterior da flag manual.
+// Grupo de uma fatia: a fatia day trade vai para o grupo 'day' apenas em ações e ETFs;
+// em FII, cripto e outros, a classe do ativo manda.
 export const sliceGroup = (s: RealizedSale, p: SaleSlice): TaxGroupKey => {
   if (s.assetClass === 'crypto') return 'crypto'
   if (s.assetClass === 'fii') return 'fii'
@@ -316,7 +355,7 @@ export interface GroupTax {
   carryGenerated: number
   carryAfter: number
   tax: number
-  // Quantidade casada como day trade DETECTADO (sem flag manual) neste grupo no mês.
+  // Quantidade casada como day trade (detectado automaticamente) neste grupo no mês.
   detectedQty: number
 }
 
@@ -395,10 +434,8 @@ export function computeMonthlyTax(sales: RealizedSale[]): MonthTax[] {
       }
       for (const [sale, t] of sliceTax) saleTax[sale.id] = (saleTax[sale.id] ?? 0) + t
 
-      // Day trade detectado (sem flag manual) dentro deste grupo: só existe no grupo 'day'.
-      const detectedQty = slices
-        .filter(({ sale }) => !sale.manualDayTrade)
-        .reduce((acc, { slice }) => acc + slice.quantity, 0)
+      // Day trade detectado dentro deste grupo: só existe no grupo 'day'.
+      const detectedQty = slices.reduce((acc, { slice }) => acc + slice.quantity, 0)
       if (detectedQty > EPS && key === 'day') {
         for (const { sale } of slices) detectedTickers.add(sale.ticker)
       }
