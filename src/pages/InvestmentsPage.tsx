@@ -120,7 +120,11 @@ export const InvestmentsPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="positions" className="mt-4">
-            <PositionsList positions={ledger.positions} onQuoteSaved={reload} />
+            <PositionsList
+              positions={ledger.positions}
+              operations={operations}
+              onQuoteSaved={reload}
+            />
           </TabsContent>
 
           <TabsContent value="operations" className="mt-4">
