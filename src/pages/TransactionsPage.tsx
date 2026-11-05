@@ -9,7 +9,9 @@ import {
   CategoryRecord,
   TransactionType,
   InvoiceRecord,
+  DeparaRuleRecord,
 } from '@/types/finance'
+import { deparaService } from '@/services/depara'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -25,6 +27,8 @@ import {
   CreditCard,
   Pencil,
   Mic,
+  Sparkles,
+  Loader2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -55,6 +59,8 @@ export const TransactionsPage: React.FC = () => {
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [openInvoices, setOpenInvoices] = useState<InvoiceRecord[]>([])
+  const [deparaRules, setDeparaRules] = useState<DeparaRuleRecord[]>([])
+  const [bulkApplying, setBulkApplying] = useState<boolean>(false)
   const [loading, setLoading] = useState<boolean>(true)
 
   // Modal de criação e alteração
@@ -87,16 +93,18 @@ export const TransactionsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [txs, accs, cats, invs] = await Promise.all([
+      const [txs, accs, cats, invs, rls] = await Promise.all([
         transactionsService.list({ month: selectedMonth, regime }),
         accountsService.list(),
         categoriesService.list(),
         invoicesService.list({ status: 'open' }),
+        deparaService.list(),
       ])
       setTransactions(txs)
       setAccounts(accs)
       setCategories(cats)
       setOpenInvoices(invs)
+      setDeparaRules(rls)
 
       if (accs.length > 0 && !accountId) setAccountId(accs[0].id)
       if (accs.length > 1 && !targetAccountId) setTargetAccountId(accs[1].id)
@@ -414,6 +422,68 @@ export const TransactionsPage: React.FC = () => {
     reset: resetVoice,
   } = useVoiceInput(applyVoiceResult)
 
+  // Ação em massa "Sugerir categorias": aplica as regras De-Para aprendidas em
+  // todos os lançamentos do mês visível que estão sem categoria, de uma vez.
+  const handleBulkSuggest = async () => {
+    const pending = filteredTransactions.filter(
+      (t) => (t.type === 'expense' || t.type === 'income') && !t.category_id,
+    )
+    if (pending.length === 0) {
+      toast({
+        title: 'Nada a sugerir',
+        description: 'Todos os lançamentos exibidos já têm categoria definida.',
+      })
+      return
+    }
+
+    setBulkApplying(true)
+    try {
+      let categorized = 0
+      const workingRules = [...deparaRules]
+      const updatedRules = new Map<string, DeparaRuleRecord>()
+
+      for (const tx of pending) {
+        const suggestion = deparaService.suggestCategory(tx.description, workingRules, categories)
+        if (!suggestion?.categoryId) continue
+        try {
+          await transactionsService.update(tx.id, { category_id: suggestion.categoryId })
+          categorized++
+          if (suggestion.ruleId) {
+            const rule = workingRules.find((r) => r.id === suggestion.ruleId)
+            if (rule) {
+              const bumped = { ...rule, usage_count: (rule.usage_count || 0) + 1 }
+              updatedRules.set(rule.id, bumped)
+            }
+          }
+        } catch {
+          // Lançamento individual falhou — continua com os demais
+        }
+      }
+
+      if (updatedRules.size > 0) {
+        setDeparaRules((prev) =>
+          prev.map((r) => (updatedRules.has(r.id) ? { ...r, ...updatedRules.get(r.id)! } : r)),
+        )
+      }
+      await loadData()
+
+      if (categorized > 0) {
+        toast({
+          title: `${categorized} lançamento(s) categorizado(s) automaticamente!`,
+          description: 'As categorias foram aplicadas com as regras do De-Para aprendidas.',
+        })
+      } else {
+        toast({
+          title: 'Nenhuma regra casou com os lançamentos pendentes',
+          description:
+            'Classifique manualmente alguns lançamentos e o De-Para aprende para as próximas vezes.',
+        })
+      }
+    } finally {
+      setBulkApplying(false)
+    }
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('Deseja excluir este lançamento?')) return
     try {
@@ -559,6 +629,21 @@ export const TransactionsPage: React.FC = () => {
               className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 w-full"
             />
           </div>
+
+          <Button
+            variant="outline"
+            onClick={handleBulkSuggest}
+            disabled={bulkApplying || loading || transactions.length === 0}
+            className="w-full sm:w-auto text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border-emerald-200 gap-1.5 rounded-xl h-10 font-bold text-xs"
+            title="Aplica as regras De-Para aprendidas nos lançamentos sem categoria"
+          >
+            {bulkApplying ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            Sugerir categorias
+          </Button>
 
           {transactions.length > 0 && (
             <Button
@@ -1075,6 +1160,7 @@ export const TransactionsPage: React.FC = () => {
         accounts={accounts}
         categories={categories}
         openInvoices={openInvoices}
+        deparaRules={deparaRules}
         saving={saving}
         onSubmit={handleSubmitTransaction}
         voiceFields={voiceFromSpeech ? voiceFields : undefined}

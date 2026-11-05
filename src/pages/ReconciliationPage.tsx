@@ -257,8 +257,10 @@ export const ReconciliationPage: React.FC = () => {
       const isDuplicate = seen.has(key)
       seen.add(key)
 
-      // Classificação automática via De-Para
-      const suggestedCatId = deparaService.matchCategory(item.desc, rules, categories)
+      // Classificação automática via De-Para com nível de confiança
+      const suggestion = deparaService.suggestCategory(item.desc, rules, categories)
+      const suggestedCatId = suggestion?.categoryId
+      const suggestedSource = suggestion?.source
 
       return {
         id: `line-${idx}-${Date.now()}`,
@@ -269,7 +271,13 @@ export const ReconciliationPage: React.FC = () => {
         installments_total: item.installments_total,
         installment_index: item.installment_index,
         suggested_category_id: suggestedCatId,
-        selected_category_id: suggestedCatId || '',
+        suggested_source: suggestedSource,
+        // Alta confiança (regra exata) ou regra aprendida por palavra-chave:
+        // a categoria já vem pré-selecionada e continua editável.
+        selected_category_id:
+          suggestedSource === 'exact' || suggestedSource === 'keyword' ? suggestedCatId || '' : '',
+        // Selo "sugerido" para confiança menor (palavra-chave do estabelecimento)
+        is_suggested: suggestedSource === 'keyword',
         competence_month: item.date.slice(0, 7),
         cash_month: item.date.slice(0, 7),
         is_duplicate: isDuplicate,
@@ -322,15 +330,31 @@ export const ReconciliationPage: React.FC = () => {
 
       await transactionsService.createBatch(toCreate)
 
-      // Aprende novas regras De-Para automaticamente se o usuário categorizou
+      // Aprendizado: reforça regras existentes (uso) ou cria por palavra-chave
+      // do estabelecimento (ex: 'UBER' a partir de 'UBER DO BRASIL*1234')
+      let learnedCount = 0
+      let workingRules = [...rules]
       for (const line of validLines) {
-        if (line.selected_category_id && line.selected_category_id !== line.suggested_category_id) {
-          try {
-            await deparaService.create(line.description.slice(0, 15), line.selected_category_id)
-          } catch {
-            // Ignora duplicata de regra
+        if (!line.selected_category_id) continue
+        try {
+          const learned = await deparaService.applyConfirmed(
+            line.description,
+            line.selected_category_id,
+            workingRules,
+          )
+          if (learned) {
+            learnedCount++
+            workingRules = workingRules.some((r) => r.id === learned.id)
+              ? workingRules.map((r) => (r.id === learned.id ? learned : r))
+              : [learned, ...workingRules]
           }
+        } catch {
+          // Ignora falha de aprendizado isolada — o lote já foi salvo
         }
+      }
+      setRules(workingRules)
+      if (learnedCount > 0) {
+        toast({ title: `De-Para atualizado: ${learnedCount} regra(s) aprendida(s)/reforçada(s).` })
       }
 
       toast({
@@ -349,6 +373,48 @@ export const ReconciliationPage: React.FC = () => {
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+
+  // Sugerir categorias em massa: aplica as regras aprendidas nas linhas sem
+  // categoria e informa quantas foram classificadas de uma vez.
+  const handleBulkSuggest = () => {
+    const pending = importLines.filter((l) => l.status === 'ready' && !l.selected_category_id)
+    if (pending.length === 0) {
+      toast({
+        title: 'Nada a sugerir',
+        description: 'Todas as linhas prontas já têm categoria definida.',
+      })
+      return
+    }
+
+    let categorized = 0
+    setImportLines((prev) =>
+      prev.map((line) => {
+        if (line.status !== 'ready' || line.selected_category_id) return line
+        const suggestion = deparaService.suggestCategory(line.description, rules, categories)
+        if (!suggestion?.categoryId) return line
+        categorized++
+        return {
+          ...line,
+          suggested_category_id: suggestion.categoryId,
+          suggested_source: suggestion.source,
+          is_suggested: suggestion.source === 'keyword',
+          selected_category_id: suggestion.categoryId,
+        }
+      }),
+    )
+
+    if (categorized > 0) {
+      toast({
+        title: `${categorized} lançamento(s) categorizado(s) automaticamente!`,
+        description: 'Revise as categorias sugeridas antes de salvar o lote.',
+      })
+    } else {
+      toast({
+        title: 'Nenhuma regra casou com as linhas pendentes',
+        description: 'Classifique manualmente e o De-Para aprende ao salvar o lote.',
+      })
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8">
@@ -460,6 +526,16 @@ export const ReconciliationPage: React.FC = () => {
               </div>
 
               <Button
+                onClick={handleBulkSuggest}
+                variant="outline"
+                disabled={savingBatch}
+                className="text-xs text-purple-800 border-purple-200 bg-purple-50 hover:bg-purple-100 gap-1.5 rounded-xl"
+              >
+                <Sparkles className="w-4 h-4 text-purple-600" />
+                Sugerir categorias
+              </Button>
+
+              <Button
                 onClick={handleSaveBatch}
                 disabled={
                   savingBatch || importLines.filter((l) => l.status === 'ready').length === 0
@@ -535,11 +611,17 @@ export const ReconciliationPage: React.FC = () => {
                       const val = e.target.value
                       setImportLines((prev) =>
                         prev.map((item) =>
-                          item.id === line.id ? { ...item, selected_category_id: val } : item,
+                          item.id === line.id
+                            ? { ...item, selected_category_id: val, is_suggested: false }
+                            : item,
                         ),
                       )
                     }}
-                    className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 w-full"
+                    className={`border rounded-xl px-2.5 py-1.5 text-xs w-full ${
+                      line.is_suggested && line.selected_category_id
+                        ? 'border-purple-300 bg-purple-50 text-purple-900'
+                        : 'bg-white border-slate-200 text-slate-800'
+                    }`}
                   >
                     <option value="">Selecione categoria...</option>
                     {categories
@@ -552,6 +634,11 @@ export const ReconciliationPage: React.FC = () => {
                         </option>
                       ))}
                   </select>
+                  {line.is_suggested && line.selected_category_id && (
+                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                      <Sparkles className="w-2.5 h-2.5" /> sugerido
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -608,29 +695,42 @@ export const ReconciliationPage: React.FC = () => {
                     </td>
 
                     <td className="py-2.5 px-3">
-                      <select
-                        value={line.selected_category_id}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          setImportLines((prev) =>
-                            prev.map((item) =>
-                              item.id === line.id ? { ...item, selected_category_id: val } : item,
-                            ),
-                          )
-                        }}
-                        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-800 w-full max-w-[220px]"
-                      >
-                        <option value="">Selecione categoria...</option>
-                        {categories
-                          .filter((c) =>
-                            line.type === 'income' ? c.type === 'income' : c.type === 'expense',
-                          )
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({c.group_level2})
-                            </option>
-                          ))}
-                      </select>
+                      <div className="space-y-1">
+                        <select
+                          value={line.selected_category_id}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setImportLines((prev) =>
+                              prev.map((item) =>
+                                item.id === line.id
+                                  ? { ...item, selected_category_id: val, is_suggested: false }
+                                  : item,
+                              ),
+                            )
+                          }}
+                          className={`border rounded-lg px-2.5 py-1 text-xs w-full max-w-[220px] ${
+                            line.is_suggested && line.selected_category_id
+                              ? 'border-purple-300 bg-purple-50 text-purple-900'
+                              : 'bg-white border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <option value="">Selecione categoria...</option>
+                          {categories
+                            .filter((c) =>
+                              line.type === 'income' ? c.type === 'income' : c.type === 'expense',
+                            )
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.group_level2})
+                              </option>
+                            ))}
+                        </select>
+                        {line.is_suggested && line.selected_category_id && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            <Sparkles className="w-2.5 h-2.5" /> sugerido
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-2.5 px-3 whitespace-nowrap">
@@ -751,6 +851,9 @@ export const ReconciliationPage: React.FC = () => {
                       </span>
                       <div className="text-xs text-emerald-800 font-semibold mt-1">
                         &rarr; {cat?.name || 'Categoria'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        usada {r.usage_count ?? 0}x
                       </div>
                     </div>
                     <div className="flex items-center gap-1">

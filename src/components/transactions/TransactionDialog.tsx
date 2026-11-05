@@ -1,5 +1,13 @@
 import React from 'react'
-import { AccountRecord, CategoryRecord, InvoiceRecord, TransactionType } from '@/types/finance'
+import {
+  AccountRecord,
+  CategoryRecord,
+  DeparaRuleRecord,
+  InvoiceRecord,
+  TransactionType,
+} from '@/types/finance'
+import { deparaService } from '@/services/depara'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -51,6 +59,8 @@ interface TransactionDialogProps {
   accounts: AccountRecord[]
   categories: CategoryRecord[]
   openInvoices: InvoiceRecord[]
+  /** Regras De-Para aprendidas: sugerem categoria conforme o usuário digita. */
+  deparaRules?: DeparaRuleRecord[]
   saving: boolean
   onSubmit: (e: React.FormEvent) => void
   // Preenchimento por voz: campos reconhecidos ficam destacados; campos não
@@ -92,6 +102,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   accounts,
   categories,
   openInvoices,
+  deparaRules = [],
   saving,
   onSubmit,
   voiceFields,
@@ -102,6 +113,43 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   const isCreditCard = selectedAccount?.type === 'credit_card'
   const isVoice = !!voiceFields
   const vField = (k: string) => !!voiceFields?.[k]
+
+  // Sugestão automática de categoria conforme o usuário digita a descrição:
+  // usa as regras De-Para aprendidas. Só preenche se o campo ainda está vazio
+  // (nunca sobrescreve a escolha do usuário) e o campo segue editável.
+  const [suggestedLabel, setSuggestedLabel] = useState<string>('')
+  const userPickedCategory = useRef<boolean>(false)
+  useEffect(() => {
+    userPickedCategory.current = false
+    setSuggestedLabel('')
+  }, [open])
+
+  useEffect(() => {
+    if (!open || userPickedCategory.current) return
+    const trimmed = description.trim()
+    if (!trimmed) {
+      setSuggestedLabel('')
+      return
+    }
+    const suggestion = deparaService.suggestCategory(trimmed, deparaRules, categories)
+    if (!suggestion?.categoryId || suggestion.categoryId === categoryId) {
+      setSuggestedLabel('')
+      return
+    }
+    setCategoryId(suggestion.categoryId)
+    setSuggestedLabel(
+      suggestion.source === 'exact'
+        ? 'Categoria preenchida pela regra aprendida — pode trocar se quiser.'
+        : 'Categoria sugerida — pode trocar se quiser.',
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, open])
+
+  const handleCategoryChange = (id: string) => {
+    userPickedCategory.current = true
+    setSuggestedLabel('')
+    setCategoryId(id)
+  }
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
@@ -384,7 +432,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
               <select
                 id="cat"
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
               >
                 <option value="">Selecione uma categoria...</option>
@@ -396,6 +444,11 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                     </option>
                   ))}
               </select>
+              {suggestedLabel && (
+                <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" /> {suggestedLabel}
+                </p>
+              )}
             </div>
           )}
 

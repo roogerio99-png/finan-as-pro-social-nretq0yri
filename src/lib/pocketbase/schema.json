@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T00:43:25.381Z",
+  "generatedAt": "2026-11-05T01:11:06.870Z",
   "collections": [
     {
       "name": "users",
@@ -751,9 +751,24 @@
           "required": false,
           "system": false,
           "collectionRef": "families"
+        },
+        {
+          "name": "usage_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_used",
+          "type": "date",
+          "required": false,
+          "system": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_depara_user_pattern` ON `depara_rules` (user_id) WHERE pattern",
+        "CREATE INDEX `idx_depara_usage` ON `depara_rules` (usage_count)"
+      ]
     },
     {
       "name": "payments",

@@ -185,12 +185,16 @@ export interface DreamRecord {
   updated: string
 }
 
+export type DeparaSuggestionSource = 'exact' | 'keyword' | 'heuristic'
+
 export interface DeparaRuleRecord {
   id: string
   user_id: string
   pattern: string
   category_id: string
   confidence?: number
+  usage_count?: number
+  last_used?: string
   created: string
   updated: string
   expand?: {
@@ -207,6 +211,8 @@ export interface StatementImportLine {
   installments_total?: number
   installment_index?: number
   suggested_category_id?: string
+  suggested_source?: DeparaSuggestionSource
+  is_suggested?: boolean
   selected_category_id?: string
   competence_month: string
   cash_month: string
