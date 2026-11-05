@@ -21,40 +21,9 @@ export function extractFieldErrors(error: unknown): FieldErrors {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof ClientResponseError) {
-    const fieldMsgs = Object.values(extractFieldErrors(error))
-    if (fieldMsgs.length > 0) return fieldMsgs.join(' ')
-
-    const data = error.response?.data
-    if (data && typeof data === 'object') {
-      if ('message' in data && typeof (data as { message: unknown }).message === 'string') {
-        const msg = (data as { message: string }).message
-        if (msg && msg !== 'Something went wrong while processing your request.') {
-          return msg
-        }
-      }
-    }
-
-    if (error.response?.message && typeof error.response.message === 'string') {
-      const respMsg = error.response.message
-      if (respMsg && respMsg !== 'Something went wrong while processing your request.') {
-        return respMsg
-      }
-    }
-
-    if (error.message && error.message !== 'Something went wrong while processing your request.') {
-      return error.message
-    }
-    return 'Ocorreu um erro ao processar a requisição no servidor.'
+  if (!(error instanceof ClientResponseError)) {
+    return error instanceof Error ? error.message : 'An unexpected error occurred.'
   }
-
-  if (error instanceof Error) {
-    return error.message || 'Ocorreu um erro inesperado.'
-  }
-
-  if (typeof error === 'string') {
-    return error
-  }
-
-  return 'Ocorreu um erro inesperado.'
+  const msgs = Object.values(extractFieldErrors(error))
+  return msgs.length > 0 ? msgs.join(' ') : error.message || 'An unexpected error occurred.'
 }
