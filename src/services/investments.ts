@@ -1,7 +1,8 @@
 import pb from '@/lib/pocketbase/client'
 
-export type OpType = 'buy' | 'sell'
+export type OpType = 'buy' | 'sell' | 'provento'
 export type AssetClass = 'stock' | 'fii' | 'etf' | 'crypto' | 'other'
+export type ProventType = 'dividendo' | 'jcp' | 'bonificacao'
 
 export interface InvestmentOperation {
   id: string
@@ -14,6 +15,12 @@ export interface InvestmentOperation {
   asset_class: AssetClass
   day_trade: boolean
   notes?: string
+  // Tipo do provento (quando op_type = 'provento').
+  provent_type?: ProventType
+  // CNPJ do ativo — opcional, usado pela apuração de proventos (teto de R$ 50 mil).
+  cnpj?: string
+  // IRRF retido na fonte (apenas JCP — 15%): valor informado em bruto menos líquido.
+  irr?: number
   created?: string
 }
 

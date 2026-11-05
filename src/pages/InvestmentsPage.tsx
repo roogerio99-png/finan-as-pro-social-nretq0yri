@@ -136,7 +136,12 @@ export const InvestmentsPage: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="tax" className="mt-4">
-            <MonthlyTaxPanel monthly={monthly} year={year} />
+            <MonthlyTaxPanel
+              monthly={monthly}
+              year={year}
+              operations={operations}
+              quotes={quotes}
+            />
           </TabsContent>
         </Tabs>
       )}

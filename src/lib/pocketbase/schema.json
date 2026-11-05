@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05T12:05:03.557Z",
+  "generatedAt": "2026-11-05T13:39:09.785Z",
   "collections": [
     {
       "name": "users",
@@ -1042,7 +1042,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["buy", "sell"]
+          "selectValues": ["buy", "sell", "provento"]
         },
         {
           "name": "quantity",
@@ -1100,6 +1100,25 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "provent_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["dividendo", "jcp", "bonificacao"]
+        },
+        {
+          "name": "cnpj",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "irrf",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

@@ -17,6 +17,7 @@ import {
   type InvestmentOperation,
   type OperationInput,
   type OpType,
+  type ProventType,
 } from '@/services/investments'
 import { ASSET_CLASS_LABELS, todayISO } from '@/services/investmentsCalc'
 
@@ -37,6 +38,9 @@ interface FormState {
   asset_class: AssetClass
   day_trade: boolean
   notes: string
+  provent_type: ProventType
+  cnpj: string
+  irr: string
 }
 
 const emptyForm = (): FormState => ({
@@ -49,6 +53,9 @@ const emptyForm = (): FormState => ({
   asset_class: 'stock',
   day_trade: false,
   notes: '',
+  provent_type: 'dividendo',
+  cnpj: '',
+  irr: '',
 })
 
 const selectClass =
@@ -59,6 +66,8 @@ const parseNum = (v: string) => {
   return Number.isFinite(n) ? n : NaN
 }
 
+const CNPJ_MASK = /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/
+
 export const OperationDialog: React.FC<OperationDialogProps> = ({
   open,
   onOpenChange,
@@ -68,6 +77,7 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
   const { toast } = useToast()
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const isProvent = form.op_type === 'provento'
 
   useEffect(() => {
     if (!open) return
@@ -82,6 +92,9 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
         asset_class: editing.asset_class,
         day_trade: !!editing.day_trade,
         notes: editing.notes ?? '',
+        provent_type: editing.provent_type ?? 'dividendo',
+        cnpj: editing.cnpj ?? '',
+        irr: editing.irr ? String(editing.irr) : '',
       })
     } else {
       setForm(emptyForm())
@@ -99,14 +112,29 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
     const quantity = parseNum(form.quantity)
     const unitPrice = parseNum(form.unit_price)
     const fees = form.fees.trim() ? parseNum(form.fees) : 0
+    const irr = isProvent && form.irr.trim() ? parseNum(form.irr) : 0
+    const cnpj = form.cnpj.replace(/\D/g, '')
 
     if (!/^[A-Z0-9]{3,12}$/.test(ticker)) return fail('Informe um ticker válido (ex.: PETR4).')
     if (!Number.isFinite(quantity) || quantity <= 0)
       return fail('A quantidade deve ser maior que zero.')
     if (!Number.isFinite(unitPrice) || unitPrice <= 0)
       return fail('O preço unitário deve ser maior que zero.')
-    if (!Number.isFinite(fees) || fees < 0) return fail('As taxas não podem ser negativas.')
+    if (!isProvent) {
+      if (!Number.isFinite(fees) || fees < 0) return fail('As taxas não podem ser negativas.')
+      if (form.op_type === 'sell' && form.day_trade && !isProvent) {
+        // Day trade segue marcável manualmente — sem validação extra.
+      }
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.op_date)) return fail('Informe a data da operação.')
+    if (isProvent) {
+      if (!form.provent_type) return fail('Informe o tipo de provento.')
+      if (!Number.isFinite(irr) || irr < 0) return fail('O IRRF não pode ser negativo.')
+      if (irr > 0 && form.provent_type !== 'jcp')
+        return fail('IRRF só se aplica a JCP (retido na fonte em 15%).')
+      if (cnpj && cnpj.length !== 14)
+        return fail('O CNPJ deve ter 14 dígitos (ou deixe o campo em branco).')
+    }
 
     const payload: OperationInput = {
       ticker,
@@ -114,10 +142,13 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
       quantity,
       unit_price: unitPrice,
       op_date: form.op_date,
-      fees,
+      fees: isProvent ? 0 : fees,
       asset_class: form.asset_class,
-      day_trade: form.day_trade,
+      day_trade: isProvent ? false : form.day_trade,
       notes: form.notes.trim(),
+      provent_type: isProvent ? form.provent_type : undefined,
+      cnpj: isProvent && cnpj ? cnpj : undefined,
+      irr: isProvent && irr > 0 ? irr : undefined,
     }
 
     setSaving(true)
@@ -144,7 +175,8 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
         <DialogHeader>
           <DialogTitle>{editing ? 'Editar operação' : 'Nova operação'}</DialogTitle>
           <DialogDescription>
-            Registre uma compra ou venda. O preço médio e o resultado são calculados a partir daqui.
+            Registre uma compra, venda ou provento. O preço médio e o resultado são calculados a
+            partir daqui.
           </DialogDescription>
         </DialogHeader>
 
@@ -159,6 +191,7 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
             >
               <option value="buy">Compra</option>
               <option value="sell">Venda</option>
+              <option value="provento">Provento</option>
             </select>
           </div>
           <div className="space-y-1.5">
@@ -195,45 +228,106 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Quantidade</Label>
-            <Input
-              inputMode="decimal"
-              value={form.quantity}
-              onChange={(e) => set('quantity', e.target.value)}
-              placeholder="100"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Preço unitário (R$)</Label>
-            <Input
-              inputMode="decimal"
-              value={form.unit_price}
-              onChange={(e) => set('unit_price', e.target.value)}
-              placeholder="10,00"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Taxas (R$, opcional)</Label>
-            <Input
-              inputMode="decimal"
-              value={form.fees}
-              onChange={(e) => set('fees', e.target.value)}
-              placeholder="0,00"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Day trade</Label>
-            <select
-              className={selectClass}
-              value={form.day_trade ? 'sim' : 'nao'}
-              onChange={(e) => set('day_trade', e.target.value === 'sim')}
-              aria-label="Day trade"
-            >
-              <option value="nao">Não</option>
-              <option value="sim">Sim</option>
-            </select>
-          </div>
+
+          {isProvent && (
+            <>
+              <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                <Label className="text-xs font-semibold">Tipo de provento</Label>
+                <select
+                  className={selectClass}
+                  value={form.provent_type}
+                  onChange={(e) => set('provent_type', e.target.value as ProventType)}
+                  aria-label="Tipo de provento"
+                >
+                  <option value="dividendo">Dividendo</option>
+                  <option value="jcp">JCP (juros sobre capital próprio)</option>
+                  <option value="bonificacao">Bonificação</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">CNPJ do ativo (opcional)</Label>
+                <Input
+                  value={form.cnpj}
+                  onChange={(e) => set('cnpj', e.target.value)}
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                />
+              </div>
+              {form.provent_type === 'jcp' && (
+                <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                  <Label className="text-xs font-semibold">IRRF retido (R$, 15% no JCP)</Label>
+                  <Input
+                    inputMode="decimal"
+                    value={form.irr}
+                    onChange={(e) => set('irr', e.target.value)}
+                    placeholder="0,00"
+                  />
+                </div>
+              )}
+              <p className="col-span-2 text-xs text-slate-500">
+                Informe o valor <span className="font-semibold">bruto</span> do provento em "Preço
+                unitário" × quantidade
+                {form.provent_type === 'jcp' ? ' — o líquido = bruto − IRRF.' : '.'}
+              </p>
+            </>
+          )}
+
+          {!isProvent && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Quantidade</Label>
+                <Input
+                  inputMode="decimal"
+                  value={form.quantity}
+                  onChange={(e) => set('quantity', e.target.value)}
+                  placeholder="100"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Preço unitário (R$)</Label>
+                <Input
+                  inputMode="decimal"
+                  value={form.unit_price}
+                  onChange={(e) => set('unit_price', e.target.value)}
+                  placeholder="10,00"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Taxas (R$, opcional)</Label>
+                <Input
+                  inputMode="decimal"
+                  value={form.fees}
+                  onChange={(e) => set('fees', e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Day trade</Label>
+                <select
+                  className={selectClass}
+                  value={form.day_trade ? 'sim' : 'nao'}
+                  onChange={(e) => set('day_trade', e.target.value === 'sim')}
+                  aria-label="Day trade"
+                >
+                  <option value="nao">Não</option>
+                  <option value="sim">Sim</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {isProvent && (
+            <div className="space-y-1.5 col-span-2 sm:col-span-1">
+              <Label className="text-xs font-semibold">Quantidade (ações/cotas)</Label>
+              <Input
+                inputMode="decimal"
+                value={form.quantity}
+                onChange={(e) => set('quantity', e.target.value)}
+                placeholder="100"
+              />
+            </div>
+          )}
+
           <div className="space-y-1.5 col-span-2">
             <Label className="text-xs font-semibold">Observação (opcional)</Label>
             <Input value={form.notes} onChange={(e) => set('notes', e.target.value)} />
@@ -252,3 +346,5 @@ export const OperationDialog: React.FC<OperationDialogProps> = ({
     </Dialog>
   )
 }
+
+export { CNPJ_MASK }

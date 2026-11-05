@@ -1,13 +1,18 @@
 import React, { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { brl, darfDueDate, type MonthTax, type GroupTax } from '@/services/investmentsCalc'
+import type { InvestmentOperation, InvestmentQuote } from '@/services/investments'
+import { DirpfDialog } from '@/components/investments/DirpfDialog'
 
 interface MonthlyTaxPanelProps {
   monthly: MonthTax[]
   year: string
+  operations: InvestmentOperation[]
+  quotes: InvestmentQuote[]
 }
 
 const currentMonthISO = () => {
@@ -75,13 +80,19 @@ const GroupCard: React.FC<{ group: GroupTax }> = ({ group: g }) => (
 )
 
 // Apuração mensal: por mês, separa as bases (swing, day, FII, cripto, outros) e mostra isenção e imposto.
-export const MonthlyTaxPanel: React.FC<MonthlyTaxPanelProps> = ({ monthly, year }) => {
+export const MonthlyTaxPanel: React.FC<MonthlyTaxPanelProps> = ({
+  monthly,
+  year,
+  operations,
+  quotes,
+}) => {
   const [selected, setSelected] = useState<string>(
     monthly.length > 0 ? monthly[monthly.length - 1].month : currentMonthISO(),
   )
   const current = monthly.find((m) => m.month === selected) ?? null
   const yearMonths = monthly.filter((m) => m.month.startsWith(year))
   const yearTax = yearMonths.reduce((acc, m) => acc + m.tax, 0)
+  const [dirpfOpen, setDirpfOpen] = useState(false)
 
   return (
     <div className="space-y-5">
@@ -95,14 +106,18 @@ export const MonthlyTaxPanel: React.FC<MonthlyTaxPanelProps> = ({ monthly, year 
             className="w-full sm:w-auto"
           />
         </div>
-        {current && (
-          <p className="text-xs text-slate-500 sm:text-right">
-            DARF deste mês vence em <span className="font-semibold">{darfDueDate(selected)}</span>{' '}
-            (código 6015 para ações e ETFs). Nota educacional: o pagamento é feito até o último dia
-            útil do mês seguinte, e o feriado não é considerado no cálculo.
-          </p>
-        )}
+        <Button variant="outline" onClick={() => setDirpfOpen(true)} className="w-full sm:w-auto">
+          Espelho DIRPF de {year}
+        </Button>
       </div>
+
+      {current && (
+        <p className="text-xs text-slate-500 sm:text-right">
+          DARF deste mês vence em <span className="font-semibold">{darfDueDate(selected)}</span>{' '}
+          (código 6015 para ações e ETFs). Nota educacional: o pagamento é feito até o último dia
+          útil do mês seguinte, e o feriado não é considerado no cálculo.
+        </p>
+      )}
 
       {!current ? (
         <p className="text-sm text-slate-500 text-center py-6">
@@ -163,6 +178,13 @@ export const MonthlyTaxPanel: React.FC<MonthlyTaxPanelProps> = ({ monthly, year 
           )}
         </CardContent>
       </Card>
+
+      <DirpfDialog
+        open={dirpfOpen}
+        onOpenChange={setDirpfOpen}
+        operations={operations}
+        quotes={quotes}
+      />
     </div>
   )
 }

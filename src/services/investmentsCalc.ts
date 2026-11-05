@@ -80,6 +80,23 @@ export interface LedgerResult {
   errors: string[]
 }
 
+// Quantidade de centavos de sobra na última fatia: nenhuma. O rateio de taxas usa
+// o acerto na última fatia para nunca duplicar nem perder centavos.
+const distributeCents = (total: number, weights: number[]): number[] => {
+  const sum = weights.reduce((a, b) => a + b, 0)
+  if (sum <= EPS || weights.length === 0) return weights.map(() => 0)
+  const raw = weights.map((w) => (total * w) / sum)
+  const cents = raw.map((v) => Math.round(v * 100) / 100)
+  const diff = Math.round((total - cents.reduce((a, b) => a + b, 0)) * 100) / 100
+  // Ajusta o maior valor bruto pela diferença (pode ser ±0,01).
+  if (diff !== 0) {
+    let idx = 0
+    for (let i = 1; i < raw.length; i++) if (raw[i] > raw[idx]) idx = i
+    cents[idx] = Math.round((cents[idx] + diff) * 100) / 100
+  }
+  return cents
+}
+
 interface TickerState {
   qty: number
   cost: number
@@ -120,6 +137,13 @@ export function computeLedger(
       continue
     }
 
+    // Provento não é venda: dividendo e JCP não alteram a posição; bonificação
+    // entra na posição a custo zero (dilui o preço médio, como na ficha Bens e Direitos).
+    if (op.op_type === 'provento') {
+      if (op.provent_type === 'bonificacao') st.qty += op.quantity
+      continue
+    }
+
     if (op.quantity > st.qty + EPS) {
       errors.push(
         `Venda de ${op.quantity} ${op.ticker} em ${formatDayBR(op.op_date)} maior que a posição (${st.qty})`,
@@ -144,23 +168,26 @@ export function computeLedger(
     const dayTradeDetected = !manualDayTrade && dayTradeQty > EPS
     const normalQty = Math.max(0, op.quantity - dayTradeQty)
 
-    // Taxas e resultado são prorrateados entre as fatias pela quantidade.
-    const share = (qty: number) => (op.quantity > EPS ? qty / op.quantity : 0)
+    // Taxas e resultado são prorrateados entre as fatias pela quantidade, com acerto
+    // de centavos na última fatia para somar exatamente o total (sem duplicar nem
+    // perder centavos).
+    const grossParts = distributeCents(gross, [dayTradeQty, normalQty])
+    const feeParts = distributeCents(fees, [dayTradeQty, normalQty])
     const slices: SaleSlice[] = []
     if (dayTradeQty > EPS) {
       slices.push({
         quantity: dayTradeQty,
         normal: false,
-        gross: gross * share(dayTradeQty),
-        net: gross * share(dayTradeQty) - fees * share(dayTradeQty),
+        gross: grossParts[0],
+        net: grossParts[0] - feeParts[0],
       })
     }
     if (normalQty > EPS) {
       slices.push({
         quantity: normalQty,
         normal: true,
-        gross: gross * share(normalQty),
-        net: gross * share(normalQty) - fees * share(normalQty),
+        gross: grossParts[1],
+        net: grossParts[1] - feeParts[1],
       })
     }
 
@@ -222,6 +249,7 @@ export function detectDayTradeOps(ops: InvestmentOperation[]): Map<string, numbe
     { buy: number; sell: number; buyOps: InvestmentOperation[]; sellOps: InvestmentOperation[] }
   >()
   for (const op of sorted) {
+    if (op.op_type === 'provento') continue
     const key = `${op.ticker}|${dayOf(op.op_date)}`
     const entry = byTickerDay.get(key) ?? { buy: 0, sell: 0, buyOps: [], sellOps: [] }
     if (op.op_type === 'buy') entry.buy += op.quantity

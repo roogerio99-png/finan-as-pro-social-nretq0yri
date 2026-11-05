@@ -24,7 +24,7 @@ const EPS = 1e-9
 export interface PositionDetailRow {
   id: string
   date: string
-  type: 'buy' | 'sell'
+  type: 'buy' | 'sell' | 'provento'
   dayTrade: boolean
   // true quando o casamento day trade veio da detecção automática (compra e venda no mesmo dia).
   dayTradeDetected: boolean
@@ -65,6 +65,27 @@ export function buildPositionDetailRows(ops: InvestmentOperation[]): PositionDet
     let costWithFees: number | null = null
     let avgAfter: number | null = null
     let invalid = false
+
+    if (op.op_type === 'provento') {
+      // Provento não move posição (bonificação entra a custo zero, como no ledger).
+      if (op.provent_type === 'bonificacao') qty += op.quantity
+      rows.push({
+        id: op.id,
+        date: op.op_date,
+        type: 'provento',
+        dayTrade: false,
+        dayTradeDetected: false,
+        dayTradeQuantity: 0,
+        quantity: op.quantity,
+        unitPrice: op.unit_price,
+        total,
+        fees: 0,
+        costWithFees: null,
+        avgAfter,
+        invalid: false,
+      })
+      continue
+    }
 
     if (op.op_type === 'buy') {
       qty += op.quantity
@@ -202,8 +223,16 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
                       <TableCell className="whitespace-nowrap">{formatDayBR(r.date)}</TableCell>
                       <TableCell>
                         <span className="flex flex-wrap items-center gap-1.5">
-                          <Badge className={r.type === 'buy' ? 'bg-emerald-600' : 'bg-rose-600'}>
-                            {r.type === 'buy' ? 'Compra' : 'Venda'}
+                          <Badge
+                            className={
+                              r.type === 'buy'
+                                ? 'bg-emerald-600'
+                                : r.type === 'sell'
+                                  ? 'bg-rose-600'
+                                  : 'bg-sky-600'
+                            }
+                          >
+                            {r.type === 'buy' ? 'Compra' : r.type === 'sell' ? 'Venda' : 'Provento'}
                           </Badge>
                           <DayTradeBadge row={r} />
                         </span>
@@ -244,7 +273,11 @@ export const PositionDetailDialog: React.FC<PositionDetailDialogProps> = ({
               {(() => {
                 const buys = rows.reduce((acc, r) => acc + (r.type === 'buy' ? r.quantity : 0), 0)
                 const sells = rows.reduce((acc, r) => acc + (r.type === 'sell' ? r.quantity : 0), 0)
-                const currentQty = buys - sells
+                const bonifs = rows.reduce(
+                  (acc, r) => acc + (r.type === 'provento' ? r.quantity : 0),
+                  0,
+                )
+                const currentQty = buys - sells + bonifs
                 return (
                   <p className="text-slate-600">
                     Comprado: <span className="font-semibold">{fmtQty(buys)}</span>
