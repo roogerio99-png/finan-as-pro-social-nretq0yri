@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/chart'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
 import { Calculator, TrendingUp, Percent, Coins, Info } from 'lucide-react'
+import { FormulaBlock } from '@/components/simulations/FormulaBlock'
 
 const brl = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -85,6 +86,40 @@ const CompoundCalculator: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <FormulaBlock
+        intro={
+          <span>
+            Os juros são calculados sobre o valor do mês anterior (o famoso{' '}
+            <span className="font-semibold">“juros sobre juros”</span>): o saldo cresce de forma
+            exponencial. Com aporte mensal, o cálculo é iterativo mês a mês — juros sobre o saldo
+            anterior + o aporte —, então o resultado de t meses é a soma dessa repetição.
+          </span>
+        }
+        formulas={[
+          { text: 'M = C · (1 + i)^t', desc: 'Montante final, sem aporte mensal' },
+          { text: 'J = M − C', desc: 'Total de juros ganhos' },
+          {
+            text: 'bal = bal · (1 + i) + aporte',
+            desc: 'Com aporte mensal: mês a mês (aporte no fim do mês)',
+          },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor total final' },
+          { symbol: 'C (Capital)', meaning: 'valor inicial' },
+          {
+            symbol: 'i (Taxa)',
+            meaning: 'percentual convertido para decimal na fórmula (ex.: 1% = 0,01)',
+          },
+          {
+            symbol: 't (Tempo)',
+            meaning: 'deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses)',
+          },
+        ]}
+        notes={[
+          'Ex.: 1% a.m. = 0,01. Taxa anual (a.a.) é convertida para a taxa mensal equivalente: (1 + i_a)^(1/12) − 1.',
+          'Com aporte mensal, o resultado final também vale J = M − C − total aportado.',
+        ]}
+      />
       <Card className="p-4 sm:p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-1.5">
@@ -273,14 +308,42 @@ const SimpleCalculator: React.FC = () => {
       interest,
       compoundInterest,
       series: [
-        { tipo: 'Simples', juros: interest },
-        { tipo: 'Compostos', juros: compoundInterest },
+        { tipo: 'Simples', simples: interest },
+        { tipo: 'Compostos', compostos: compoundInterest },
       ],
     }
   }, [capital, rate, period, months])
 
   return (
     <div className="space-y-4">
+      <FormulaBlock
+        intro={
+          <span>
+            Os juros são calculados apenas sobre o valor inicial (capital) e{' '}
+            <span className="font-semibold">não mudam ao longo do tempo</span>: os juros de cada
+            período incidem sempre sobre o mesmo capital.
+          </span>
+        }
+        formulas={[
+          { text: 'J = C · i · t', desc: 'Total de juros ganhos' },
+          { text: 'M = C + J', desc: 'Montante final (equivale a M = C · (1 + i · t))' },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor total final' },
+          { symbol: 'C (Capital)', meaning: 'valor inicial' },
+          {
+            symbol: 'i (Taxa)',
+            meaning: 'percentual convertido para decimal na fórmula (ex.: 1% = 0,01)',
+          },
+          {
+            symbol: 't (Tempo)',
+            meaning: 'deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses)',
+          },
+        ]}
+        notes={[
+          'Ex.: 1% a.m. = 0,01. No regime simples, a taxa anual (a.a.) vira mensal dividindo por 12 (linear), mantendo a mesma unidade de tempo.',
+        ]}
+      />
       <Card className="p-4 sm:p-5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
@@ -386,7 +449,8 @@ const SimpleCalculator: React.FC = () => {
               }
             />
             <Legend />
-            <Bar dataKey="juros" radius={6} />
+            <Bar dataKey="simples" fill="var(--color-simples)" radius={6} />
+            <Bar dataKey="compostos" fill="var(--color-compostos)" radius={6} />
           </BarChart>
         </ChartContainer>
       </Card>
