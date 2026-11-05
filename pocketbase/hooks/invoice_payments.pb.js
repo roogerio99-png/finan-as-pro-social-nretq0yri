@@ -45,7 +45,8 @@ routerAdd(
     const amount = round2(Number(body.amount))
     if (!(amount > 0)) throw new BadRequestError('Valor da parcela inválido.')
 
-    const result = e.app.runInTransaction((txApp) => {
+    let createdPayment = null
+    e.app.runInTransaction((txApp) => {
       const tx = txApp.findRecordById('transactions', sourceId)
 
       // O pagamento só vale para despesas parceladas.
@@ -125,18 +126,18 @@ routerAdd(
       tx.set('installments_paid', paidNow)
       txApp.save(tx)
 
-      return payment
+      createdPayment = {
+        id: payment.id,
+        amount: payment.getFloat('amount'),
+        cash_month: payment.getString('cash_month'),
+        paid_date: payment.getString('paid_date'),
+        installment_index: payment.getInt('installment_index'),
+        payment_account_id: payment.getString('payment_account_id'),
+        card_account_id: payment.getString('card_account_id'),
+      }
     })
 
-    return e.json(200, {
-      id: result.id,
-      amount: result.getFloat('amount'),
-      cash_month: result.getString('cash_month'),
-      paid_date: result.getString('paid_date'),
-      installment_index: result.getInt('installment_index'),
-      payment_account_id: result.getString('payment_account_id'),
-      card_account_id: result.getString('card_account_id'),
-    })
+    return e.json(200, createdPayment)
   },
   $apis.requireAuth(),
 )

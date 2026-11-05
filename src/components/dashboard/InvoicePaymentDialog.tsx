@@ -125,9 +125,11 @@ export const InvoicePaymentDialog: React.FC<InvoicePaymentDialogProps> = ({
         }
       }
 
-      // Se temos fatura formal e todas as parcelas pendentes foram selecionadas,
-      // registramos o pagamento formal via payViaMovement (gera movimento bancário tipo invoice_payment)
       const isFullPayment = chosen.length === items.length && items.length > 0
+
+      // Se temos fatura formal e todas as parcelas pendentes foram selecionadas,
+      // usamos payViaMovement: ele cria o movimento bancário (invoice_payment),
+      // debita a conta pagadora, cria os registros em payments e marca a fatura como paga.
       if (invoice && isFullPayment && invoice.status !== 'paid') {
         await invoicesService.payViaMovement({
           invoiceId: invoice.id,
@@ -136,21 +138,20 @@ export const InvoicePaymentDialog: React.FC<InvoicePaymentDialogProps> = ({
           amount: selectedTotal,
           notes: `Quitação da fatura ${month} do cartão ${card.name}`,
         })
-      }
-
-      // Marca também as parcelas individuais na coleção payments para compatibilidade
-      // completa com os cálculos de netCashForMonth e marcação visual de parcelas
-      for (const item of chosen) {
-        const input: MarkPaidInput = {
-          transaction: item.tx,
-          installmentIndex: item.index,
-          amount: item.value,
-          cashMonth: month,
-          paidDate: date,
-          paymentAccountId: accountId,
-          cardAccountId: card.id,
+      } else {
+        // Quitação parcial ou fatura sem registro formal: registra parcela a parcela
+        for (const item of chosen) {
+          const input: MarkPaidInput = {
+            transaction: item.tx,
+            installmentIndex: item.index,
+            amount: item.value,
+            cashMonth: month,
+            paidDate: date,
+            paymentAccountId: accountId,
+            cardAccountId: card.id,
+          }
+          await paymentsService.markPaid(input)
         }
-        await paymentsService.markPaid(input)
       }
 
       toast({

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { accountsService } from '@/services/accounts'
 import { invoicesService } from '@/services/invoices'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { AccountRecord, InvoiceRecord } from '@/types/finance'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -262,10 +263,10 @@ export const InvoicesPage: React.FC = () => {
       setDeleteDialogOpen(false)
       setInvoiceToDelete(null)
       loadData()
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao excluir fatura',
-        description: err.message || 'Não foi possível excluir o registro.',
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     } finally {
@@ -304,10 +305,10 @@ export const InvoicesPage: React.FC = () => {
 
       setPayDialogOpen(false)
       loadData()
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao registrar pagamento',
-        description: err.message || 'Ocorreu um erro ao processar o pagamento.',
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     } finally {
@@ -342,10 +343,10 @@ export const InvoicesPage: React.FC = () => {
         description: 'A fatura voltou para a situação Aberta e o saldo foi estornado.',
       })
       loadData()
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: 'Erro ao desfazer pagamento',
-        description: err.message || 'Não foi possível estornar.',
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     }

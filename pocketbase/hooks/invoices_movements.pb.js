@@ -222,9 +222,15 @@ routerAdd(
     if (!paymentAccountId) throw new BadRequestError('Conta/banco pagador não informado.')
     if (!isYYYYMMDD(paidDate)) throw new BadRequestError('Data do pagamento inválida.')
 
-    const result = e.app.runInTransaction((txApp) => {
+    let movementResult = null
+    e.app.runInTransaction((txApp) => {
       const invoice = txApp.findRecordById('invoices', invoiceId)
-      if (invoice.getString('user_id') !== e.auth.id) {
+      const userFamily = e.auth.getString('family_id')
+      const invFamily = invoice.getString('family_id')
+      const belongsToUserOrFamily =
+        invoice.getString('user_id') === e.auth.id ||
+        (userFamily && invFamily && userFamily === invFamily)
+      if (!belongsToUserOrFamily) {
         throw new ForbiddenError('Essa fatura não pertence a você.')
       }
       if (invoice.getString('status') === 'paid') {
@@ -238,13 +244,17 @@ routerAdd(
       if (account.getString('status') === 'archived') {
         throw new BadRequestError('A conta escolhida está arquivada.')
       }
-      if (account.getString('user_id') !== e.auth.id) {
+      const accFamily = account.getString('family_id')
+      const accBelongs =
+        account.getString('user_id') === e.auth.id ||
+        (userFamily && accFamily && userFamily === accFamily)
+      if (!accBelongs) {
         throw new ForbiddenError('Essa conta não pertence a você.')
       }
 
       const cardId = invoice.getString('card_account_id')
       const refMonth = invoice.getString('reference_month')
-      const familyId = invoice.getString('family_id')
+      const familyId = invoice.getString('family_id') || userFamily
 
       // Valor pago: o informado (permite pagamento parcial) ou o total em aberto.
       let payAmount = amount
@@ -322,7 +332,7 @@ routerAdd(
       invoice.set('payment_account_id', account.id)
       txApp.save(invoice)
 
-      return {
+      movementResult = {
         movement_id: movement.id,
         invoice_id: invoice.id,
         amount: payAmount,
@@ -331,7 +341,7 @@ routerAdd(
       }
     })
 
-    return e.json(200, result)
+    return e.json(200, movementResult)
   },
   $apis.requireAuth(),
 )
@@ -437,13 +447,25 @@ routerAdd(
     const amount = round2(Number(body.amount))
     if (!(amount > 0)) throw new BadRequestError('Valor da transferência inválido.')
 
-    const result = e.app.runInTransaction((txApp) => {
+    let transferResult = null
+    e.app.runInTransaction((txApp) => {
       const source = txApp.findRecordById('accounts', sourceAccountId)
       const target = txApp.findRecordById('accounts', targetAccountId)
-      if (source.getString('user_id') !== e.auth.id) {
+      const userFamily = e.auth.getString('family_id')
+      const srcFamily = source.getString('family_id')
+      const tgtFamily = target.getString('family_id')
+
+      const srcBelongs =
+        source.getString('user_id') === e.auth.id ||
+        (userFamily && srcFamily && userFamily === srcFamily)
+      const tgtBelongs =
+        target.getString('user_id') === e.auth.id ||
+        (userFamily && tgtFamily && userFamily === tgtFamily)
+
+      if (!srcBelongs) {
         throw new ForbiddenError('A conta de origem não pertence a você.')
       }
-      if (target.getString('user_id') !== e.auth.id) {
+      if (!tgtBelongs) {
         throw new ForbiddenError('A conta de destino não pertence a você.')
       }
       if (
@@ -456,6 +478,7 @@ routerAdd(
       const col = txApp.findCollectionByNameOrId('transactions')
       const movement = new Record(col)
       movement.set('user_id', e.auth.id)
+      if (userFamily) movement.set('family_id', userFamily)
       movement.set('account_id', source.id)
       movement.set('transfer_account_id', target.id)
       movement.set('description', description || `Transferência para ${target.getString('name')}`)
@@ -474,10 +497,10 @@ routerAdd(
       txApp.save(source)
       txApp.save(target)
 
-      return { id: movement.id, amount: amount }
+      transferResult = { id: movement.id, amount: amount }
     })
 
-    return e.json(200, result)
+    return e.json(200, transferResult)
   },
   $apis.requireAuth(),
 )
