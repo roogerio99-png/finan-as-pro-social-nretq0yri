@@ -29,6 +29,8 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
+import { CopilotLiveMode } from '@/components/copilot/CopilotLiveMode'
+import { Radio } from 'lucide-react'
 import {
   copilotService,
   QuickTransactionSuggestion,
@@ -46,6 +48,7 @@ export const CopilotPage: React.FC = () => {
 
   // Estados gerais
   const [activeTab, setActiveTab] = useState<'quick-tx' | 'budget' | 'insights' | 'chat'>('quick-tx')
+  const [liveModeOpen, setLiveModeOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
@@ -302,7 +305,21 @@ export const CopilotPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+              <Button
+                onClick={() => setLiveModeOpen(true)}
+                className="bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl h-14 px-6 text-sm gap-2.5 shadow-xl transition-all active:scale-95 border border-white/20 w-full sm:w-auto"
+              >
+                <Radio className="w-5 h-5 text-rose-300 animate-pulse" />
+                <span>Iniciar Modo Live</span>
+              </Button>
+              <span className="text-[11px] text-center text-slate-300">
+                Conversa bidirecional por voz
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
             <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-center min-w-[140px]">
               <p className="text-xs text-slate-300 uppercase tracking-wider font-semibold">
                 Saúde Financeira
@@ -325,6 +342,7 @@ export const CopilotPage: React.FC = () => {
                     : 'Atenção Necessária'}
               </Badge>
             </div>
+          </div>
           </div>
         </div>
 
@@ -794,6 +812,13 @@ export const CopilotPage: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal / Tela Cheia do Modo Live */}
+      <CopilotLiveMode
+        isOpen={liveModeOpen}
+        onClose={() => setLiveModeOpen(false)}
+        onTransactionCreated={loadData}
+      />
     </div>
   )
 }
