@@ -1,3 +1,4 @@
+import pb from '@/lib/pocketbase/client'
 /**
  * Utilitários de Privacidade e Gestão de Dados Locais
  * Garante transparência de que todos os dados de login e lançamentos
@@ -138,9 +139,12 @@ export const localDataPrivacyService = {
    * Limpa apenas os lançamentos e faturas para quem vai iniciar com dados reais
    */
   clearOnlyTransactions(): void {
+    if (typeof (pb as any).clearAllTransactions === 'function') {
+      (pb as any).clearAllTransactions()
+    }
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i)
-      if (key && key.includes('transactions')) {
+      if (key && (key.includes('transactions') || key.includes('invoices') || key.includes('payments'))) {
         localStorage.setItem(key, JSON.stringify([]))
       }
     }

@@ -107,24 +107,44 @@ export const deparaService = {
     })
   },
 
-  async create(pattern: string, categoryId: string): Promise<DeparaRuleRecord> {
-    const cleanPattern = normalizeText(pattern)
+  async getAll(): Promise<DeparaRuleRecord[]> {
+    return this.list()
+  },
+
+  async create(
+    patternOrData: string | { pattern: string; category_id?: string; categoryId?: string; confidence?: number },
+    categoryId?: string,
+  ): Promise<DeparaRuleRecord> {
+    let cleanPattern = ''
+    let catId = ''
+    let confidence = 100
+
+    if (typeof patternOrData === 'object' && patternOrData !== null) {
+      cleanPattern = normalizeText(patternOrData.pattern)
+      catId = patternOrData.category_id || patternOrData.categoryId || ''
+      if (patternOrData.confidence !== undefined) confidence = patternOrData.confidence
+    } else {
+      cleanPattern = normalizeText(String(patternOrData || ''))
+      catId = categoryId || ''
+    }
+
     return await pb.collection('depara_rules').create<DeparaRuleRecord>({
       user_id: pb.authStore.record?.id,
       pattern: cleanPattern,
-      category_id: categoryId,
-      confidence: 100,
+      category_id: catId,
+      confidence,
       usage_count: 0,
     })
   },
 
   async update(
     id: string,
-    data: { pattern?: string; category_id?: string },
+    data: { pattern?: string; category_id?: string; confidence?: number },
   ): Promise<DeparaRuleRecord> {
     const payload: Record<string, any> = {}
     if (data.pattern !== undefined) payload.pattern = normalizeText(data.pattern)
     if (data.category_id !== undefined) payload.category_id = data.category_id
+    if (data.confidence !== undefined) payload.confidence = data.confidence
     return await pb.collection('depara_rules').update<DeparaRuleRecord>(id, payload, {
       expand: 'category_id',
     })
