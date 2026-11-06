@@ -34,6 +34,7 @@ import {
   ChevronRight,
   ShieldCheck,
   Scale,
+  Sparkles,
 } from 'lucide-react'
 
 export const DashboardPage: React.FC = () => {
