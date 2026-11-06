@@ -365,9 +365,10 @@ export const BudgetPage: React.FC = () => {
                 return cat?.group_level2 === b.category_group || cat?.name === b.category_group
               })
 
-              const spent = matchedTransactions.reduce((acc, t) => acc + t.amount, 0)
-              const percent = b.limit_amount > 0 ? Math.round((spent / b.limit_amount) * 100) : 0
-              const remaining = b.limit_amount - spent
+              const spent = matchedTransactions.reduce((acc, t) => acc + (Number(t.amount) || 0), 0)
+              const limitVal = Number(b.limit_amount) || 0;
+              const percent = limitVal > 0 ? Math.round((spent / limitVal) * 100) : 0
+              const remaining = (Number(b.limit_amount) || 0) - spent
 
               const isWarning =
                 percent >= (b.warning_threshold || 75) && percent < (b.danger_threshold || 90)

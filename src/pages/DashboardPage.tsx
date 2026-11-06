@@ -175,10 +175,10 @@ export const DashboardPage: React.FC = () => {
   const totalBudgeted = (() => {
     if (budgets.length === 0) return 0
     if (groupBudgets.length === 0) {
-      return subgroupBudgets.reduce((acc, b) => acc + b.limit_amount, 0)
+      return subgroupBudgets.reduce((acc, b) => acc + (Number(b.limit_amount) || 0), 0)
     }
     // Soma grupos
-    const groupSum = groupBudgets.reduce((acc, b) => acc + b.limit_amount, 0)
+    const groupSum = groupBudgets.reduce((acc, b) => acc + (Number(b.limit_amount) || 0), 0)
     // Para subgrupos, só soma se o grupo_level1 ao qual pertence NÃO tiver meta de grupo
     const standaloneSubgroupSum = subgroupBudgets
       .filter((sb) => {
