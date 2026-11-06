@@ -1,3 +1,5 @@
+import { AppLicenseConfig } from '@/services/licenseService'
+import { AdminLicenseModal } from '@/components/AdminLicenseModal'
 import React, { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,13 +47,19 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { usePrivacy } from '@/contexts/PrivacyContext'
 
-export const Navbar: React.FC = () => {
+interface NavbarProps {
+  licenseConfig?: AppLicenseConfig | null
+  onUpdateLicense?: (cfg: AppLicenseConfig) => void
+}
+
+export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }) => {
   const { user, logout } = useAuth()
   const { isPrivacyMode, togglePrivacyMode } = usePrivacy()
   const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
   const [glossaryOpen, setGlossaryOpen] = useState(false)
+  const [adminLicenseOpen, setAdminLicenseOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -356,6 +364,15 @@ export const Navbar: React.FC = () => {
                       <span>Instalar no Celular (PWA)</span>
                     </DropdownMenuItem>
 
+                                        {user.email?.toLowerCase() === 'roogerio99@gmail.com' && (
+                      <DropdownMenuItem
+                        onClick={() => setAdminLicenseOpen(true)}
+                        className="text-xs gap-2 py-2 cursor-pointer font-bold text-amber-800 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/60 rounded-md my-1"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>👑 Controle de Licença Comercial</span>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() => navigate('/cadastros/privacidade')}
                       className="text-xs gap-2 py-2 cursor-pointer font-semibold text-slate-800 hover:text-emerald-800"

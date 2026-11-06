@@ -1,14 +1,32 @@
+import React, { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Navbar } from '@/components/Navbar'
 import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { GoogleLoginPage } from '@/pages/GoogleLoginPage'
 import { useAuth } from '@/contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
+import { licenseService, AppLicenseConfig } from '@/services/licenseService'
+import { CommercialBlockModal } from '@/components/CommercialBlockModal'
 
 export default function Layout() {
   const { user, loading } = useAuth()
+  const [license, setLicense] = useState<AppLicenseConfig | null>(null)
+  const [licenseLoading, setLicenseLoading] = useState<boolean>(true)
 
-  if (loading) {
+  useEffect(() => {
+    let mounted = true
+    licenseService.fetchLicense().then((cfg) => {
+      if (mounted) {
+        setLicense(cfg)
+        setLicenseLoading(false)
+      }
+    })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  if (loading || licenseLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-3" />
@@ -21,9 +39,14 @@ export default function Layout() {
     return <GoogleLoginPage />
   }
 
+  const isBlocked = license ? licenseService.isBlocked(license, user.email) : false
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 font-sans text-slate-900 antialiased selection:bg-emerald-500 selection:text-white">
-      <Navbar />
+      {/* Se o uso de terceiros estiver bloqueado, exibe a barreira comercial */}
+      {isBlocked && license && <CommercialBlockModal license={license} />}
+
+      <Navbar licenseConfig={license} onUpdateLicense={setLicense} />
       <main className="flex-1 w-full pb-24 lg:pb-16">
         <Outlet />
       </main>
@@ -34,7 +57,7 @@ export default function Layout() {
             Profissional
           </div>
           <div className="text-slate-400">
-            Regime de Competência vs. Caixa • Modo Família • Protegido por Skip Cloud
+            100% dos dados salvos no seu aparelho • Privacidade Zero-Knowledge
           </div>
         </div>
       </footer>
