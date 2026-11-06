@@ -77,6 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
     { to: '/faturas', label: 'Faturas', icon: CreditCard },
     { to: '/orcamento', label: 'Orçamento', icon: Target },
     { to: '/conciliacao', label: 'Conciliação', icon: FileSpreadsheet },
+    { to: '/copiloto', label: 'Copiloto IA', icon: Sparkles, highlight: true },
   ]
 
   // Grupos secundários com dropdown limpo

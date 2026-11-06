@@ -67,6 +67,18 @@ export const MobileBottomNav: React.FC = () => {
   // Módulos organizados por seções na gaveta
   const sections = [
     {
+      title: 'Inteligência Financeira',
+      items: [
+        {
+          to: '/copiloto',
+          label: 'Copiloto IA',
+          desc: 'Lançamentos rápidos, orçamento 50/30/20 e economia',
+          icon: Sparkles,
+          color: 'text-indigo-600 bg-indigo-50',
+        },
+      ],
+    },
+    {
       title: 'Movimentações & Bancos',
       items: [
         {

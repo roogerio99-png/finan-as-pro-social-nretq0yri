@@ -282,6 +282,33 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Banner de Acesso Rápido ao Copiloto IA */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-950 text-white border border-indigo-500/30 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+            <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
+          </div>
+          <div>
+            <h4 className="font-extrabold text-sm sm:text-base flex items-center gap-2">
+              Copiloto Financeiro Inteligente
+              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                Assistente
+              </span>
+            </h4>
+            <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+              Lance gastos por linguagem natural (&quot;Gastei 45 no almoço&quot;), monte seu orçamento 50/30/20 e descubra onde economizar.
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => navigate('/copiloto')}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs gap-2 shrink-0 shadow-sm w-full sm:w-auto"
+        >
+          <Sparkles className="w-4 h-4 text-emerald-300" />
+          Abrir Copiloto IA
+        </Button>
+      </div>
+
       {/* Alerta de Conciliação Pendente */}
       {unreconciledCount > 0 && (
         <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">

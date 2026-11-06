@@ -22,6 +22,7 @@ import { InvoicesPage } from './pages/InvoicesPage'
 import { SimulationsPage } from './pages/SimulationsPage'
 import { InvestmentsPage } from './pages/InvestmentsPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { CopilotPage } from './pages/CopilotPage'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
@@ -58,6 +59,7 @@ const App = () => (
                 <Route path="/simulacoes" element={<SimulationsPage />} />
                 <Route path="/investimentos" element={<InvestmentsPage />} />
                 <Route path="/relatorios" element={<ReportsPage />} />
+                <Route path="/copiloto" element={<CopilotPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
