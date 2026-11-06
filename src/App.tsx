@@ -19,6 +19,7 @@ import { CadastrosPage } from './pages/CadastrosPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { SimulationsPage } from './pages/SimulationsPage'
 import { InvestmentsPage } from './pages/InvestmentsPage'
+import { ReportsPage } from './pages/ReportsPage'
 
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/cadastros/:tab" element={<CadastrosPage />} />
               <Route path="/simulacoes" element={<SimulationsPage />} />
               <Route path="/investimentos" element={<InvestmentsPage />} />
+              <Route path="/relatorios" element={<ReportsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

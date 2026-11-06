@@ -11,6 +11,8 @@ export interface UserRecord {
   name: string
   avatar?: string
   family_role?: string
+  family_id?: string
+  status?: 'active' | 'blocked'
   created: string
   updated: string
 }

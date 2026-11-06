@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Percent,
   TrendingUp,
+  BarChart3,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -91,6 +92,12 @@ export const Navbar: React.FC = () => {
       label: 'Investimentos',
       desc: 'Renda variável, preço médio e imposto',
       icon: TrendingUp,
+    },
+    {
+      to: '/relatorios',
+      label: 'Relatórios',
+      desc: 'Fluxo de caixa e demonstrativo',
+      icon: BarChart3,
     },
   ]
 
