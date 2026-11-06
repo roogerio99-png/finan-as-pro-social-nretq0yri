@@ -123,7 +123,7 @@ export const authService = {
 
     const defaultSeedPass = 'Skip@Pass'
     const deterministicGooglePass = `GoogleAuth_${email}_Gestio2026!`
-    const candidatePasswords = [defaultSeedPass, deterministicGooglePass, 'password', '12345678']
+    const candidatePasswords = [deterministicGooglePass, defaultSeedPass]
 
     let authRecord: any = null
 

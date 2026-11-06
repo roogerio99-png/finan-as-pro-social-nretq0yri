@@ -22,6 +22,8 @@ import {
   Percent,
   TrendingUp,
   BarChart3,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,9 +43,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { usePrivacy } from '@/contexts/PrivacyContext'
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth()
+  const { isPrivacyMode, togglePrivacyMode } = usePrivacy()
   const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
@@ -292,6 +296,27 @@ export const Navbar: React.FC = () => {
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
               <span>Instalar App</span>
+            </Button>
+
+                        {/* Botão de Modo Privacidade / Ocultar Valores */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={togglePrivacyMode}
+              className="text-slate-600 hover:text-slate-900 text-xs font-semibold gap-1.5 h-8 px-2.5 rounded-lg border border-slate-200/80 hover:bg-slate-100/80 transition-colors cursor-pointer"
+              title={isPrivacyMode ? 'Exibir valores financeiros' : 'Ocultar valores (Modo Privacidade)'}
+            >
+              {isPrivacyMode ? (
+                <>
+                  <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="hidden sm:inline text-amber-700 font-bold">Oculto</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden sm:inline">Valores</span>
+                </>
+              )}
             </Button>
 
             {/* Menu do Usuário */}

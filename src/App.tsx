@@ -3,6 +3,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { PrivacyProvider } from '@/contexts/PrivacyContext'
 
 import Layout from './components/Layout'
 import Index from './pages/Index'
@@ -29,29 +30,31 @@ const App = () => (
     <BrowserRouter>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <PwaInstallPrompt />
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/boas-vindas" element={<WelcomePage />} />
-              <Route path="/painel" element={<DashboardPage />} />
-              <Route path="/lancamentos" element={<TransactionsPage />} />
-              <Route path="/faturas" element={<InvoicesPage />} />
-              <Route path="/conciliacao" element={<ReconciliationPage />} />
-              <Route path="/orcamento" element={<BudgetPage />} />
-              <Route path="/dividas" element={<DebtsPage />} />
-              <Route path="/sonhos" element={<DreamsPage />} />
-              <Route path="/familia" element={<FamilyPage />} />
-              <Route path="/cadastros" element={<CadastrosPage />} />
-              <Route path="/cadastros/:tab" element={<CadastrosPage />} />
-              <Route path="/simulacoes" element={<SimulationsPage />} />
-              <Route path="/investimentos" element={<InvestmentsPage />} />
-              <Route path="/relatorios" element={<ReportsPage />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <PrivacyProvider>
+            <Toaster />
+            <Sonner />
+            <PwaInstallPrompt />
+            <Routes>
+              <Route element={<Layout />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/boas-vindas" element={<WelcomePage />} />
+                <Route path="/painel" element={<DashboardPage />} />
+                <Route path="/lancamentos" element={<TransactionsPage />} />
+                <Route path="/faturas" element={<InvoicesPage />} />
+                <Route path="/conciliacao" element={<ReconciliationPage />} />
+                <Route path="/orcamento" element={<BudgetPage />} />
+                <Route path="/dividas" element={<DebtsPage />} />
+                <Route path="/sonhos" element={<DreamsPage />} />
+                <Route path="/familia" element={<FamilyPage />} />
+                <Route path="/cadastros" element={<CadastrosPage />} />
+                <Route path="/cadastros/:tab" element={<CadastrosPage />} />
+                <Route path="/simulacoes" element={<SimulationsPage />} />
+                <Route path="/investimentos" element={<InvestmentsPage />} />
+                <Route path="/relatorios" element={<ReportsPage />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </PrivacyProvider>
         </AuthProvider>
       </TooltipProvider>
     </BrowserRouter>

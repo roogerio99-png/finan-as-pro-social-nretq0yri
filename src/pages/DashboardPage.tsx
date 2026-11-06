@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePrivacy } from '@/contexts/PrivacyContext'
 import { accountsService } from '@/services/accounts'
 import { transactionsService } from '@/services/transactions'
 import { budgetsService } from '@/services/budgets'
@@ -37,6 +38,7 @@ import {
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate()
+  const { isPrivacyMode, formatCurrencySecure } = usePrivacy()
 
   // Mês de referência atual (YYYY-MM)
   const currentMonthStr = new Date().toISOString().slice(0, 7)
@@ -216,7 +218,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)
+    return formatCurrencySecure(val)
   }
 
   return (
