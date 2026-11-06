@@ -23,6 +23,15 @@ interface CopilotLiveModeProps {
   isOpen: boolean
   onClose: () => void
   onTransactionCreated?: () => void
+  onReviewTransaction?: (data: {
+    type?: 'income' | 'expense' | 'transfer'
+    description?: string
+    amount?: number | string | null
+    date?: string
+    accountId?: string
+    categoryId?: string
+    suggestedCategoryName?: string
+  }) => void
 }
 
 type LiveState = 'idle' | 'listening' | 'thinking' | 'speaking'
@@ -31,6 +40,7 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
   isOpen,
   onClose,
   onTransactionCreated,
+  onReviewTransaction,
 }) => {
   const [liveState, setLiveState] = useState<LiveState>('idle')
   const [transcript, setTranscript] = useState('')
@@ -244,6 +254,30 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
           let accId = parsed.suggestedAccountId
           if (!accId && accounts.length > 0) accId = accounts[0].id
 
+          const tipoStr = parsed.parseResult.type === 'income' ? 'receita' : 'despesa'
+          const catStr = parsed.suggestedCategoryName ? `em ${parsed.suggestedCategoryName}` : ''
+          const valorFormatado = parsed.parseResult.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          const reply = `Entendido! Preenchi a tela com a ${tipoStr} de ${valorFormatado} ${catStr}. Por favor, revise e confirme as informações na tela.`
+          
+          setLastBotReply(reply)
+          speakText(reply)
+
+          if (onReviewTransaction) {
+            setTimeout(() => {
+              onClose()
+              onReviewTransaction({
+                type: parsed.parseResult.type,
+                description: parsed.parseResult.description || 'Lançamento via Modo Live',
+                amount: parsed.parseResult.amount,
+                date: txDate,
+                accountId: accId || undefined,
+                categoryId: parsed.suggestedCategoryId || undefined,
+                suggestedCategoryName: parsed.suggestedCategoryName,
+              })
+            }, 2300)
+            return
+          }
+
           await transactionsService.create({
             description: parsed.parseResult.description || 'Lançamento via Modo Live',
             amount: parsed.parseResult.amount,
@@ -255,13 +289,6 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
           })
 
           if (onTransactionCreated) onTransactionCreated()
-
-          const tipoStr = parsed.parseResult.type === 'income' ? 'receita' : 'despesa'
-          const catStr = parsed.suggestedCategoryName ? `em ${parsed.suggestedCategoryName}` : ''
-          const reply = `Pronto! Registrei sua ${tipoStr} de ${parsed.parseResult.amount} reais ${catStr}. Mais algum lançamento?`
-          
-          setLastBotReply(reply)
-          speakText(reply)
           return
         }
       } catch (err) {

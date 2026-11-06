@@ -30,6 +30,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { CopilotLiveMode } from '@/components/copilot/CopilotLiveMode'
+import { TransactionDialog } from '@/components/transactions/TransactionDialog'
+import { invoicesService } from '@/services/invoices'
+import { deparaService } from '@/services/depara'
+import { InvoiceRecord, DeparaRuleRecord, TransactionType } from '@/types/finance'
 import { Radio } from 'lucide-react'
 import {
   copilotService,
@@ -52,6 +56,23 @@ export const CopilotPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
+
+  // Estados do Modal de Confirmação e Validação do Lançamento
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [txType, setTxType] = useState<TransactionType>('expense')
+  const [txDescription, setTxDescription] = useState('')
+  const [txAmount, setTxAmount] = useState('')
+  const [txDate, setTxDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [txAccountId, setTxAccountId] = useState('')
+  const [txTargetAccountId, setTxTargetAccountId] = useState('')
+  const [txSelectedInvoiceId, setTxSelectedInvoiceId] = useState('')
+  const [txCategoryId, setTxCategoryId] = useState('')
+  const [txNotes, setTxNotes] = useState('')
+  const [txInstallmentsTotal, setTxInstallmentsTotal] = useState('1')
+  const [txInstallmentsPaid, setTxInstallmentsPaid] = useState('0')
+  const [voiceFields, setVoiceFields] = useState<Record<string, boolean>>({})
+  const [openInvoices, setOpenInvoices] = useState<InvoiceRecord[]>([])
+  const [deparaRules, setDeparaRules] = useState<DeparaRuleRecord[]>([])
 
   // Estado do Lançamento Rápido
   const [quickInput, setQuickInput] = useState('')
@@ -84,14 +105,18 @@ export const CopilotPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [accs, cats, diag] = await Promise.all([
+      const [accs, cats, diag, invs, rules] = await Promise.all([
         accountsService.getAll(),
         categoriesService.getAll(),
         copilotService.getDiagnostic(),
+        invoicesService.getAll().catch(() => []),
+        deparaService.getAll().catch(() => []),
       ])
       setAccounts(accs)
       setCategories(cats)
       setDiagnostic(diag)
+      setOpenInvoices((invs || []).filter((i: any) => i.status === 'open' || i.status === 'overdue'))
+      setDeparaRules(rules || [])
 
       // Inicializa renda sugerida baseada no diagnóstico ou receitas
       if (diag.totalIncomeMonth > 0) {
@@ -123,8 +148,122 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Confirma e salva o lançamento sugerido
-  const handleConfirmTransaction = async () => {
+  // Abre a tela de lançamento pré-preenchida para validação do usuário
+  const openTransactionDialogWithData = (data: {
+    type?: TransactionType
+    description?: string
+    amount?: number | string | null
+    date?: string
+    accountId?: string
+    categoryId?: string
+    notes?: string
+  }) => {
+    const todayIso = new Date().toISOString().split('T')[0]
+    setTxType(data.type || 'expense')
+    setTxDescription(data.description || '')
+    setTxAmount(data.amount ? String(data.amount) : '')
+    setTxDate(data.date || todayIso)
+
+    let accId = data.accountId
+    if (!accId && accounts.length > 0) accId = accounts[0].id
+    setTxAccountId(accId || '')
+
+    setTxTargetAccountId('')
+    setTxSelectedInvoiceId('')
+    setTxCategoryId(data.categoryId || '')
+    setTxNotes(data.notes || 'Preenchido automaticamente pelo Copiloto IA')
+    setTxInstallmentsTotal('1')
+    setTxInstallmentsPaid('0')
+    setVoiceFields({
+      amount: !!data.amount,
+      description: !!data.description,
+      category: !!data.categoryId,
+      account: !!accId,
+      date: !!data.date,
+    })
+    setDialogOpen(true)
+  }
+
+  // Submissão oficial após validação do usuário na tela
+  const handleSubmitTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!txAmount || !txAccountId) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Por favor, preencha o valor e a conta do lançamento.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSavingTx(true)
+    try {
+      const parsedAmount = Math.abs(parseFloat(txAmount))
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw new Error('Informe um valor válido maior que zero.')
+      }
+
+      const selectedAcc = accounts.find((a) => a.id === txAccountId)
+      const competenceMonth = txDate.slice(0, 7)
+      let cashMonth = competenceMonth
+
+      if (
+        selectedAcc &&
+        selectedAcc.type === 'credit_card' &&
+        selectedAcc.closing_day &&
+        selectedAcc.due_day
+      ) {
+        cashMonth = accountsService.calculateCashDueDate(
+          txDate,
+          selectedAcc.closing_day,
+          selectedAcc.due_day,
+        )
+      }
+
+      const isCreditCard = selectedAcc?.type === 'credit_card'
+      const installments =
+        txType === 'expense' && isCreditCard ? Math.max(1, parseInt(txInstallmentsTotal, 10) || 1) : 1
+
+      await transactionsService.create({
+        description: txDescription || 'Lançamento via Copiloto',
+        amount: parsedAmount,
+        type: txType,
+        account_id: txAccountId,
+        category_id: txType === 'expense' || txType === 'income' ? txCategoryId || undefined : undefined,
+        date: txDate,
+        competence_month: competenceMonth,
+        cash_month: cashMonth,
+        installments_total: installments,
+        installments_paid:
+          installments > 1
+            ? Math.min(installments, Math.max(0, parseInt(txInstallmentsPaid, 10) || 0))
+            : 0,
+        notes: txNotes || undefined,
+        status: 'completed',
+      })
+
+      toast({
+        title: 'Lançamento confirmado com sucesso!',
+        description: `${txType === 'income' ? 'Receita' : 'Despesa'} de ${formatBRL(parsedAmount)} cadastrada.`,
+      })
+
+      setDialogOpen(false)
+      setQuickInput('')
+      setSuggestion(null)
+      loadData()
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: err.message || 'Não foi possível salvar o lançamento.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingTx(false)
+    }
+  }
+
+  // Confirma e abre a tela com a sugestão atual
+  const handleConfirmTransaction = () => {
     if (!suggestion || suggestion.parseResult.amount === null) {
       toast({
         title: 'Valor não identificado',
@@ -134,57 +273,21 @@ export const CopilotPage: React.FC = () => {
       return
     }
 
-    setIsSavingTx(true)
-    try {
-      const todayIso = new Date().toISOString().split('T')[0]
-      const txDate = suggestion.parseResult.date || todayIso
-
-      let selectedAccountId = suggestion.suggestedAccountId
-      if (!selectedAccountId && accounts.length > 0) {
-        selectedAccountId = accounts[0].id
-      }
-
-      await transactionsService.create({
-        description: suggestion.parseResult.description || 'Lançamento via Copiloto',
-        amount: suggestion.parseResult.amount,
-        type: suggestion.parseResult.type,
-        date: txDate,
-        account_id: selectedAccountId || undefined,
-        category_id: suggestion.suggestedCategoryId || undefined,
-        status: 'completed',
-      })
-
-      toast({
-        title: 'Lançamento salvo com sucesso!',
-        description: `${suggestion.parseResult.type === 'income' ? 'Receita' : 'Despesa'} de R$ ${suggestion.parseResult.amount.toFixed(2)} cadastrada.`,
-      })
-
-      setQuickInput('')
-      setSuggestion(null)
-      loadData()
-    } catch (err) {
-      toast({
-        title: 'Erro ao salvar',
-        description: 'Não foi possível cadastrar o lançamento. Tente novamente.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsSavingTx(false)
-    }
+    openTransactionDialogWithData({
+      type: suggestion.parseResult.type,
+      description: suggestion.parseResult.description,
+      amount: suggestion.parseResult.amount,
+      date: suggestion.parseResult.date,
+      accountId: suggestion.suggestedAccountId,
+      categoryId: suggestion.suggestedCategoryId,
+    })
   }
 
-  // Envio direto por texto ou tecla Enter
+  // Ao clicar em Enviar por texto ou dar Enter: interpreta e abre a tela de confirmação
   const handleSendQuickInput = async () => {
     const text = quickInput.trim()
     if (!text) return
 
-    // Se já tiver uma sugestão pronta com valor, confirma e salva diretamente
-    if (suggestion && suggestion.parseResult.amount !== null) {
-      await handleConfirmTransaction()
-      return
-    }
-
-    // Se ainda não gerou ou mudou, interpreta na hora
     try {
       const parsed = await copilotService.parseNaturalTransaction(text, accounts, categories)
       setSuggestion(parsed)
@@ -195,47 +298,28 @@ export const CopilotPage: React.FC = () => {
           description: 'Por favor, inclua um valor monetário na frase (ex: "Almoço 45 reais").',
           variant: 'destructive',
         })
-      } else {
-        setIsSavingTx(true)
-        const todayIso = new Date().toISOString().split('T')[0]
-        const txDate = parsed.parseResult.date || todayIso
-
-        let selectedAccountId = parsed.suggestedAccountId
-        if (!selectedAccountId && accounts.length > 0) {
-          selectedAccountId = accounts[0].id
-        }
-
-        await transactionsService.create({
-          description: parsed.parseResult.description || 'Lançamento via Copiloto',
-          amount: parsed.parseResult.amount,
-          type: parsed.parseResult.type,
-          date: txDate,
-          account_id: selectedAccountId || undefined,
-          category_id: parsed.suggestedCategoryId || undefined,
-          status: 'completed',
-        })
-
-        toast({
-          title: 'Lançamento salvo com sucesso!',
-          description: `${parsed.parseResult.type === 'income' ? 'Receita' : 'Despesa'} de R$ ${parsed.parseResult.amount.toFixed(2)} cadastrada.`,
-        })
-
-        setQuickInput('')
-        setSuggestion(null)
-        loadData()
+        return
       }
+
+      // Abre a tela de lançamento pré-preenchida para validação
+      openTransactionDialogWithData({
+        type: parsed.parseResult.type,
+        description: parsed.parseResult.description,
+        amount: parsed.parseResult.amount,
+        date: parsed.parseResult.date,
+        accountId: parsed.suggestedAccountId,
+        categoryId: parsed.suggestedCategoryId,
+      })
     } catch (err) {
       toast({
-        title: 'Erro ao processar',
-        description: 'Não foi possível salvar o lançamento. Tente novamente.',
+        title: 'Erro ao interpretar',
+        description: 'Não foi possível ler as informações do lançamento.',
         variant: 'destructive',
       })
-    } finally {
-      setIsSavingTx(false)
     }
   }
 
-  // Ativa reconhecimento de voz no navegador caso disponível
+  // Ativa reconhecimento de voz: ao concluir a fala, preenche e abre a tela de lançamento
   const handleToggleVoice = () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -262,9 +346,25 @@ export const CopilotPage: React.FC = () => {
       recognition.onstart = () => setIsListening(true)
       recognition.onend = () => setIsListening(false)
       recognition.onerror = () => setIsListening(false)
-      recognition.onresult = (event: any) => {
+      recognition.onresult = async (event: any) => {
         const transcript = event.results[0][0].transcript
-        handleQuickInputChange(transcript)
+        setQuickInput(transcript)
+        try {
+          const parsed = await copilotService.parseNaturalTransaction(transcript, accounts, categories)
+          setSuggestion(parsed)
+          if (parsed.parseResult.amount !== null && parsed.parseResult.amount > 0) {
+            openTransactionDialogWithData({
+              type: parsed.parseResult.type,
+              description: parsed.parseResult.description,
+              amount: parsed.parseResult.amount,
+              date: parsed.parseResult.date,
+              accountId: parsed.suggestedAccountId,
+              categoryId: parsed.suggestedCategoryId,
+            })
+          }
+        } catch (err) {
+          console.error('Erro ao interpretar fala:', err)
+        }
       }
 
       recognition.start()
@@ -894,11 +994,49 @@ export const CopilotPage: React.FC = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Modal / Tela Cheia do Modo Live */}
+      {/* Modal / Tela Cheia do Modo Live com Callback de Confirmação */}
       <CopilotLiveMode
         isOpen={liveModeOpen}
         onClose={() => setLiveModeOpen(false)}
         onTransactionCreated={loadData}
+        onReviewTransaction={(data) => {
+          openTransactionDialogWithData(data)
+        }}
+      />
+
+      {/* Modal Oficial de Lançamento para Validação Prévia do Usuário */}
+      <TransactionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        type={txType}
+        setType={setTxType}
+        description={txDescription}
+        setDescription={setTxDescription}
+        amount={txAmount}
+        setAmount={setTxAmount}
+        date={txDate}
+        setDate={setTxDate}
+        accountId={txAccountId}
+        setAccountId={setTxAccountId}
+        targetAccountId={txTargetAccountId}
+        setTargetAccountId={setTxTargetAccountId}
+        selectedInvoiceId={txSelectedInvoiceId}
+        setSelectedInvoiceId={setTxSelectedInvoiceId}
+        categoryId={txCategoryId}
+        setCategoryId={setTxCategoryId}
+        notes={txNotes}
+        setNotes={setTxNotes}
+        installmentsTotal={txInstallmentsTotal}
+        setInstallmentsTotal={setTxInstallmentsTotal}
+        installmentsPaid={txInstallmentsPaid}
+        setInstallmentsPaid={setTxInstallmentsPaid}
+        accounts={accounts}
+        categories={categories}
+        openInvoices={openInvoices}
+        deparaRules={deparaRules}
+        saving={isSavingTx}
+        onSubmit={handleSubmitTransaction}
+        voiceFields={voiceFields}
       />
     </div>
   )
