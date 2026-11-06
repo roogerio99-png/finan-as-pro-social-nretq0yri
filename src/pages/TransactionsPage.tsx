@@ -29,7 +29,12 @@ import {
   Mic,
   Sparkles,
   Loader2,
+  List,
+  CalendarDays,
 } from 'lucide-react'
+import { ResponsiveTabsList } from '@/components/ui/responsive-tabs'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { TransactionsCalendarView } from '@/components/transactions/TransactionsCalendarView'
 import { useToast } from '@/hooks/use-toast'
 import {
   isInstallmentTransaction,
@@ -54,6 +59,7 @@ export const TransactionsPage: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr)
   const [regime, setRegime] = useState<'competence' | 'cash'>('competence')
   const [filterType, setFilterType] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
 
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
@@ -601,8 +607,10 @@ export const TransactionsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* Alternador de Regime: Competência vs Caixa */}
           <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold w-full sm:w-auto justify-center sm:justify-start">
             <button
+              type="button"
               onClick={() => setRegime('competence')}
               className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all ${
                 regime === 'competence' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600'
@@ -611,6 +619,7 @@ export const TransactionsPage: React.FC = () => {
               Competência
             </button>
             <button
+              type="button"
               onClick={() => setRegime('cash')}
               className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all ${
                 regime === 'cash' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600'
@@ -620,6 +629,7 @@ export const TransactionsPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Seletor do mês */}
           <div className="flex items-center space-x-2 flex-1 sm:flex-initial">
             <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
             <input
@@ -681,458 +691,504 @@ export const TransactionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Totais do mês no regime selecionado — Neutro para transferência e pagamento de fatura */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
-          <CardContent className="p-4">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Receitas ({selectedMonth})
-            </span>
-            <div className="text-xl font-black text-emerald-600 mt-1">
-              {formatCurrency(
-                filteredTransactions
-                  .filter((t) => t.type === 'income')
-                  .reduce(
-                    (acc, t) =>
-                      acc +
-                      (regime === 'cash'
-                        ? cashValueForMonth(t, selectedMonth, accounts)
-                        : t.amount),
-                    0,
-                  ),
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
-          <CardContent className="p-4">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Despesas ({selectedMonth})
-            </span>
-            <div className="text-xl font-black text-rose-600 mt-1">
-              {formatCurrency(
-                filteredTransactions
-                  .filter((t) => t.type === 'expense')
-                  .reduce(
-                    (acc, t) =>
-                      acc +
-                      (regime === 'cash'
-                        ? cashValueForMonth(t, selectedMonth, accounts)
-                        : t.amount),
-                    0,
-                  ),
-              )}
-            </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              Não inclui transferências nem quitações de fatura
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
-          <CardContent className="p-4">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Saldo do Mês ({regime === 'cash' ? 'Caixa' : 'Competência'})
-            </span>
-            <div className="text-xl font-black text-slate-900 mt-1">
-              {formatCurrency(
-                filteredTransactions
-                  .filter((t) => t.type === 'income' || t.type === 'expense')
-                  .reduce(
-                    (acc, t) =>
-                      acc +
-                      (t.type === 'income' ? 1 : -1) *
+      {/* Alternador de Visualização: Lista vs Calendário */}
+      <Tabs
+        value={viewMode}
+        onValueChange={(val) => setViewMode(val as 'list' | 'calendar')}
+        className="w-full min-w-0"
+      >
+        <ResponsiveTabsList className="h-11 sm:h-10 gap-1 flex-nowrap w-full sm:w-auto sm:inline-flex">
+          <TabsTrigger
+            value="list"
+            className="flex-1 sm:flex-initial rounded-xl px-4 py-2 text-xs font-bold gap-2 shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+          >
+            <List className="w-4 h-4" />
+            Visão em Lista
+          </TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="flex-1 sm:flex-initial rounded-xl px-4 py-2 text-xs font-bold gap-2 shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+          >
+            <CalendarDays className="w-4 h-4" />
+            Visão em Calendário
+          </TabsTrigger>
+        </ResponsiveTabsList>
+
+        {/* Totais do mês no regime selecionado — Compartilhado entre Lista e Calendário */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+          <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+            <CardContent className="p-4">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Receitas ({selectedMonth})
+              </span>
+              <div className="text-xl font-black text-emerald-600 mt-1">
+                {formatCurrency(
+                  filteredTransactions
+                    .filter((t) => t.type === 'income')
+                    .reduce(
+                      (acc, t) =>
+                        acc +
                         (regime === 'cash'
                           ? cashValueForMonth(t, selectedMonth, accounts)
                           : t.amount),
-                    0,
-                  ),
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtros por tipo de movimento — scroll horizontal suave em mobile */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
-        <div className="flex items-center gap-1 shrink-0 text-slate-400">
-          <Filter className="w-4 h-4" />
-          <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Filtrar:</span>
-        </div>
-        <button
-          onClick={() => setFilterType('all')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
-            filterType === 'all'
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-          }`}
-        >
-          Todos ({transactions.length})
-        </button>
-        <button
-          onClick={() => setFilterType('income')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
-            filterType === 'income'
-              ? 'bg-emerald-600 text-white'
-              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-          }`}
-        >
-          Receitas ({transactions.filter((t) => t.type === 'income').length})
-        </button>
-        <button
-          onClick={() => setFilterType('expense')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
-            filterType === 'expense'
-              ? 'bg-rose-600 text-white'
-              : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-          }`}
-        >
-          Despesas ({transactions.filter((t) => t.type === 'expense').length})
-        </button>
-        <button
-          onClick={() => setFilterType('transfer')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
-            filterType === 'transfer'
-              ? 'bg-blue-600 text-white'
-              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-          }`}
-        >
-          Transferências ({transactions.filter((t) => t.type === 'transfer').length})
-        </button>
-        <button
-          onClick={() => setFilterType('invoice_payment')}
-          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
-            filterType === 'invoice_payment'
-              ? 'bg-purple-600 text-white'
-              : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-          }`}
-        >
-          Pagamento Fatura ({transactions.filter((t) => t.type === 'invoice_payment').length})
-        </button>
-      </div>
-
-      {/* Visualização Mobile: Cards empilhados (md:hidden) */}
-      <div className="md:hidden space-y-3">
-        {filteredTransactions.length === 0 ? (
-          <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300 text-center space-y-3">
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
-              <Receipt className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-800">
-              {transactions.length === 0
-                ? 'Base de Lançamentos Limpa'
-                : 'Nenhum lançamento encontrado'}
-            </h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {transactions.length === 0
-                ? 'Base limpa e pronta para receber seus dados reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
-                : 'Não há lançamentos para o mês ou filtro selecionado.'}
-            </p>
-            <Button
-              onClick={handleOpenCreate}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
-            >
-              <PlusCircle className="w-4 h-4" /> Novo Lançamento Real
-            </Button>
-          </div>
-        ) : (
-          filteredTransactions.map((tx) => {
-            const isExpense = tx.type === 'expense'
-            const isIncome = tx.type === 'income'
-            const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
-            const account = tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
-            const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
-            const category =
-              tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
-
-            return (
-              <div
-                key={tx.id}
-                className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {renderTypeBadge(tx.type)}
-                      <span className="text-[11px] font-bold text-slate-400">{tx.date}</span>
-                    </div>
-                    <h3 className="font-bold text-slate-900 text-base leading-snug break-words">
-                      {tx.description}
-                    </h3>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <span
-                      className={`text-base font-black tracking-tight ${
-                        isIncome
-                          ? 'text-emerald-600'
-                          : isExpense
-                            ? 'text-rose-600'
-                            : 'text-slate-700'
-                      }`}
-                    >
-                      {isIncome ? '+ ' : isExpense ? '- ' : ''}
-                      {regime === 'cash' && isInstallmentTransaction(tx)
-                        ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
-                        : formatCurrency(tx.amount)}
-                    </span>
-                    {regime === 'cash' && isInstallmentTransaction(tx) && (
-                      <div className="text-[10px] text-purple-600 font-semibold">
-                        (de {formatCurrency(tx.amount)})
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {tx.notes && (
-                  <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                    {tx.notes}
-                  </p>
+                      0,
+                    ),
                 )}
-
-                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium">
-                      {account?.type === 'credit_card' ? (
-                        <CreditCard className="w-3 h-3 text-purple-600" />
-                      ) : (
-                        <Clock className="w-3 h-3 text-slate-500" />
-                      )}
-                      <span className="max-w-[120px] truncate">{account?.name || 'Conta'}</span>
-                      {tx.type === 'transfer' && targetAcc && (
-                        <span className="text-blue-700 font-bold">→ {targetAcc.name}</span>
-                      )}
-                    </span>
-
-                    {!isNeutral && category && (
-                      <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 text-[11px] font-medium max-w-[140px] truncate">
-                        {category.name}
-                      </span>
-                    )}
-
-                    {isInstallmentTransaction(tx) ? (
-                      <span className="px-2 py-0.5 rounded-md font-bold bg-purple-50 text-purple-700 border border-purple-200 text-[10px]">
-                        {tx.installments_total}x
-                        {(tx.installments_paid ?? 0) > 0 ? ` (${tx.installments_paid}p)` : ''}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400">
-                        Comp: {tx.competence_month}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1 ml-auto">
-                    <button
-                      onClick={() => handleOpenEdit(tx)}
-                      className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                      title="Alterar lançamento"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                      title="Excluir lançamento"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
               </div>
-            )
-          })
-        )}
-      </div>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+            <CardContent className="p-4">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Despesas ({selectedMonth})
+              </span>
+              <div className="text-xl font-black text-rose-600 mt-1">
+                {formatCurrency(
+                  filteredTransactions
+                    .filter((t) => t.type === 'expense')
+                    .reduce(
+                      (acc, t) =>
+                        acc +
+                        (regime === 'cash'
+                          ? cashValueForMonth(t, selectedMonth, accounts)
+                          : t.amount),
+                      0,
+                    ),
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Não inclui transferências nem quitações de fatura
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-xs rounded-2xl bg-white">
+            <CardContent className="p-4">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Saldo do Mês ({regime === 'cash' ? 'Caixa' : 'Competência'})
+              </span>
+              <div className="text-xl font-black text-slate-900 mt-1">
+                {formatCurrency(
+                  filteredTransactions
+                    .filter((t) => t.type === 'income' || t.type === 'expense')
+                    .reduce(
+                      (acc, t) =>
+                        acc +
+                        (t.type === 'income' ? 1 : -1) *
+                          (regime === 'cash'
+                            ? cashValueForMonth(t, selectedMonth, accounts)
+                            : t.amount),
+                      0,
+                    ),
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Tabela Desktop (md:block) — Preservada sem alterações */}
-      <Card className="hidden md:block border-slate-200 shadow-xs rounded-2xl overflow-hidden bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-              <tr>
-                <th className="py-3 px-4">Data / Mês</th>
-                <th className="py-3 px-4">Tipo</th>
-                <th className="py-3 px-4">Descrição</th>
-                <th className="py-3 px-4">Conta / Cartão</th>
-                <th className="py-3 px-4">Categoria / Subgrupo</th>
-                <th className="py-3 px-4">Caixa vs Competência</th>
-                <th className="py-3 px-4 text-right">Valor</th>
-                <th className="py-3 px-4 text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center">
-                    <div className="max-w-md mx-auto space-y-3">
-                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
-                        <Receipt className="w-6 h-6" />
-                      </div>
-                      <h4 className="text-base font-bold text-slate-800">
-                        {transactions.length === 0
-                          ? 'Base de Lançamentos Limpa'
-                          : 'Nenhum lançamento encontrado'}
-                      </h4>
-                      <p className="text-xs text-slate-500">
-                        {transactions.length === 0
-                          ? 'Pronto para ingressar com seus dados financeiros reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
-                          : 'Nenhum lançamento encontrado para os filtros selecionados no mês.'}
-                      </p>
-                      <Button
-                        onClick={handleOpenCreate}
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5" /> Inserir Lançamento Real
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                filteredTransactions.map((tx) => {
-                  const isExpense = tx.type === 'expense'
-                  const isIncome = tx.type === 'income'
-                  const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
-                  const account =
-                    tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
-                  const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
-                  const category =
-                    tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
+        {/* Filtros por tipo de movimento — scroll horizontal suave em mobile */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap mt-4">
+          <div className="flex items-center gap-1 shrink-0 text-slate-400">
+            <Filter className="w-4 h-4" />
+            <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Filtrar:</span>
+          </div>
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              filterType === 'all'
+                ? 'bg-slate-900 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Todos ({transactions.length})
+          </button>
+          <button
+            onClick={() => setFilterType('income')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              filterType === 'income'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+            }`}
+          >
+            Receitas ({transactions.filter((t) => t.type === 'income').length})
+          </button>
+          <button
+            onClick={() => setFilterType('expense')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              filterType === 'expense'
+                ? 'bg-rose-600 text-white'
+                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+            }`}
+          >
+            Despesas ({transactions.filter((t) => t.type === 'expense').length})
+          </button>
+          <button
+            onClick={() => setFilterType('transfer')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              filterType === 'transfer'
+                ? 'bg-blue-600 text-white'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            Transferências ({transactions.filter((t) => t.type === 'transfer').length})
+          </button>
+          <button
+            onClick={() => setFilterType('invoice_payment')}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              filterType === 'invoice_payment'
+                ? 'bg-purple-600 text-white'
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            Pagamento Fatura ({transactions.filter((t) => t.type === 'invoice_payment').length})
+          </button>
+        </div>
 
-                  return (
-                    <tr key={tx.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3 px-4 text-slate-700 font-medium whitespace-nowrap">
-                        <div className="text-xs font-bold text-slate-900">{tx.date}</div>
-                        <div className="text-[11px] text-slate-400">
-                          Comp: {tx.competence_month}
+        {/* Conteúdo Aba Lista */}
+        <TabsContent value="list" className="mt-4 space-y-4">
+          {/* Visualização Mobile: Cards empilhados (md:hidden) */}
+          <div className="md:hidden space-y-3">
+            {filteredTransactions.length === 0 ? (
+              <div className="bg-white p-6 rounded-2xl border border-dashed border-slate-300 text-center space-y-3">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  {transactions.length === 0
+                    ? 'Base de Lançamentos Limpa'
+                    : 'Nenhum lançamento encontrado'}
+                </h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {transactions.length === 0
+                    ? 'Base limpa e pronta para receber seus dados reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
+                    : 'Não há lançamentos para o mês ou filtro selecionado.'}
+                </p>
+                <Button
+                  onClick={handleOpenCreate}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
+                >
+                  <PlusCircle className="w-4 h-4" /> Novo Lançamento Real
+                </Button>
+              </div>
+            ) : (
+              filteredTransactions.map((tx) => {
+                const isExpense = tx.type === 'expense'
+                const isIncome = tx.type === 'income'
+                const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
+                const account =
+                  tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
+                const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
+                const category =
+                  tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {renderTypeBadge(tx.type)}
+                          <span className="text-[11px] font-bold text-slate-400">{tx.date}</span>
                         </div>
-                        {isInstallmentTransaction(tx) && (
-                          <div className="text-[11px] font-bold text-purple-600">
-                            {tx.installments_total}x
-                            {(tx.installments_paid ?? 0) > 0
-                              ? ` • ${tx.installments_paid} paga(s)`
-                              : ''}
-                          </div>
-                        )}
-                      </td>
+                        <h3 className="font-bold text-slate-900 text-base leading-snug break-words">
+                          {tx.description}
+                        </h3>
+                      </div>
 
-                      <td className="py-3 px-4 whitespace-nowrap">{renderTypeBadge(tx.type)}</td>
-
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {tx.description}
-                        {tx.notes && (
-                          <div className="text-xs font-normal text-slate-400">{tx.notes}</div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-800">
-                          {account?.type === 'credit_card' ? (
-                            <CreditCard className="w-3.5 h-3.5 text-purple-600" />
-                          ) : (
-                            <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          )}
-                          {account?.name || 'Conta'}
-                          {tx.type === 'transfer' && targetAcc && (
-                            <span className="text-blue-700 font-bold flex items-center gap-1">
-                              → {targetAcc.name}
-                            </span>
-                          )}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {isNeutral ? (
-                          <span className="text-xs text-slate-400 italic">Movimento Neutro</span>
-                        ) : (
-                          <>
-                            <div className="text-xs font-bold text-slate-800">
-                              {category
-                                ? category.code
-                                  ? `${category.code} ${category.name}`
-                                  : category.name
-                                : 'Sem Categoria'}
-                            </div>
-                            <div className="text-[11px] text-slate-400">
-                              {category?.group_code ? `${category.group_code} ` : ''}
-                              {category?.group_level1}
-                              {category?.group_level2 ? ` • ${category.group_level2}` : ''}
-                            </div>
-                          </>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {isInstallmentTransaction(tx) ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                            {tx.installments_total}x de{' '}
-                            {formatCurrency(
-                              installmentValue(tx.amount, tx.installments_total ?? 1),
-                            )}
-                            {regime === 'cash' && (
-                              <span className="ml-1 font-normal text-purple-600">
-                                • desembolso a partir de {firstCashMonthFor(tx, accounts)}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span
-                            className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                              tx.competence_month === tx.cash_month
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : 'bg-purple-50 text-purple-800 border border-purple-200'
-                            }`}
-                          >
-                            {tx.competence_month === tx.cash_month
-                              ? 'Mesmo mês'
-                              : `Desembolso: ${tx.cash_month}`}
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-4 text-right whitespace-nowrap font-black">
+                      <div className="text-right flex-shrink-0">
                         <span
-                          className={
+                          className={`text-base font-black tracking-tight ${
                             isIncome
                               ? 'text-emerald-600'
                               : isExpense
                                 ? 'text-rose-600'
                                 : 'text-slate-700'
-                          }
+                          }`}
                         >
                           {isIncome ? '+ ' : isExpense ? '- ' : ''}
                           {regime === 'cash' && isInstallmentTransaction(tx)
                             ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
                             : formatCurrency(tx.amount)}
                         </span>
-                      </td>
+                        {regime === 'cash' && isInstallmentTransaction(tx) && (
+                          <div className="text-[10px] text-purple-600 font-semibold">
+                            (de {formatCurrency(tx.amount)})
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleOpenEdit(tx)}
-                            className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                            title="Alterar lançamento"
+                    {tx.notes && (
+                      <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        {tx.notes}
+                      </p>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-medium">
+                          {account?.type === 'credit_card' ? (
+                            <CreditCard className="w-3 h-3 text-purple-600" />
+                          ) : (
+                            <Clock className="w-3 h-3 text-slate-500" />
+                          )}
+                          <span className="max-w-[120px] truncate">{account?.name || 'Conta'}</span>
+                          {tx.type === 'transfer' && targetAcc && (
+                            <span className="text-blue-700 font-bold">→ {targetAcc.name}</span>
+                          )}
+                        </span>
+
+                        {!isNeutral && category && (
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 text-[11px] font-medium max-w-[140px] truncate">
+                            {category.name}
+                          </span>
+                        )}
+
+                        {isInstallmentTransaction(tx) ? (
+                          <span className="px-2 py-0.5 rounded-md font-bold bg-purple-50 text-purple-700 border border-purple-200 text-[10px]">
+                            {tx.installments_total}x
+                            {(tx.installments_paid ?? 0) > 0 ? ` (${tx.installments_paid}p)` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">
+                            Comp: {tx.competence_month}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          onClick={() => handleOpenEdit(tx)}
+                          className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Alterar lançamento"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tx.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Excluir lançamento"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Tabela Desktop (md:block) — Preservada sem alterações */}
+          <Card className="hidden md:block border-slate-200 shadow-xs rounded-2xl overflow-hidden bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Data / Mês</th>
+                    <th className="py-3 px-4">Tipo</th>
+                    <th className="py-3 px-4">Descrição</th>
+                    <th className="py-3 px-4">Conta / Cartão</th>
+                    <th className="py-3 px-4">Categoria / Subgrupo</th>
+                    <th className="py-3 px-4">Caixa vs Competência</th>
+                    <th className="py-3 px-4 text-right">Valor</th>
+                    <th className="py-3 px-4 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredTransactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-12 text-center">
+                        <div className="max-w-md mx-auto space-y-3">
+                          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl mx-auto flex items-center justify-center">
+                            <Receipt className="w-6 h-6" />
+                          </div>
+                          <h4 className="text-base font-bold text-slate-800">
+                            {transactions.length === 0
+                              ? 'Base de Lançamentos Limpa'
+                              : 'Nenhum lançamento encontrado'}
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            {transactions.length === 0
+                              ? 'Pronto para ingressar com seus dados financeiros reais. Clique no botão abaixo para adicionar seu primeiro lançamento.'
+                              : 'Nenhum lançamento encontrado para os filtros selecionados no mês.'}
+                          </p>
+                          <Button
+                            onClick={handleOpenCreate}
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
                           >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(tx.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                            <PlusCircle className="w-3.5 h-3.5" /> Inserir Lançamento Real
+                          </Button>
                         </div>
                       </td>
                     </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+                  ) : (
+                    filteredTransactions.map((tx) => {
+                      const isExpense = tx.type === 'expense'
+                      const isIncome = tx.type === 'income'
+                      const isNeutral = tx.type === 'transfer' || tx.type === 'invoice_payment'
+                      const account =
+                        tx.expand?.account_id || accounts.find((a) => a.id === tx.account_id)
+                      const targetAcc = accounts.find((a) => a.id === tx.transfer_account_id)
+                      const category =
+                        tx.expand?.category_id || categories.find((c) => c.id === tx.category_id)
+
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3 px-4 text-slate-700 font-medium whitespace-nowrap">
+                            <div className="text-xs font-bold text-slate-900">{tx.date}</div>
+                            <div className="text-[11px] text-slate-400">
+                              Comp: {tx.competence_month}
+                            </div>
+                            {isInstallmentTransaction(tx) && (
+                              <div className="text-[11px] font-bold text-purple-600">
+                                {tx.installments_total}x
+                                {(tx.installments_paid ?? 0) > 0
+                                  ? ` • ${tx.installments_paid} paga(s)`
+                                  : ''}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {renderTypeBadge(tx.type)}
+                          </td>
+
+                          <td className="py-3 px-4 font-semibold text-slate-900">
+                            {tx.description}
+                            {tx.notes && (
+                              <div className="text-xs font-normal text-slate-400">{tx.notes}</div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-xs font-medium text-slate-800">
+                              {account?.type === 'credit_card' ? (
+                                <CreditCard className="w-3.5 h-3.5 text-purple-600" />
+                              ) : (
+                                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                              )}
+                              {account?.name || 'Conta'}
+                              {tx.type === 'transfer' && targetAcc && (
+                                <span className="text-blue-700 font-bold flex items-center gap-1">
+                                  → {targetAcc.name}
+                                </span>
+                              )}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                            {isNeutral ? (
+                              <span className="text-xs text-slate-400 italic">
+                                Movimento Neutro
+                              </span>
+                            ) : (
+                              <>
+                                <div className="text-xs font-bold text-slate-800">
+                                  {category
+                                    ? category.code
+                                      ? `${category.code} ${category.name}`
+                                      : category.name
+                                    : 'Sem Categoria'}
+                                </div>
+                                <div className="text-[11px] text-slate-400">
+                                  {category?.group_code ? `${category.group_code} ` : ''}
+                                  {category?.group_level1}
+                                  {category?.group_level2 ? ` • ${category.group_level2}` : ''}
+                                </div>
+                              </>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            {isInstallmentTransaction(tx) ? (
+                              <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                                {tx.installments_total}x de{' '}
+                                {formatCurrency(
+                                  installmentValue(tx.amount, tx.installments_total ?? 1),
+                                )}
+                                {regime === 'cash' && (
+                                  <span className="ml-1 font-normal text-purple-600">
+                                    • desembolso a partir de {firstCashMonthFor(tx, accounts)}
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span
+                                className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
+                                  tx.competence_month === tx.cash_month
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                    : 'bg-purple-50 text-purple-800 border border-purple-200'
+                                }`}
+                              >
+                                {tx.competence_month === tx.cash_month
+                                  ? 'Mesmo mês'
+                                  : `Desembolso: ${tx.cash_month}`}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-black">
+                            <span
+                              className={
+                                isIncome
+                                  ? 'text-emerald-600'
+                                  : isExpense
+                                    ? 'text-rose-600'
+                                    : 'text-slate-700'
+                              }
+                            >
+                              {isIncome ? '+ ' : isExpense ? '- ' : ''}
+                              {regime === 'cash' && isInstallmentTransaction(tx)
+                                ? formatCurrency(cashValueForMonth(tx, selectedMonth, accounts))
+                                : formatCurrency(tx.amount)}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleOpenEdit(tx)}
+                                className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="Alterar lançamento"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(tx.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* Conteúdo Aba Calendário */}
+        <TabsContent value="calendar" className="mt-4">
+          <TransactionsCalendarView
+            transactions={filteredTransactions}
+            accounts={accounts}
+            categories={categories}
+            selectedMonth={selectedMonth}
+            onMonthChange={(newMonth) => setSelectedMonth(newMonth)}
+            regime={regime}
+            onEditTransaction={handleOpenEdit}
+            onDeleteTransaction={handleDelete}
+          />
+        </TabsContent>
+      </Tabs>
 
       <TransactionDialog
         open={dialogOpen}
