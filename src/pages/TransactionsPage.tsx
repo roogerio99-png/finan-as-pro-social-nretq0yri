@@ -499,21 +499,7 @@ export const TransactionsPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      {/* Lançamento por voz — captura e transcrição para conferência */}
-      {voiceSupported ? (
-        <VoiceCaptureBar
-          listening={voiceListening}
-          transcript={voiceTranscript}
-          interim={voiceInterim}
-          error={voiceError}
-          onStart={startVoice}
-          onStop={stopVoice}
-          onClear={resetVoice}
-          onExampleClick={applyVoiceResult}
-        />
-      ) : (
-        <VoiceUnsupportedNote />
-      )}
+      
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
         <div>
