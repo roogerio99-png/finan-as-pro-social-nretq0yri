@@ -50,9 +50,9 @@ export const NodeDialogForm: React.FC<NodeDialogFormProps> = ({
       )}
       <div className="grid grid-cols-[1fr_auto] gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="nodeName">Nome</Label>
+          <Label htmlFor="nodeTitle">Nome</Label>
           <Input
-            id="nodeName"
+            id="nodeTitle"
             value={dialog.name}
             onChange={(e) => onChange({ name: e.target.value })}
             placeholder={dialog.level === 1 ? 'Ex.: Habitação e Moradia' : 'Ex.: Concessionárias'}
