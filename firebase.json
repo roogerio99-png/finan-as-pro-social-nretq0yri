@@ -37,6 +37,15 @@
         ]
       },
       {
+        "source": "/(index.html|version.json|app-license.json|sw.js)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/assets/**",
         "headers": [
           {

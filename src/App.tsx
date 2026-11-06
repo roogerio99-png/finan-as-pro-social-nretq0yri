@@ -4,6 +4,7 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { PrivacyProvider } from '@/contexts/PrivacyContext'
+import { useAutoUpdate } from '@/hooks/useAutoUpdate'
 
 import Layout from './components/Layout'
 import Index from './pages/Index'
@@ -25,12 +26,18 @@ import { ReportsPage } from './pages/ReportsPage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt'
 
+const AutoUpdateListener = () => {
+  useAutoUpdate()
+  return null
+}
+
 const App = () => (
   <ErrorBoundary>
     <BrowserRouter>
       <TooltipProvider>
         <AuthProvider>
           <PrivacyProvider>
+            <AutoUpdateListener />
             <Toaster />
             <Sonner />
             <PwaInstallPrompt />
