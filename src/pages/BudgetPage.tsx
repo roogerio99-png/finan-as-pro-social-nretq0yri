@@ -257,54 +257,55 @@ export const BudgetPage: React.FC = () => {
       {/* Resumo e Filtro de Visualização */}
       {budgets.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-            {' '}
-            <button
-              type="button"
-              onClick={() => setViewFilter('all')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors ${
-                viewFilter === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Todas ({budgets.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewFilter('group')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
-                viewFilter === 'group'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Por Grupo (
-              {
-                budgets.filter((b) => budgetsService.resolveTargetType(b, categories) === 'group')
-                  .length
-              }
-              )
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewFilter('subgroup')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
-                viewFilter === 'subgroup'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Por Subgrupo (
-              {
-                budgets.filter(
-                  (b) => budgetsService.resolveTargetType(b, categories) === 'subgroup',
-                ).length
-              }
-              )
-            </button>
+          <div className="w-full sm:w-auto overflow-x-auto no-scrollbar scroll-smooth snap-x">
+            <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-max sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setViewFilter('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shrink-0 snap-center whitespace-nowrap ${
+                  viewFilter === 'all'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Todas ({budgets.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewFilter('group')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 snap-center whitespace-nowrap ${
+                  viewFilter === 'group'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Por Grupo (
+                {
+                  budgets.filter((b) => budgetsService.resolveTargetType(b, categories) === 'group')
+                    .length
+                }
+                )
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewFilter('subgroup')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shrink-0 snap-center whitespace-nowrap ${
+                  viewFilter === 'subgroup'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                Por Subgrupo (
+                {
+                  budgets.filter(
+                    (b) => budgetsService.resolveTargetType(b, categories) === 'subgroup',
+                  ).length
+                }
+                )
+              </button>
+            </div>
           </div>
 
           <div className="text-xs text-slate-500 font-medium">

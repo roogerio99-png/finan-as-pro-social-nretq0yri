@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react'
 import { Plus, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsTrigger } from '@/components/ui/tabs'
+import { ResponsiveTabsList } from '@/components/ui/responsive-tabs'
 import { OperationDialog } from '@/components/investments/OperationDialog'
 import { PositionsList } from '@/components/investments/PositionsList'
 import { OperationsList } from '@/components/investments/OperationsList'
@@ -112,12 +113,32 @@ export const InvestmentsPage: React.FC = () => {
         <p className="text-sm text-slate-500">Carregando investimentos...</p>
       ) : (
         <Tabs defaultValue="positions" className="w-full min-w-0">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
-            <TabsTrigger value="positions">Posições</TabsTrigger>
-            <TabsTrigger value="operations">Operações</TabsTrigger>
-            <TabsTrigger value="realized">Realizado</TabsTrigger>
-            <TabsTrigger value="tax">Apuração mensal</TabsTrigger>
-          </TabsList>
+          <ResponsiveTabsList className="h-11 sm:h-10 gap-1 flex-nowrap w-max sm:w-full sm:grid sm:grid-cols-4">
+            <TabsTrigger
+              value="positions"
+              className="rounded-xl px-3 sm:px-4 py-2 text-xs font-bold shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+            >
+              Posições
+            </TabsTrigger>
+            <TabsTrigger
+              value="operations"
+              className="rounded-xl px-3 sm:px-4 py-2 text-xs font-bold shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+            >
+              Operações
+            </TabsTrigger>
+            <TabsTrigger
+              value="realized"
+              className="rounded-xl px-3 sm:px-4 py-2 text-xs font-bold shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+            >
+              Realizado
+            </TabsTrigger>
+            <TabsTrigger
+              value="tax"
+              className="rounded-xl px-3 sm:px-4 py-2 text-xs font-bold shrink-0 whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white"
+            >
+              Apuração mensal
+            </TabsTrigger>
+          </ResponsiveTabsList>
 
           <TabsContent value="positions" className="mt-4">
             <PositionsList

@@ -295,28 +295,28 @@ export const DebtsPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Seletor de Método */}
-            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200 text-xs font-bold">
+            <div className="bg-slate-100 p-1 rounded-xl flex flex-wrap sm:flex-nowrap items-center border border-slate-200 text-xs font-bold w-full sm:w-auto">
               <button
                 onClick={() => setSimulationMethod('snowball')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                   simulationMethod === 'snowball'
                     ? 'bg-white text-indigo-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Snowflake className="w-3.5 h-3.5 text-indigo-600" />
-                Bola de Neve (Menor Saldo)
+                <span>Bola de Neve (Menor Saldo)</span>
               </button>
               <button
                 onClick={() => setSimulationMethod('avalanche')}
-                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all ${
+                className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all whitespace-nowrap ${
                   simulationMethod === 'avalanche'
                     ? 'bg-white text-rose-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <Flame className="w-3.5 h-3.5 text-rose-600" />
-                Avalanche (Maior Juros)
+                <span>Avalanche (Maior Juros)</span>
               </button>
             </div>
 

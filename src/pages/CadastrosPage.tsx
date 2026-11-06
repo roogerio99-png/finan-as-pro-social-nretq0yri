@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users } from 'lucide-react'
+import { Tabs, TabsTrigger } from '@/components/ui/tabs'
+import { ResponsiveTabsList } from '@/components/ui/responsive-tabs'
+import { Users, User, CreditCard, FolderTree, Lock } from 'lucide-react'
 import { UsersTab } from '@/components/cadastros/UsersTab'
 import { AccountsTab } from '@/components/cadastros/AccountsTab'
 import { CategoriesTab } from '@/components/cadastros/CategoriesTab'
 import { PrivacyTab } from '@/components/cadastros/PrivacyTab'
 
 const TABS = [
-  { value: 'usuarios', label: 'Usuários' },
-  { value: 'contas', label: 'Contas & Cartões' },
-  { value: 'categorias', label: 'Categorias & Subgrupos' },
-  { value: 'privacidade', label: '🔒 Privacidade & Dados Locais' },
+  { value: 'usuarios', label: 'Usuários', icon: User },
+  { value: 'contas', label: 'Contas & Cartões', icon: CreditCard },
+  { value: 'categorias', label: 'Categorias & Subgrupos', icon: FolderTree },
+  { value: 'privacidade', label: 'Privacidade & Dados Locais', icon: Lock },
 ] as const
 
 type TabValue = (typeof TABS)[number]['value']
@@ -60,17 +61,21 @@ export const CadastrosPage: React.FC = () => {
 
       {/* Abas */}
       <Tabs value={tabValue} onValueChange={handleTabChange}>
-        <TabsList className="h-11 bg-white border border-slate-200 rounded-2xl p-1 shadow-xs w-full grid grid-cols-2 sm:grid-cols-4 sm:w-auto sm:inline-flex">
-          {TABS.map((t) => (
-            <TabsTrigger
-              key={t.value}
-              value={t.value}
-              className="rounded-xl px-2 sm:px-4 py-2 text-xs font-bold data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-none truncate"
-            >
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <ResponsiveTabsList className="h-12 sm:h-11 gap-1 flex-nowrap w-max sm:w-auto">
+          {TABS.map((t) => {
+            const Icon = t.icon
+            return (
+              <TabsTrigger
+                key={t.value}
+                value={t.value}
+                className="rounded-xl px-3 sm:px-4 py-2 text-xs font-bold shrink-0 flex items-center gap-1.5 snap-center whitespace-nowrap data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-xs transition-colors"
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0 opacity-70" />
+                <span>{t.label}</span>
+              </TabsTrigger>
+            )
+          })}
+        </ResponsiveTabsList>
       </Tabs>
 
       {tabValue === 'usuarios' && <UsersTab />}

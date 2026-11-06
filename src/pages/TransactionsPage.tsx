@@ -753,14 +753,14 @@ export const TransactionsPage: React.FC = () => {
       </div>
 
       {/* Filtros por tipo de movimento — scroll horizontal suave em mobile */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
-        <div className="flex items-center gap-1 flex-shrink-0 text-slate-400">
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth snap-x pb-1.5 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap">
+        <div className="flex items-center gap-1 shrink-0 text-slate-400">
           <Filter className="w-4 h-4" />
           <span className="text-xs font-bold text-slate-500 mr-1 hidden sm:inline">Filtrar:</span>
         </div>
         <button
           onClick={() => setFilterType('all')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
             filterType === 'all'
               ? 'bg-slate-900 text-white'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -770,7 +770,7 @@ export const TransactionsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('income')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
             filterType === 'income'
               ? 'bg-emerald-600 text-white'
               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -780,7 +780,7 @@ export const TransactionsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('expense')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
             filterType === 'expense'
               ? 'bg-rose-600 text-white'
               : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
@@ -790,7 +790,7 @@ export const TransactionsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('transfer')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
             filterType === 'transfer'
               ? 'bg-blue-600 text-white'
               : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -800,7 +800,7 @@ export const TransactionsPage: React.FC = () => {
         </button>
         <button
           onClick={() => setFilterType('invoice_payment')}
-          className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
             filterType === 'invoice_payment'
               ? 'bg-purple-600 text-white'
               : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
