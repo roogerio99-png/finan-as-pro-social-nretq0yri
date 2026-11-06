@@ -8,8 +8,8 @@ interface VersionPayload {
   description?: string
 }
 
-// Timestamp do momento em que este cliente foi compilado
-const CURRENT_CLIENT_BUILD = 1793996200000
+const STORAGE_KEY = 'gestio_app_active_build_timestamp'
+const LAST_RELOAD_TIME_KEY = 'gestio_app_last_auto_reload_time'
 
 export const useAutoUpdate = () => {
   const { toast } = useToast()
@@ -27,37 +27,63 @@ export const useAutoUpdate = () => {
       const remote = (await res.json()) as VersionPayload
       if (!remote || !remote.buildTimestamp) return
 
-      // Se a versão remota for mais recente que a que está rodando no cliente
-      if (remote.buildTimestamp > CURRENT_CLIENT_BUILD) {
-        isUpdatingRef.current = true
+      const localBuildStr = localStorage.getItem(STORAGE_KEY)
 
-        toast({
-          title: 'Nova versão disponível!',
-          description:
-            'Atualizando telas e parâmetros do sistema... Seus lançamentos locais continuam 100% preservados.',
-        })
+      // Na primeira visita ou primeira inicialização deste dispositivo, apenas memoriza a versão atual
+      if (!localBuildStr) {
+        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
+        return
+      }
 
-        // Atualiza os caches do Service Worker
-        if ('serviceWorker' in navigator) {
+      const localBuild = Number(localBuildStr) || 0
+
+      // Se a versão remota for idêntica ou menor, o app já está atualizado
+      if (remote.buildTimestamp <= localBuild) {
+        return
+      }
+
+      // Trava contra loop infinito: se já recarregou nos últimos 60 segundos, não recarrega de novo
+      const lastReload = Number(sessionStorage.getItem(LAST_RELOAD_TIME_KEY) || 0)
+      if (Date.now() - lastReload < 60000) {
+        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
+        return
+      }
+
+      // Nova versão detectada!
+      isUpdatingRef.current = true
+      sessionStorage.setItem(LAST_RELOAD_TIME_KEY, String(Date.now()))
+      localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
+
+      toast({
+        title: 'Atualização do Sistema',
+        description:
+          'Nova melhoria de tela publicada. Sincronizando parâmetros locais...',
+      })
+
+      // Atualiza caches do Service Worker caso disponível
+      if ('serviceWorker' in navigator) {
+        try {
           const registrations = await navigator.serviceWorker.getRegistrations()
           for (const reg of registrations) {
             await reg.update()
           }
+        } catch {
+          // ignore
         }
-
-        // Aguarda 1.2s para o usuário ler o aviso e recarrega de forma suave
-        setTimeout(() => {
-          window.location.reload()
-        }, 1200)
       }
+
+      // Recarrega uma única vez de forma suave após 1.5s
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     } catch {
       // Ignora erro em modo offline
     }
   }
 
   useEffect(() => {
-    // 1. Checa imediatamente ao carregar
-    checkVersion()
+    // 1. Checa 3 segundos após o app iniciar (evita piscar no carregamento inicial)
+    const initialTimer = setTimeout(checkVersion, 3000)
 
     // 2. Checa quando o usuário volta para o app no celular ou troca de aba
     const handleVisibilityChange = () => {
@@ -66,14 +92,13 @@ export const useAutoUpdate = () => {
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', checkVersion)
 
-    // 3. Polling periódico leve a cada 90 segundos
-    const interval = setInterval(checkVersion, 90 * 1000)
+    // 3. Polling leve a cada 2 minutos
+    const interval = setInterval(checkVersion, 120 * 1000)
 
     return () => {
+      clearTimeout(initialTimer)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', checkVersion)
       clearInterval(interval)
     }
   }, [])
