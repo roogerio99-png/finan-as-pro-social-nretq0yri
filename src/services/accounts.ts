@@ -6,10 +6,39 @@ export const accountsService = {
     const filter = familyId
       ? `family_id = '${familyId}' || user_id = '${pb.authStore.record?.id}'`
       : `user_id = '${pb.authStore.record?.id}'`
-    const records = await pb.collection('accounts').getFullList<AccountRecord>({
+    let records = await pb.collection('accounts').getFullList<AccountRecord>({
       filter: pb.authStore.record ? filter : '',
       sort: '-created',
     })
+
+    // Auto-provisionamento: garante que qualquer usuário tenha sempre contas padrão prontas para movimentar
+    if (records.length === 0) {
+      try {
+        const defaultChecking = await this.create({
+          name: 'Conta Corrente Principal',
+          type: 'checking',
+          initial_balance: 0,
+          current_balance: 0,
+          color: '#059669',
+          status: 'active',
+        })
+        const defaultCard = await this.create({
+          name: 'Cartão de Crédito',
+          type: 'credit_card',
+          initial_balance: 0,
+          current_balance: 0,
+          credit_limit: 5000,
+          closing_day: 25,
+          due_day: 5,
+          color: '#7C3AED',
+          status: 'active',
+        })
+        records = [defaultChecking, defaultCard]
+      } catch {
+        // fallback
+      }
+    }
+
     if (options?.includeArchived) return records
     // Registros sem status (legado) são considerados ativos.
     return records.filter((a) => (a.status ?? 'active') === 'active')

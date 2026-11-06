@@ -123,7 +123,10 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   useEffect(() => {
     userPickedCategory.current = false
     setSuggestedLabel('')
-  }, [open])
+    if (open && !accountId && accounts.length > 0) {
+      setAccountId(accounts[0].id)
+    }
+  }, [open, accountId, accounts, setAccountId])
 
   useEffect(() => {
     if (!open || userPickedCategory.current) return
@@ -415,6 +418,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 )}
                 required
               >
+                <option value="">Selecione uma conta ou cartão...</option>
                 {accounts
                   .filter((a) => (type === 'invoice_payment' ? a.type !== 'credit_card' : true))
                   .map((a) => (

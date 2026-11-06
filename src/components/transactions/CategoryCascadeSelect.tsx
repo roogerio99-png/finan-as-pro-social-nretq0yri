@@ -51,24 +51,58 @@ export const CategoryCascadeSelect: React.FC<CategoryCascadeSelectProps> = ({
 }) => {
   const groupViews = useMemo(() => buildGroups(categories, type), [categories, type])
   const selectedCat = categories.find((c) => c.id === categoryId)
-  const selectedGroupName = selectedCat ? selectedCat.group_level1 || 'Sem grupo' : ''
+
+  // Estado local para garantir que o grupo permaneça selecionado visualmente
+  const [selectedGroupName, setSelectedGroupName] = React.useState<string>(() => {
+    return selectedCat?.group_level1 || ''
+  })
+
+  React.useEffect(() => {
+    if (selectedCat?.group_level1) {
+      setSelectedGroupName(selectedCat.group_level1)
+    } else if (!categoryId) {
+      setSelectedGroupName('')
+    }
+  }, [categoryId, selectedCat])
+
   const activeGroup: GroupView | undefined = groupViews.find((g) => g.name === selectedGroupName)
   const subgroups = activeGroup?.subgroups ?? []
 
   const handleGroupChange = (name: string) => {
+    setSelectedGroupName(name)
     if (!name) {
       onCategoryChange('')
       return
     }
     const group = groupViews.find((g) => g.name === name)
-    // Grupo sem registro canônico (só linhas de subgrupo): fica sem vínculo
-    // até que um subgrupo seja escolhido abaixo.
-    onCategoryChange(group?.record?.id || '')
+    if (!group) return
+
+    // Se tiver registro canônico puro de grupo, usa ele
+    if (group.record?.id) {
+      onCategoryChange(group.record.id)
+    } else if (group.subgroups.length > 0 && group.subgroups[0].record?.id) {
+      // Se não tiver registro puro do grupo, seleciona o primeiro subgrupo por padrão
+      onCategoryChange(group.subgroups[0].record.id)
+    } else if (group.items.length > 0) {
+      onCategoryChange(group.items[0].id)
+    }
   }
 
   const handleSubgroupChange = (name: string) => {
+    if (!name) {
+      // Voltou para a opção vazia: mantém no grupo
+      const group = groupViews.find((g) => g.name === selectedGroupName)
+      if (group?.record?.id) {
+        onCategoryChange(group.record.id)
+      } else if (group?.items.length) {
+        onCategoryChange(group.items[0].id)
+      }
+      return
+    }
     const sub = subgroups.find((s) => s.name === name)
-    onCategoryChange(sub?.record?.id || sub?.items[0]?.id || '')
+    if (sub) {
+      onCategoryChange(sub.record?.id || sub.items[0]?.id || '')
+    }
   }
 
   const selectCls = cn(variant === 'form' ? FORM_SELECT : COMPACT_SELECT, selectClassName)

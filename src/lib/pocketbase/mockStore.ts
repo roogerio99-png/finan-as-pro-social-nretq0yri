@@ -52,8 +52,36 @@ function createInitialData() {
     updated: nowIso,
   }
 
-  // Carga inicial: somente categorias e subgrupos vêm pré-cadastrados
-  const seededAccounts: MockRecord[] = []
+  // Carga inicial: contas padrão zeradas prontas para uso + categorias
+  const seededAccounts: MockRecord[] = [
+    {
+      id: 'acc_corrente_padrao',
+      user_id: defaultUser.id,
+      name: 'Conta Corrente Principal',
+      type: 'checking',
+      initial_balance: 0,
+      current_balance: 0,
+      color: '#059669',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'acc_cartao_padrao',
+      user_id: defaultUser.id,
+      name: 'Cartão de Crédito',
+      type: 'credit_card',
+      initial_balance: 0,
+      current_balance: 0,
+      credit_limit: 5000,
+      closing_day: 25,
+      due_day: 5,
+      color: '#7C3AED',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+  ]
 
   const seededCategories: MockRecord[] = [
     {
