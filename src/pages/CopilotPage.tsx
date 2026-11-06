@@ -173,6 +173,68 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
+  // Envio direto por texto ou tecla Enter
+  const handleSendQuickInput = async () => {
+    const text = quickInput.trim()
+    if (!text) return
+
+    // Se já tiver uma sugestão pronta com valor, confirma e salva diretamente
+    if (suggestion && suggestion.parseResult.amount !== null) {
+      await handleConfirmTransaction()
+      return
+    }
+
+    // Se ainda não gerou ou mudou, interpreta na hora
+    try {
+      const parsed = await copilotService.parseNaturalTransaction(text, accounts, categories)
+      setSuggestion(parsed)
+
+      if (parsed.parseResult.amount === null) {
+        toast({
+          title: 'Valor não identificado',
+          description: 'Por favor, inclua um valor monetário na frase (ex: "Almoço 45 reais").',
+          variant: 'destructive',
+        })
+      } else {
+        setIsSavingTx(true)
+        const todayIso = new Date().toISOString().split('T')[0]
+        const txDate = parsed.parseResult.date || todayIso
+
+        let selectedAccountId = parsed.suggestedAccountId
+        if (!selectedAccountId && accounts.length > 0) {
+          selectedAccountId = accounts[0].id
+        }
+
+        await transactionsService.create({
+          description: parsed.parseResult.description || 'Lançamento via Copiloto',
+          amount: parsed.parseResult.amount,
+          type: parsed.parseResult.type,
+          date: txDate,
+          account_id: selectedAccountId || undefined,
+          category_id: parsed.suggestedCategoryId || undefined,
+          status: 'completed',
+        })
+
+        toast({
+          title: 'Lançamento salvo com sucesso!',
+          description: `${parsed.parseResult.type === 'income' ? 'Receita' : 'Despesa'} de R$ ${parsed.parseResult.amount.toFixed(2)} cadastrada.`,
+        })
+
+        setQuickInput('')
+        setSuggestion(null)
+        loadData()
+      }
+    } catch (err) {
+      toast({
+        title: 'Erro ao processar',
+        description: 'Não foi possível salvar o lançamento. Tente novamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSavingTx(false)
+    }
+  }
+
   // Ativa reconhecimento de voz no navegador caso disponível
   const handleToggleVoice = () => {
     const SpeechRecognition =
@@ -410,26 +472,45 @@ export const CopilotPage: React.FC = () => {
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               {/* Campo de Entrada Principal */}
-              <div className="relative">
+              <div className="relative flex items-center">
                 <Input
                   value={quickInput}
                   onChange={(e) => handleQuickInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSendQuickInput()
+                    }
+                  }}
                   placeholder="Ex: Paguei 54 reais no almoço hoje com cartão de crédito..."
-                  className="h-16 pl-5 pr-14 text-base sm:text-lg rounded-2xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50/50"
+                  className="h-16 pl-5 pr-28 sm:pr-36 text-base sm:text-lg rounded-2xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50/50"
                 />
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={handleToggleVoice}
-                  className={`absolute right-3 top-3 h-10 w-10 rounded-xl transition-all ${
-                    isListening
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  }`}
-                  title={isListening ? 'Parar gravação' : 'Falar comando de voz'}
-                >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                </Button>
+                <div className="absolute right-3 top-3 flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={handleToggleVoice}
+                    className={`h-10 w-10 rounded-xl transition-all ${
+                      isListening
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
+                    title={isListening ? 'Parar gravação' : 'Falar comando de voz'}
+                  >
+                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={handleSendQuickInput}
+                    disabled={!quickInput.trim() || isSavingTx}
+                    className="h-10 px-3.5 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm transition-all active:scale-95 disabled:opacity-40"
+                    title="Enviar e processar lançamento (Enter)"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="hidden sm:inline text-xs font-semibold">Enviar</span>
+                  </Button>
+                </div>
               </div>
 
               {/* Botões com Exemplos Práticos */}
