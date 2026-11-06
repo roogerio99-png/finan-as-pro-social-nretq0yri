@@ -60,6 +60,7 @@ export const MobileBottomNav: React.FC = () => {
   const primaryTabs = [
     { to: '/painel', label: 'Painel', icon: LayoutDashboard },
     { to: '/lancamentos', label: 'Lançamentos', icon: Receipt },
+    { to: '/copiloto', label: 'Copiloto IA', icon: Sparkles, isAi: true },
     { to: '/faturas', label: 'Faturas', icon: CreditCard },
     { to: '/orcamento', label: 'Orçamento', icon: Target },
   ]
@@ -176,9 +177,10 @@ export const MobileBottomNav: React.FC = () => {
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 6px)' }}
       >
-        <div className="grid grid-cols-5 items-center px-2 pt-1.5 pb-1 max-w-lg mx-auto">
+        <div className="grid grid-cols-6 items-center px-1 pt-1.5 pb-1 max-w-lg mx-auto">
           {primaryTabs.map((tab) => {
             const Icon = tab.icon
+            const isAi = (tab as any).isAi
             return (
               <NavLink
                 key={tab.to}
@@ -186,8 +188,12 @@ export const MobileBottomNav: React.FC = () => {
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center py-1 rounded-xl transition-all duration-150 min-h-[48px] touch-manipulation active:scale-95 ${
                     isActive
-                      ? 'text-emerald-700 font-bold'
-                      : 'text-slate-500 hover:text-slate-900 font-medium'
+                      ? isAi
+                        ? 'text-indigo-600 font-bold'
+                        : 'text-emerald-700 font-bold'
+                      : isAi
+                        ? 'text-indigo-600 font-semibold'
+                        : 'text-slate-500 hover:text-slate-900 font-medium'
                   }`
                 }
               >
@@ -195,7 +201,13 @@ export const MobileBottomNav: React.FC = () => {
                   <>
                     <div
                       className={`p-1 rounded-lg transition-colors ${
-                        isActive ? 'bg-emerald-50 text-emerald-700' : ''
+                        isAi
+                          ? isActive
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-indigo-50 text-indigo-600 border border-indigo-200/60'
+                          : isActive
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : ''
                       }`}
                     >
                       <Icon className="w-5 h-5" />
