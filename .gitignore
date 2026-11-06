@@ -45,6 +45,9 @@ screenshot.png
 # Firebase cache
 .firebase/
 
+# Local workflows
+.github/
+
 # Environment variables
 .env*
 !.env

@@ -14,6 +14,8 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "preview": "vite preview",
+    "deploy": "node scripts/deploy.js",
+    "deploy:quick": "npm run build && npx -y firebase-tools deploy --only hosting",
     "test": "echo \"there are no tests for this project\" && exit 0",
     "test:watch": "echo \"there are no tests for this project\" && exit 0"
   },
