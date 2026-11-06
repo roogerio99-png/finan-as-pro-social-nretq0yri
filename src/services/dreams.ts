@@ -2,6 +2,10 @@ import pb from '@/lib/pocketbase/client'
 import { DreamRecord } from '@/types/finance'
 
 export const dreamsService = {
+  async getAll(): Promise<DreamRecord[]> {
+    return await this.list()
+  },
+
   async list(): Promise<DreamRecord[]> {
     return await pb.collection('dreams').getFullList<DreamRecord>({
       filter: pb.authStore.record ? `user_id = '${pb.authStore.record.id}'` : '',

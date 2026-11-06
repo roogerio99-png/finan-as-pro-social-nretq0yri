@@ -9,6 +9,10 @@ export const transactionsService = {
   // - caixa: transações cujo cash_month seja o mês OU anteriores (parcelas
   //   continuam saindo do caixa nos meses seguintes). A página filtra/mostra
   //   o valor do mês com cashValueForMonth (src/services/installments.ts).
+  async getAll(): Promise<TransactionRecord[]> {
+    return await this.list()
+  },
+
   async list(filters?: {
     month?: string // YYYY-MM
     regime?: 'competence' | 'cash'

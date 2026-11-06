@@ -3,6 +3,10 @@ import { CategoryRecord } from '@/types/finance'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export const categoriesService = {
+  async getAll(): Promise<CategoryRecord[]> {
+    return await this.list()
+  },
+
   async list(options?: { includeInactive?: boolean }): Promise<CategoryRecord[]> {
     const filter = pb.authStore.record
       ? `user_id = '${pb.authStore.record.id}' || user_id = '' || user_id = 'usr_rogerio'`

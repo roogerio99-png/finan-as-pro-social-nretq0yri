@@ -228,16 +228,25 @@ export const CopilotPage: React.FC = () => {
     setIsApplyingBudgets(true)
     try {
       const curMonth = new Date().toISOString().slice(0, 7)
+      if (!budgetRecs || budgetRecs.length === 0) {
+        toast({
+          title: 'Nenhum teto para aplicar',
+          description: 'Ajuste a renda para gerar recomendações.',
+          variant: 'destructive',
+        })
+        return
+      }
       const count = await copilotService.applyBudgetRecommendations(budgetRecs, curMonth)
       toast({
         title: 'Orçamento ativado com sucesso!',
         description: `${count} tetos orçamentários definidos para o mês ${curMonth}.`,
       })
-      loadData()
-    } catch {
+      await loadData()
+    } catch (err: any) {
+      console.error('Erro ao aplicar orçamento:', err)
       toast({
         title: 'Erro ao aplicar orçamento',
-        description: 'Tente novamente.',
+        description: err?.message || 'Tente novamente.',
         variant: 'destructive',
       })
     } finally {

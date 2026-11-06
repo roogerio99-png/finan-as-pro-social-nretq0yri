@@ -13,6 +13,22 @@ export const budgetsService = {
     })
   },
 
+  async getAll(): Promise<BudgetRecord[]> {
+    const filter = pb.authStore.record ? `user_id = '${pb.authStore.record.id}'` : ''
+    return await pb.collection('budgets').getFullList<BudgetRecord>({
+      filter: filter || undefined,
+      sort: 'category_group',
+    })
+  },
+
+  async create(data: Partial<BudgetRecord>): Promise<BudgetRecord> {
+    const payload = {
+      ...data,
+      user_id: pb.authStore.record?.id,
+    }
+    return await pb.collection('budgets').create<BudgetRecord>(payload)
+  },
+
   async upsert(
     month: string,
     categoryGroup: string,

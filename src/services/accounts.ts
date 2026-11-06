@@ -15,6 +15,10 @@ export const accountsService = {
     return records.filter((a) => (a.status ?? 'active') === 'active')
   },
 
+  async getAll(): Promise<AccountRecord[]> {
+    return await this.list()
+  },
+
   async create(data: Partial<AccountRecord>): Promise<AccountRecord> {
     const payload = {
       ...data,

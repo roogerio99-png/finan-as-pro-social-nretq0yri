@@ -274,32 +274,19 @@ export const copilotService = {
     recommendations: BudgetRecommendation[],
     targetMonth: string,
   ): Promise<number> {
-    const existing = await budgetsService.getAll()
     let appliedCount = 0
 
     for (const rec of recommendations) {
-      if (rec.recommendedAmount <= 0) continue
+      if (!rec || rec.recommendedAmount <= 0) continue
 
-      const match = existing.find(
-        (b) => b.category_group === rec.groupName && b.month === targetMonth,
+      await budgetsService.upsert(
+        targetMonth,
+        rec.groupName,
+        rec.recommendedAmount,
+        75,
+        90,
+        rec.targetType || 'group',
       )
-
-      if (match) {
-        await budgetsService.update(match.id, {
-          limit_amount: rec.recommendedAmount,
-          warning_threshold: 75,
-          danger_threshold: 90,
-        })
-      } else {
-        await budgetsService.create({
-          month: targetMonth,
-          category_group: rec.groupName,
-          target_type: rec.targetType,
-          limit_amount: rec.recommendedAmount,
-          warning_threshold: 75,
-          danger_threshold: 90,
-        })
-      }
       appliedCount++
     }
 

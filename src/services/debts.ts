@@ -9,6 +9,10 @@ export interface DebtSimulationResult {
 }
 
 export const debtsService = {
+  async getAll(): Promise<DebtRecord[]> {
+    return await this.list()
+  },
+
   async list(): Promise<DebtRecord[]> {
     return await pb.collection('debts').getFullList<DebtRecord>({
       filter: pb.authStore.record ? `user_id = '${pb.authStore.record.id}'` : '',
