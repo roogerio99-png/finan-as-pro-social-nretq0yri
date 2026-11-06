@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "gestio-financas-app",
+    "prod": "gestio-financas-app"
+  }
+}

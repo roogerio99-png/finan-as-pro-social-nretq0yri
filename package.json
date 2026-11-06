@@ -80,7 +80,7 @@
     "lucide-react": "^0.577.0",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.137.0",
-    "oxfmt": "^0.56.0",
+    "oxfmt": "^0.77.0",
     "oxlint": "^1.71.0",
     "postcss": "^8.5.23",
     "sharp": "^0.35.5",

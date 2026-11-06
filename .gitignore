@@ -42,6 +42,9 @@ screenshot.png
 .eslintcache
 .oxlintcache
 
+# Firebase cache
+.firebase/
+
 # Environment variables
 .env*
 !.env
