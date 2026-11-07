@@ -112,7 +112,39 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   voiceAccountLabel = '',
   voiceHints = [],
 }) => {
-  const selectedAccount = accounts.find((a) => a.id === accountId)
+  // Fallback interno resiliente para carregar contas e categorias
+  const [internalAccounts, setInternalAccounts] = useState<AccountRecord[]>(accounts || [])
+  const [internalCategories, setInternalCategories] = useState<CategoryRecord[]>(categories || [])
+
+  useEffect(() => {
+    if (accounts && accounts.length > 0) {
+      setInternalAccounts(accounts)
+    } else if (open) {
+      accountsService.getAll().then((list) => {
+        if (list && list.length > 0) {
+          setInternalAccounts(list)
+          if (!accountId) setAccountId(list[0].id)
+        }
+      }).catch(() => {})
+    }
+  }, [accounts, open, accountId, setAccountId])
+
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setInternalCategories(categories)
+    } else if (open) {
+      categoriesService.getAll().then((list) => {
+        if (list && list.length > 0) {
+          setInternalCategories(list)
+        }
+      }).catch(() => {})
+    }
+  }, [categories, open])
+
+  const activeAccounts = internalAccounts.length > 0 ? internalAccounts : (accounts || [])
+  const activeCategories = internalCategories.length > 0 ? internalCategories : (categories || [])
+
+  const selectedAccount = activeAccounts.find((a) => a.id === accountId)
   const isCreditCard = selectedAccount?.type === 'credit_card'
   const isVoice = !!voiceFields
   const vField = (k: string) => !!voiceFields?.[k]
@@ -421,7 +453,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                 required
               >
                 <option value="">Selecione uma conta ou cartão...</option>
-                {accounts
+                {activeAccounts
                   .filter((a) => (type === 'invoice_payment' ? a.type !== 'credit_card' : true))
                   .map((a) => (
                     <option key={a.id} value={a.id}>
