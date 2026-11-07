@@ -388,6 +388,7 @@ export const CopilotPage: React.FC = () => {
     permissionModalOpen,
     setPermissionModalOpen,
     requestPermission,
+    startListening,
     toggleListening,
     stopListening,
   } = useVoiceCommander({
