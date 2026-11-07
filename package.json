@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "deploy": "node scripts/deploy.js",
     "deploy:quick": "npm run build && npx -y firebase-tools deploy --only hosting",
+    "validate": "node scripts/validate.js",
     "test": "node scripts/run-test.mjs",
     "test:all": "node scripts/run-test.mjs",
     "test:watch": "echo \"there are no tests for this project\" && exit 0"
