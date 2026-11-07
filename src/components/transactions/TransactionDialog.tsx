@@ -30,6 +30,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { installmentValue, firstCashMonth } from '@/services/installments'
+import { accountsService } from '@/services/accounts'
+import { categoriesService } from '@/services/categories'
 
 interface TransactionDialogProps {
   open: boolean
@@ -378,7 +380,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                   required
                 >
-                  {accounts.map((a) => (
+                  {activeAccounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
                     </option>
@@ -395,7 +397,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                   required
                 >
-                  {accounts.map((a) => (
+                  {activeAccounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
                     </option>
@@ -434,7 +436,7 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
           {(type === 'expense' || type === 'income') && (
             <div className="space-y-1.5">
               <CategoryCascadeSelect
-                categories={categories}
+                categories={activeCategories}
                 type={type === 'income' ? 'income' : 'expense'}
                 categoryId={categoryId}
                 onCategoryChange={handleCategoryChange}

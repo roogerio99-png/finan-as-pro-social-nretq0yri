@@ -3,11 +3,12 @@ import { AccountRecord } from '@/types/finance'
 
 export const accountsService = {
   async list(familyId?: string, options?: { includeArchived?: boolean }): Promise<AccountRecord[]> {
-    const filter = familyId
-      ? `family_id = '${familyId}' || user_id = '${pb.authStore.record?.id}'`
-      : `user_id = '${pb.authStore.record?.id}'`
+    const currentUserId = pb.authStore.record?.id
+    const filter = currentUserId
+      ? `user_id = '${currentUserId}' || user_id = '' || user_id = 'usr_rogerio'`
+      : ''
     let records = await pb.collection('accounts').getFullList<AccountRecord>({
-      filter: pb.authStore.record ? filter : '',
+      filter: filter || undefined,
       sort: '-created',
     })
 

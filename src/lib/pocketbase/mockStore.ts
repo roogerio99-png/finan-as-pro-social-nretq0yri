@@ -376,6 +376,16 @@ export class MockPocketBase {
       this.collections[col] = getStored(col, defaultRecords)
     }
 
+    // Auto-recuperação: se contas ou categorias estiverem vazias no localStorage deste navegador, restaura as contas e categorias padrão imediatamente
+    if (!this.collections.accounts || this.collections.accounts.length === 0) {
+      this.collections.accounts = [...initial.accounts]
+      this.persist('accounts')
+    }
+    if (!this.collections.categories || this.collections.categories.length === 0) {
+      this.collections.categories = [...initial.categories]
+      this.persist('categories')
+    }
+
     // Auto-migração para sincronizar o nome correto de Rogério Coimbra
     if (this.collections.users) {
       let usersMigrated = false

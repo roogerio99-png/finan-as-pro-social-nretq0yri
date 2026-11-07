@@ -105,27 +105,30 @@ export const CopilotPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [accs, cats, diag, invs, rules] = await Promise.all([
-        accountsService.getAll(),
-        categoriesService.getAll(),
-        copilotService.getDiagnostic(),
+      const accs = await accountsService.getAll().catch(() => [])
+      const cats = await categoriesService.getAll().catch(() => [])
+      setAccounts(accs)
+      setCategories(cats)
+
+      const [diag, invs, rules] = await Promise.all([
+        copilotService.getDiagnostic().catch(() => null),
         invoicesService.getAll().catch(() => []),
         deparaService.getAll().catch(() => []),
       ])
-      setAccounts(accs)
-      setCategories(cats)
-      setDiagnostic(diag)
+      if (diag) {
+        setDiagnostic(diag)
+        if (diag.totalIncomeMonth > 0) {
+          setCustomIncome(diag.totalIncomeMonth)
+        }
+        try {
+          const budgetData = await copilotService.generateSmartBudget(diag.totalIncomeMonth || 4000)
+          setBudgetRecs(budgetData.recommendations)
+        } catch {
+          // ignore
+        }
+      }
       setOpenInvoices((invs || []).filter((i: any) => i.status === 'open' || i.status === 'overdue'))
       setDeparaRules(rules || [])
-
-      // Inicializa renda sugerida baseada no diagnóstico ou receitas
-      if (diag.totalIncomeMonth > 0) {
-        setCustomIncome(diag.totalIncomeMonth)
-      }
-
-      // Gera proposta inicial de orçamento
-      const budgetData = await copilotService.generateSmartBudget(diag.totalIncomeMonth || 4000)
-      setBudgetRecs(budgetData.recommendations)
     } catch (err) {
       console.error('Erro ao carregar dados do copiloto:', err)
     } finally {
@@ -149,7 +152,7 @@ export const CopilotPage: React.FC = () => {
   }
 
   // Abre a tela de lançamento pré-preenchida para validação do usuário
-  const openTransactionDialogWithData = (data: {
+  const openTransactionDialogWithData = async (data: {
     type?: TransactionType
     description?: string
     amount?: number | string | null
@@ -164,20 +167,40 @@ export const CopilotPage: React.FC = () => {
     setTxAmount(data.amount ? String(data.amount) : '')
     setTxDate(data.date || todayIso)
 
+    // Garante que accounts e categories estejam disponíveis
+    let currentAccounts = accounts
+    if (currentAccounts.length === 0) {
+      currentAccounts = await accountsService.getAll().catch(() => [])
+      setAccounts(currentAccounts)
+    }
+    let currentCategories = categories
+    if (currentCategories.length === 0) {
+      currentCategories = await categoriesService.getAll().catch(() => [])
+      setCategories(currentCategories)
+    }
+
     let accId = data.accountId
-    if (!accId && accounts.length > 0) accId = accounts[0].id
+    if (!accId && currentAccounts.length > 0) {
+      accId = currentAccounts[0].id
+    }
     setTxAccountId(accId || '')
+
+    let catId = data.categoryId
+    if (!catId && currentCategories.length > 0) {
+      const match = currentCategories.find((c) => c.type === (data.type || 'expense'))
+      catId = match?.id || currentCategories[0].id
+    }
+    setTxCategoryId(catId || '')
 
     setTxTargetAccountId('')
     setTxSelectedInvoiceId('')
-    setTxCategoryId(data.categoryId || '')
     setTxNotes(data.notes || 'Preenchido automaticamente pelo Copiloto IA')
     setTxInstallmentsTotal('1')
     setTxInstallmentsPaid('0')
     setVoiceFields({
       amount: !!data.amount,
       description: !!data.description,
-      category: !!data.categoryId,
+      category: !!catId,
       account: !!accId,
       date: !!data.date,
     })
