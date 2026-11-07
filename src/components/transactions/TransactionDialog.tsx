@@ -112,34 +112,34 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
   voiceAccountLabel = '',
   voiceHints = [],
 }) => {
-  // Fallback interno resiliente para carregar contas e categorias
+  // Sincronização fresca e fallback interno para contas e categorias
   const [internalAccounts, setInternalAccounts] = useState<AccountRecord[]>(accounts || [])
   const [internalCategories, setInternalCategories] = useState<CategoryRecord[]>(categories || [])
 
   useEffect(() => {
     if (accounts && accounts.length > 0) {
       setInternalAccounts(accounts)
-    } else if (open) {
+    }
+    if (categories && categories.length > 0) {
+      setInternalCategories(categories)
+    }
+
+    // Sempre que o modal abre, busca a versão mais fresca direto do cadastro oficial
+    if (open) {
       accountsService.getAll().then((list) => {
         if (list && list.length > 0) {
           setInternalAccounts(list)
           if (!accountId) setAccountId(list[0].id)
         }
       }).catch(() => {})
-    }
-  }, [accounts, open, accountId, setAccountId])
 
-  useEffect(() => {
-    if (categories && categories.length > 0) {
-      setInternalCategories(categories)
-    } else if (open) {
       categoriesService.getAll().then((list) => {
         if (list && list.length > 0) {
           setInternalCategories(list)
         }
       }).catch(() => {})
     }
-  }, [categories, open])
+  }, [accounts, categories, open, accountId, setAccountId])
 
   const activeAccounts = internalAccounts.length > 0 ? internalAccounts : (accounts || [])
   const activeCategories = internalCategories.length > 0 ? internalCategories : (categories || [])

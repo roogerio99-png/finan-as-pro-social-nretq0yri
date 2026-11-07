@@ -180,12 +180,18 @@ export const CopilotPage: React.FC = () => {
     }
 
     let accId = data.accountId
+    if (accId && !currentAccounts.some((a) => a.id === accId)) {
+      accId = ''
+    }
     if (!accId && currentAccounts.length > 0) {
       accId = currentAccounts[0].id
     }
     setTxAccountId(accId || '')
 
     let catId = data.categoryId
+    if (catId && !currentCategories.some((c) => c.id === catId)) {
+      catId = ''
+    }
     if (!catId && currentCategories.length > 0) {
       const match = currentCategories.find((c) => c.type === (data.type || 'expense'))
       catId = match?.id || currentCategories[0].id

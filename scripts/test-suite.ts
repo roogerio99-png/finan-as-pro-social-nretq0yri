@@ -358,6 +358,8 @@ async function runFullTestSuite() {
   )
   assert('Copiloto IA', 'Parser Linguagem Natural: Valor', nlpResult.parseResult.amount === 65, `Esperado 65, recebido ${nlpResult.parseResult.amount}`)
   assert('Copiloto IA', 'Parser Linguagem Natural: Tipo', nlpResult.parseResult.type === 'expense', 'Tipo não reconhecido como despesa')
+  assert('Copiloto IA', 'Parser Linguagem Natural: Categoria Oficial', nlpResult.suggestedCategoryId === 'cat_restaurantes', `Esperado cat_restaurantes, recebido ${nlpResult.suggestedCategoryId}`)
+  assert('Copiloto IA', 'Parser Linguagem Natural: Conta Corrente', !!nlpResult.suggestedAccountId, 'Conta sugerida não encontrada')
 
   // 8.2 Proposta de Orçamento 50/30/20
   const smartBudget = await copilotService.generateSmartBudget(5000)

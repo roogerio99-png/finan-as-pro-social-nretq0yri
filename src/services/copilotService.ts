@@ -65,58 +65,77 @@ export const copilotService = {
     const parseResult = parseVoiceTransaction(text, accounts)
 
     // Detecção inteligente de categoria baseada nas palavras da frase
-    const normalizedText = text
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+    const cleanNorm = (s?: string) =>
+      (s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+
+    const normalizedText = cleanNorm(text)
 
     let bestCategory: CategoryRecord | null = null
     let maxScore = 0
 
-    // Palavras-chave mapeadas para categorias comuns
+    // Palavras-chave mapeadas para conceitos do Plano de Contas Oficial
     const keywordMap: Record<string, string[]> = {
-      Restaurantes: ['almoco', 'jantar', 'restaurante', 'lanche', 'ifood', 'hamburguer', 'pizza', 'comida', 'cafe'],
-      'Feira e Mercado': ['mercado', 'supermercado', 'compras', 'feira', 'acougue', 'padaria', 'hortifruti', 'pao de acucar', 'carrefour'],
-      Moradia: ['aluguel', 'condominio', 'iptu', 'imovel', 'casa', 'apartamento'],
-      Utilidades: ['luz', 'energia', 'enel', 'agua', 'sabesp', 'gas', 'internet', 'fibra', 'celular', 'telefone', 'comper'],
-      Mobilidade: ['uber', '99', 'taxi', 'corrida', 'onibus', 'metro', 'passagem', 'combustivel', 'gasolina', 'etanol', 'posto', 'estacionamento'],
-      Farmácia: ['farmacia', 'drogaria', 'remedio', 'medicamento', 'consulta', 'medico', 'dentista', 'hospital', 'exame'],
-      Assinaturas: ['netflix', 'spotify', 'prime', 'disney', 'streaming', 'youtube', 'hbo', 'globo'],
-      'Salário CLT': ['salario', 'holerite', 'adiantamento', 'vale', 'empresa', 'pagamento clt'],
-      'Renda Extra': ['freela', 'freelancer', 'bico', 'extra', 'servico prestado', 'comissao', 'venda'],
-      Investimentos: ['dividendos', 'rendimento', 'juros', 'tesouro', 'cdb', 'fii', 'acoes'],
+      restaurante: ['almoco', 'jantar', 'restaurante', 'lanche', 'ifood', 'hamburguer', 'pizza', 'comida', 'refeicao', 'cafe', 'cafeteria', 'bar', 'churrasco', 'refeicoes'],
+      mercado: ['mercado', 'supermercado', 'compras', 'feira', 'acougue', 'padaria', 'hortifruti', 'pao de acucar', 'carrefour', 'assai', 'atacadista', 'despensa'],
+      habitacao: ['aluguel', 'condominio', 'iptu', 'imovel', 'casa', 'apartamento', 'moradia', 'reforma'],
+      utilidades: ['luz', 'energia', 'enel', 'cpfl', 'light', 'agua', 'sabesp', 'sanepar', 'gas', 'conta de luz'],
+      telecom: ['internet', 'fibra', 'celular', 'telefone', 'tim', 'vivo', 'claro', 'telefonia'],
+      transporte: ['uber', '99', 'taxi', 'corrida', 'onibus', 'metro', 'passagem', 'combustivel', 'gasolina', 'etanol', 'alcool', 'diesel', 'posto', 'estacionamento', 'mobilidade'],
+      farmacia: ['farmacia', 'drogaria', 'drogasil', 'droga raia', 'remedio', 'medicamento', 'consulta', 'medico', 'dentista', 'hospital', 'exame', 'saude'],
+      assinaturas: ['netflix', 'spotify', 'prime', 'amazon prime', 'disney', 'streaming', 'youtube', 'hbo', 'globo', 'deezer'],
+      vestuario: ['roupa', 'roupas', 'calcado', 'calcados', 'tenis', 'sapato', 'vestuario', 'loja de roupa', 'compras'],
+      reserva: ['reserva', 'emergencia', 'aporte', 'poupanca', 'investimento', 'tesouro'],
+      dividas: ['divida', 'parcelamento', 'financiamento', 'emprestimo', 'bancario'],
+      salario: ['salario', 'holerite', 'adiantamento', 'vale', 'empresa', 'pagamento clt', 'prolabore'],
+      freela: ['freela', 'freelancer', 'bico', 'extra', 'servico prestado', 'comissao', 'venda pix'],
+      investimentos: ['dividendos', 'rendimento', 'juros', 'tesouro', 'cdb', 'fii', 'acoes'],
     }
 
     for (const cat of categories) {
-      let score = 0
-      const catNameNorm = (cat.name || '').toLowerCase()
-      const catSubNorm = (cat.subgroup_level3 || '').toLowerCase()
-      const catGroupNorm = (cat.group_level2 || '').toLowerCase()
-
       // Compatibilidade de tipo (income vs expense)
       if (cat.type !== parseResult.type) {
         continue
       }
 
+      let score = 0
+      const catNameNorm = cleanNorm(cat.name)
+      const catGroup1Norm = cleanNorm(cat.group_level1)
+      const catGroup2Norm = cleanNorm(cat.group_level2)
+      const catSub3Norm = cleanNorm(cat.subgroup_level3)
+
+      // Subgrupos (onde há group_level2 definido) são mais específicos que grupos gerais:
+      const isSubgroup = Boolean(cat.group_level2)
+
       // Verificação por palavras-chave mapeadas
-      for (const [key, keywords] of Object.entries(keywordMap)) {
-        if (
-          catNameNorm.includes(key.toLowerCase()) ||
-          catSubNorm.includes(key.toLowerCase()) ||
-          catGroupNorm.includes(key.toLowerCase())
-        ) {
+      for (const [concept, keywords] of Object.entries(keywordMap)) {
+        const matchesConcept =
+          catNameNorm.includes(concept) ||
+          catGroup2Norm.includes(concept) ||
+          catGroup1Norm.includes(concept) ||
+          catSub3Norm.includes(concept)
+
+        if (matchesConcept) {
           for (const kw of keywords) {
             if (normalizedText.includes(kw)) {
-              score += 15
+              score += isSubgroup ? 35 : 20
             }
           }
         }
       }
 
-      // Match com o nome ou subgrupo direto
-      if (catNameNorm && normalizedText.includes(catNameNorm)) score += 20
-      if (catSubNorm && normalizedText.includes(catSubNorm)) score += 25
-      if (catGroupNorm && normalizedText.includes(catGroupNorm)) score += 10
+      // Match direto de termos
+      if (catNameNorm && normalizedText.includes(catNameNorm)) score += isSubgroup ? 40 : 25
+      if (catGroup2Norm && normalizedText.includes(catGroup2Norm)) score += 30
+      if (catGroup1Norm && normalizedText.includes(catGroup1Norm)) score += 15
+
+      // Bônus para subgrupo quando houver pontuação (preferir a folha específica da árvore)
+      if (isSubgroup && score > 0) {
+        score += 15
+      }
 
       if (score > maxScore) {
         maxScore = score
@@ -124,25 +143,35 @@ export const copilotService = {
       }
     }
 
-    // Se nenhuma categoria específica combinou, usa uma padrão adequada ao tipo
+    // Se nenhuma categoria específica combinou, usa uma padrão adequada ao tipo (preferindo ativas)
     if (!bestCategory && categories.length > 0) {
       bestCategory =
         categories.find((c) => c.type === parseResult.type && (c.status ?? 'active') === 'active') ||
+        categories.find((c) => c.type === parseResult.type) ||
         categories[0]
     }
 
     // Identificação de Conta
     let matchedAccount = accounts.find((a) => a.id === parseResult.accountId)
     if (!matchedAccount && accounts.length > 0) {
-      // Se a frase mencionar crédito e houver cartão de crédito, seleciona
-      if (normalizedText.includes('credito') || normalizedText.includes('cartao')) {
-        matchedAccount = accounts.find((a) => a.type === 'credit_card' && (a.status ?? 'active') === 'active')
+      if (
+        normalizedText.includes('credito') ||
+        normalizedText.includes('cartao') ||
+        normalizedText.includes('fatura')
+      ) {
+        matchedAccount =
+          accounts.find((a) => a.type === 'credit_card' && (a.status ?? 'active') === 'active') ||
+          accounts.find((a) => a.type === 'credit_card')
       } else {
-        // Seleciona conta corrente padrão ou primeira ativa
         matchedAccount =
           accounts.find((a) => a.type === 'checking' && (a.status ?? 'active') === 'active') ||
+          accounts.find((a) => a.type === 'checking') ||
           accounts[0]
       }
+    }
+
+    if (!matchedAccount && accounts.length > 0) {
+      matchedAccount = accounts[0]
     }
 
     return {

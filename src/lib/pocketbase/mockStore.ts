@@ -52,7 +52,7 @@ function createInitialData() {
     updated: nowIso,
   }
 
-  // Carga inicial: contas padrão zeradas prontas para uso + categorias
+  // Carga inicial: contas padrão zeradas prontas para uso + categorias oficiais no Plano de Contas ERP
   const seededAccounts: MockRecord[] = [
     {
       id: 'acc_corrente_padrao',
@@ -83,15 +83,33 @@ function createInitialData() {
     },
   ]
 
+  // Plano de Contas Oficial em 2 níveis (Grupos e Subgrupos canônicos)
   const seededCategories: MockRecord[] = [
+    // === RECEITAS (Tipo: income) ===
+    // Grupo 0.0
+    {
+      id: 'cat_grp_receitas',
+      user_id: defaultUser.id,
+      name: 'Receitas e Rendas',
+      type: 'income',
+      group_level1: 'Receitas e Rendas',
+      group_level2: '',
+      group_code: '0.0',
+      code: '',
+      color: '#059669',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
     {
       id: 'cat_salario',
       user_id: defaultUser.id,
-      name: 'Salário Principal',
+      name: 'Salário CLT e Proventos',
       type: 'income',
-      group_level1: 'Receitas',
-      group_level2: 'Renda Ativa',
-      subgroup_level3: 'Salário CLT',
+      group_level1: 'Receitas e Rendas',
+      group_level2: 'Salário CLT e Proventos',
+      group_code: '0.0',
+      code: '0.1',
       icon: 'Briefcase',
       color: '#16A34A',
       status: 'active',
@@ -99,27 +117,14 @@ function createInitialData() {
       updated: nowIso,
     },
     {
-      id: 'cat_dividendos',
-      user_id: defaultUser.id,
-      name: 'Rendimentos e Dividendos',
-      type: 'income',
-      group_level1: 'Receitas',
-      group_level2: 'Renda Passiva',
-      subgroup_level3: 'Investimentos',
-      icon: 'TrendingUp',
-      color: '#059669',
-      status: 'active',
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
       id: 'cat_freela',
       user_id: defaultUser.id,
-      name: 'Freela & Extras',
+      name: 'Renda Extra e Freelance',
       type: 'income',
-      group_level1: 'Receitas',
-      group_level2: 'Renda Extra',
-      subgroup_level3: 'Serviços',
+      group_level1: 'Receitas e Rendas',
+      group_level2: 'Renda Extra e Freelance',
+      group_code: '0.0',
+      code: '0.2',
       icon: 'PlusCircle',
       color: '#10B981',
       status: 'active',
@@ -127,13 +132,46 @@ function createInitialData() {
       updated: nowIso,
     },
     {
+      id: 'cat_dividendos',
+      user_id: defaultUser.id,
+      name: 'Rendimentos e Investimentos',
+      type: 'income',
+      group_level1: 'Receitas e Rendas',
+      group_level2: 'Rendimentos e Investimentos',
+      group_code: '0.0',
+      code: '0.3',
+      icon: 'TrendingUp',
+      color: '#059669',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // === DESPESAS (Tipo: expense) ===
+    // Grupo 1.0 - Habitação e Moradia
+    {
+      id: 'cat_grp_habitacao',
+      user_id: defaultUser.id,
+      name: 'Habitação e Moradia',
+      type: 'expense',
+      group_level1: 'Habitação e Moradia',
+      group_level2: '',
+      group_code: '1.0',
+      code: '',
+      color: '#0284C7',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
       id: 'cat_aluguel',
       user_id: defaultUser.id,
-      name: 'Aluguel & Condomínio',
+      name: 'Aluguel e Condomínio',
       type: 'expense',
-      group_level1: 'Custos Fixos',
-      group_level2: 'Habitação',
-      subgroup_level3: 'Moradia',
+      group_level1: 'Habitação e Moradia',
+      group_level2: 'Aluguel e Condomínio',
+      group_code: '1.0',
+      code: '1.1',
       icon: 'Home',
       color: '#2563EB',
       status: 'active',
@@ -143,11 +181,12 @@ function createInitialData() {
     {
       id: 'cat_energia',
       user_id: defaultUser.id,
-      name: 'Energia, Água & Gás',
+      name: 'Energia, Água e Gás',
       type: 'expense',
-      group_level1: 'Custos Fixos',
-      group_level2: 'Habitação',
-      subgroup_level3: 'Utilidades',
+      group_level1: 'Habitação e Moradia',
+      group_level2: 'Energia, Água e Gás',
+      group_code: '1.0',
+      code: '1.2',
       icon: 'Zap',
       color: '#3B82F6',
       status: 'active',
@@ -155,13 +194,45 @@ function createInitialData() {
       updated: nowIso,
     },
     {
+      id: 'cat_telecom',
+      user_id: defaultUser.id,
+      name: 'Internet e Telefonia',
+      type: 'expense',
+      group_level1: 'Habitação e Moradia',
+      group_level2: 'Internet e Telefonia',
+      group_code: '1.0',
+      code: '1.3',
+      icon: 'Wifi',
+      color: '#06B6D4',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 2.0 - Alimentação e Mercado
+    {
+      id: 'cat_grp_alimentacao',
+      user_id: defaultUser.id,
+      name: 'Alimentação e Mercado',
+      type: 'expense',
+      group_level1: 'Alimentação e Mercado',
+      group_level2: '',
+      group_code: '2.0',
+      code: '',
+      color: '#0284C7',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
       id: 'cat_mercado',
       user_id: defaultUser.id,
-      name: 'Supermercado Mensal',
+      name: 'Supermercado e Feira',
       type: 'expense',
-      group_level1: 'Custos Fixos',
-      group_level2: 'Alimentação',
-      subgroup_level3: 'Feira e Mercado',
+      group_level1: 'Alimentação e Mercado',
+      group_level2: 'Supermercado e Feira',
+      group_code: '2.0',
+      code: '2.1',
       icon: 'ShoppingCart',
       color: '#0284C7',
       status: 'active',
@@ -169,41 +240,14 @@ function createInitialData() {
       updated: nowIso,
     },
     {
-      id: 'cat_saude',
-      user_id: defaultUser.id,
-      name: 'Plano de Saúde',
-      type: 'expense',
-      group_level1: 'Custos Fixos',
-      group_level2: 'Saúde',
-      subgroup_level3: 'Convênio',
-      icon: 'HeartPulse',
-      color: '#0EA5E9',
-      status: 'active',
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
-      id: 'cat_telecom',
-      user_id: defaultUser.id,
-      name: 'Internet e Celular',
-      type: 'expense',
-      group_level1: 'Custos Fixos',
-      group_level2: 'Comunicação',
-      subgroup_level3: 'Telecom',
-      icon: 'Wifi',
-      color: '#06B6D4',
-      status: 'active',
-      created: nowIso,
-      updated: nowIso,
-    },
-    {
       id: 'cat_restaurantes',
       user_id: defaultUser.id,
-      name: 'Restaurantes e Delivery',
+      name: 'Restaurantes e Bares',
       type: 'expense',
-      group_level1: 'Estilo de Vida',
-      group_level2: 'Lazer & Alimentação',
-      subgroup_level3: 'Ifood & Jantares',
+      group_level1: 'Alimentação e Mercado',
+      group_level2: 'Restaurantes e Bares',
+      group_code: '2.0',
+      code: '2.2',
       icon: 'Utensils',
       color: '#F59E0B',
       status: 'active',
@@ -211,15 +255,32 @@ function createInitialData() {
       updated: nowIso,
     },
     {
-      id: 'cat_streaming',
+      id: 'cat_delivery',
       user_id: defaultUser.id,
-      name: 'Streaming & Assinaturas',
+      name: 'Delivery e Lanches',
       type: 'expense',
-      group_level1: 'Estilo de Vida',
-      group_level2: 'Lazer',
-      subgroup_level3: 'Netflix/Spotify',
-      icon: 'Tv',
+      group_level1: 'Alimentação e Mercado',
+      group_level2: 'Delivery e Lanches',
+      group_code: '2.0',
+      code: '2.3',
+      icon: 'Utensils',
       color: '#D97706',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 3.0 - Transporte e Mobilidade
+    {
+      id: 'cat_grp_transporte',
+      user_id: defaultUser.id,
+      name: 'Transporte e Mobilidade',
+      type: 'expense',
+      group_level1: 'Transporte e Mobilidade',
+      group_level2: '',
+      group_code: '3.0',
+      code: '',
+      color: '#0284C7',
       status: 'active',
       created: nowIso,
       updated: nowIso,
@@ -227,11 +288,12 @@ function createInitialData() {
     {
       id: 'cat_transporte',
       user_id: defaultUser.id,
-      name: 'Combustível e Uber',
+      name: 'Combustível e Posto',
       type: 'expense',
-      group_level1: 'Estilo de Vida',
-      group_level2: 'Transporte',
-      subgroup_level3: 'Locomoção',
+      group_level1: 'Transporte e Mobilidade',
+      group_level2: 'Combustível e Posto',
+      group_code: '3.0',
+      code: '3.1',
       icon: 'Car',
       color: '#B45309',
       status: 'active',
@@ -239,29 +301,93 @@ function createInitialData() {
       updated: nowIso,
     },
     {
-      id: 'cat_vestuario',
+      id: 'cat_transp_app',
       user_id: defaultUser.id,
-      name: 'Vestuário e Compras',
+      name: 'Aplicativos (Uber/99)',
       type: 'expense',
-      group_level1: 'Estilo de Vida',
-      group_level2: 'Pessoal',
-      subgroup_level3: 'Roupas',
-      icon: 'ShoppingBag',
-      color: '#EA580C',
+      group_level1: 'Transporte e Mobilidade',
+      group_level2: 'Aplicativos (Uber/99)',
+      group_code: '3.0',
+      code: '3.2',
+      icon: 'Car',
+      color: '#EAB308',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 4.0 - Saúde e Cuidados Pessoais
+    {
+      id: 'cat_grp_saude',
+      user_id: defaultUser.id,
+      name: 'Saúde e Cuidados Pessoais',
+      type: 'expense',
+      group_level1: 'Saúde e Cuidados Pessoais',
+      group_level2: '',
+      group_code: '4.0',
+      code: '',
+      color: '#0284C7',
       status: 'active',
       created: nowIso,
       updated: nowIso,
     },
     {
-      id: 'cat_reserva_sonho',
+      id: 'cat_farmacia',
       user_id: defaultUser.id,
-      name: 'Aporte Reserva de Emergência',
+      name: 'Farmácia e Medicamentos',
       type: 'expense',
-      group_level1: 'Investimentos e Sonhos',
-      group_level2: 'Segurança',
-      subgroup_level3: 'Tesouro Selic',
-      icon: 'ShieldCheck',
-      color: '#8B5CF6',
+      group_level1: 'Saúde e Cuidados Pessoais',
+      group_level2: 'Farmácia e Medicamentos',
+      group_code: '4.0',
+      code: '4.1',
+      icon: 'HeartPulse',
+      color: '#EF4444',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'cat_saude',
+      user_id: defaultUser.id,
+      name: 'Plano de Saúde e Consultas',
+      type: 'expense',
+      group_level1: 'Saúde e Cuidados Pessoais',
+      group_level2: 'Plano de Saúde e Consultas',
+      group_code: '4.0',
+      code: '4.2',
+      icon: 'HeartPulse',
+      color: '#0EA5E9',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 5.0 - Lazer e Assinaturas
+    {
+      id: 'cat_grp_lazer',
+      user_id: defaultUser.id,
+      name: 'Lazer e Assinaturas',
+      type: 'expense',
+      group_level1: 'Lazer e Assinaturas',
+      group_level2: '',
+      group_code: '5.0',
+      code: '',
+      color: '#0284C7',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'cat_streaming',
+      user_id: defaultUser.id,
+      name: 'Streaming e Assinaturas',
+      type: 'expense',
+      group_level1: 'Lazer e Assinaturas',
+      group_level2: 'Streaming e Assinaturas',
+      group_code: '5.0',
+      code: '5.1',
+      icon: 'Tv',
+      color: '#D97706',
       status: 'active',
       created: nowIso,
       updated: nowIso,
@@ -269,13 +395,92 @@ function createInitialData() {
     {
       id: 'cat_viagem_sonho',
       user_id: defaultUser.id,
-      name: 'Aporte Viagem de Férias',
+      name: 'Viagens e Passeios',
       type: 'expense',
-      group_level1: 'Investimentos e Sonhos',
-      group_level2: 'Metas',
-      subgroup_level3: 'Eurotrip 2026',
+      group_level1: 'Lazer e Assinaturas',
+      group_level2: 'Viagens e Passeios',
+      group_code: '5.0',
+      code: '5.2',
       icon: 'Plane',
       color: '#7C3AED',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 6.0 - Compras e Vestuário
+    {
+      id: 'cat_grp_compras',
+      user_id: defaultUser.id,
+      name: 'Compras e Vestuário',
+      type: 'expense',
+      group_level1: 'Compras e Vestuário',
+      group_level2: '',
+      group_code: '6.0',
+      code: '',
+      color: '#0284C7',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'cat_vestuario',
+      user_id: defaultUser.id,
+      name: 'Roupas e Vestuário',
+      type: 'expense',
+      group_level1: 'Compras e Vestuário',
+      group_level2: 'Roupas e Vestuário',
+      group_code: '6.0',
+      code: '6.1',
+      icon: 'ShoppingBag',
+      color: '#EA580C',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 7.0 - Investimentos e Sonhos
+    {
+      id: 'cat_grp_invest',
+      user_id: defaultUser.id,
+      name: 'Investimentos e Sonhos',
+      type: 'expense',
+      group_level1: 'Investimentos e Sonhos',
+      group_level2: '',
+      group_code: '7.0',
+      code: '',
+      color: '#0284C7',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+    {
+      id: 'cat_reserva_sonho',
+      user_id: defaultUser.id,
+      name: 'Reserva de Emergência',
+      type: 'expense',
+      group_level1: 'Investimentos e Sonhos',
+      group_level2: 'Reserva de Emergência',
+      group_code: '7.0',
+      code: '7.1',
+      icon: 'ShieldCheck',
+      color: '#8B5CF6',
+      status: 'active',
+      created: nowIso,
+      updated: nowIso,
+    },
+
+    // Grupo 8.0 - Dívidas e Empréstimos
+    {
+      id: 'cat_grp_dividas',
+      user_id: defaultUser.id,
+      name: 'Dívidas e Empréstimos',
+      type: 'expense',
+      group_level1: 'Dívidas e Empréstimos',
+      group_level2: '',
+      group_code: '8.0',
+      code: '',
+      color: '#0284C7',
       status: 'active',
       created: nowIso,
       updated: nowIso,
@@ -283,11 +488,12 @@ function createInitialData() {
     {
       id: 'cat_divida_parcela',
       user_id: defaultUser.id,
-      name: 'Parcela Renegociação Empréstimo',
+      name: 'Parcelas e Financiamentos',
       type: 'expense',
-      group_level1: 'Dívidas',
-      group_level2: 'Bancário',
-      subgroup_level3: 'Empréstimo Pessoal',
+      group_level1: 'Dívidas e Empréstimos',
+      group_level2: 'Parcelas e Financiamentos',
+      group_code: '8.0',
+      code: '8.1',
       icon: 'CreditCard',
       color: '#DC2626',
       status: 'active',
@@ -422,11 +628,60 @@ export class MockPocketBase {
     }
     this.authStore = new MockAuthStore(defaultUser)
 
+    // Auto-migração para sincronizar categorias legadas (ex: 'Custos Fixos', 'Estilo de Vida') para o Plano de Contas Oficial ERP
+    const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_erp_v4'
+    if (typeof window !== 'undefined' && !localStorage.getItem(CATEGORIES_MIGRATION_KEY)) {
+      this.migrateLegacyCategoriesToErpPlan(initial.categories)
+      localStorage.setItem(CATEGORIES_MIGRATION_KEY, 'true')
+    }
+
     // Limpeza da base de lançamentos de teste para permitir ingresso com dados reais
     const PURGE_TX_KEY = 'pocketbase_mock_transactions_cleared_for_real_data_v2'
     if (typeof window !== 'undefined' && !localStorage.getItem(PURGE_TX_KEY)) {
       this.clearAllTransactions()
       localStorage.setItem(PURGE_TX_KEY, 'true')
+    }
+  }
+
+  private migrateLegacyCategoriesToErpPlan(officialCategories: MockRecord[]) {
+    if (!this.collections.categories) {
+      this.collections.categories = [...officialCategories]
+      this.persist('categories')
+      return
+    }
+
+    const cats = this.collections.categories
+    const hasLegacy = cats.some((c) => c.group_level1 === 'Custos Fixos' || c.group_level1 === 'Estilo de Vida')
+    const hasCanonicalGroups = cats.some((c) => c.group_code && !c.group_level2)
+
+    if (hasLegacy || !hasCanonicalGroups) {
+      const legacySeedIds = new Set([
+        'cat_salario',
+        'cat_dividendos',
+        'cat_freela',
+        'cat_aluguel',
+        'cat_energia',
+        'cat_mercado',
+        'cat_saude',
+        'cat_telecom',
+        'cat_restaurantes',
+        'cat_streaming',
+        'cat_transporte',
+        'cat_vestuario',
+        'cat_reserva_sonho',
+        'cat_viagem_sonho',
+        'cat_divida_parcela',
+      ])
+
+      const userCustomCategories = cats.filter(
+        (c) =>
+          !legacySeedIds.has(c.id) &&
+          c.group_level1 !== 'Custos Fixos' &&
+          c.group_level1 !== 'Estilo de Vida',
+      )
+
+      this.collections.categories = [...officialCategories, ...userCustomCategories]
+      this.persist('categories')
     }
   }
 
