@@ -164,6 +164,9 @@ export const TransactionDialog: React.FC<TransactionDialogProps> = ({
 
   useEffect(() => {
     if (!open || userPickedCategory.current) return
+    // Se a categoria já foi preenchida pelo Copiloto IA / Voz, preserva a sugestão refinada da IA
+    if (vField('category') && categoryId) return
+
     const trimmed = description.trim()
     if (!trimmed) {
       setSuggestedLabel('')

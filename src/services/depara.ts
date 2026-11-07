@@ -195,16 +195,30 @@ export const deparaService = {
       }
     }
 
-    // Busca heurística pelo nome da categoria ou subgrupo
-    for (const cat of categories) {
-      if (normDesc.includes(normalizeText(cat.name))) {
-        return { categoryId: cat.id, source: 'heuristic' }
+    // Busca heurística priorizando Subgrupos (Nível 2) e analisando a Descrição do Gasto
+    const subgroups = categories.filter((c) => Boolean(c.group_level2))
+    const mainGroups = categories.filter((c) => !c.group_level2)
+
+    // 1º: Tenta casar com Subgrupos (Nome ou Descrição de Utilização)
+    for (const sub of subgroups) {
+      const subName = normalizeText(sub.name)
+      const subDesc = normalizeText(sub.description || '')
+      const subL2 = normalizeText(sub.group_level2)
+
+      if (normDesc.includes(subName) || normDesc.includes(subL2)) {
+        return { categoryId: sub.id, source: 'heuristic' }
       }
-      if (cat.subgroup_level3 && normDesc.includes(normalizeText(cat.subgroup_level3))) {
-        return { categoryId: cat.id, source: 'heuristic' }
+      if (subDesc && (normDesc.includes(subDesc) || subDesc.split(' ').some((w) => w.length >= 4 && normDesc.includes(w)))) {
+        return { categoryId: sub.id, source: 'heuristic' }
       }
-      if (normDesc.includes(normalizeText(cat.group_level2))) {
-        return { categoryId: cat.id, source: 'heuristic' }
+    }
+
+    // 2º: Se não encontrou subgrupo específico, tenta pelos grupos principais
+    for (const grp of mainGroups) {
+      if (normDesc.includes(normalizeText(grp.name)) || normDesc.includes(normalizeText(grp.group_level1))) {
+        // Encontra o primeiro subgrupo filho desse grupo
+        const child = subgroups.find((s) => s.group_level1 === grp.group_level1)
+        return { categoryId: child?.id || grp.id, source: 'heuristic' }
       }
     }
 

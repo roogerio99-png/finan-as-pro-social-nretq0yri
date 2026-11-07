@@ -70,71 +70,166 @@ export const copilotService = {
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim()
 
     const normalizedText = cleanNorm(text)
+    const textWords = normalizedText
+      .split(' ')
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 3 && !['para', 'com', 'uma', 'este', 'hoje', 'reais', 'real', 'paguei', 'pago', 'gastei', 'comprei', 'valor'].includes(w))
 
     let bestCategory: CategoryRecord | null = null
     let maxScore = 0
 
-    // Palavras-chave mapeadas para conceitos do Plano de Contas Oficial
-    const keywordMap: Record<string, string[]> = {
-      restaurante: ['almoco', 'jantar', 'restaurante', 'lanche', 'ifood', 'hamburguer', 'pizza', 'comida', 'refeicao', 'cafe', 'cafeteria', 'bar', 'churrasco', 'refeicoes'],
-      mercado: ['mercado', 'supermercado', 'compras', 'feira', 'acougue', 'padaria', 'hortifruti', 'pao de acucar', 'carrefour', 'assai', 'atacadista', 'despensa'],
-      habitacao: ['aluguel', 'condominio', 'iptu', 'imovel', 'casa', 'apartamento', 'moradia', 'reforma'],
-      utilidades: ['luz', 'energia', 'enel', 'cpfl', 'light', 'agua', 'sabesp', 'sanepar', 'gas', 'conta de luz'],
-      telecom: ['internet', 'fibra', 'celular', 'telefone', 'tim', 'vivo', 'claro', 'telefonia'],
-      transporte: ['uber', '99', 'taxi', 'corrida', 'onibus', 'metro', 'passagem', 'combustivel', 'gasolina', 'etanol', 'alcool', 'diesel', 'posto', 'estacionamento', 'mobilidade'],
-      farmacia: ['farmacia', 'drogaria', 'drogasil', 'droga raia', 'remedio', 'medicamento', 'consulta', 'medico', 'dentista', 'hospital', 'exame', 'saude'],
-      assinaturas: ['netflix', 'spotify', 'prime', 'amazon prime', 'disney', 'streaming', 'youtube', 'hbo', 'globo', 'deezer'],
-      vestuario: ['roupa', 'roupas', 'calcado', 'calcados', 'tenis', 'sapato', 'vestuario', 'loja de roupa', 'compras'],
-      reserva: ['reserva', 'emergencia', 'aporte', 'poupanca', 'investimento', 'tesouro'],
-      dividas: ['divida', 'parcelamento', 'financiamento', 'emprestimo', 'bancario'],
-      salario: ['salario', 'holerite', 'adiantamento', 'vale', 'empresa', 'pagamento clt', 'prolabore'],
-      freela: ['freela', 'freelancer', 'bico', 'extra', 'servico prestado', 'comissao', 'venda pix'],
-      investimentos: ['dividendos', 'rendimento', 'juros', 'tesouro', 'cdb', 'fii', 'acoes'],
-    }
+    // Mapeamento semântico conceitual que conecta termos corriqueiros aos Subgrupos Oficiais e suas Descrições
+    const semanticConcepts: Array<{
+      targetSubgroupCode?: string
+      targetKeywords: string[]
+      triggerWords: string[]
+    }> = [
+      {
+        targetSubgroupCode: '2.3', // Refeições em Trânsito
+        targetKeywords: ['refeicoes em transito', 'almocos executivos', 'lanches de expediente', 'cafes matinais'],
+        triggerWords: ['almoco', 'almoço', 'restaurante', 'lanche', 'refeicao', 'refeição', 'cafe', 'cafeteria', 'executivo', 'expediente', 'prato feito', 'comida quilo', 'self service'],
+      },
+      {
+        targetSubgroupCode: '7.1', // Gastronomia Social
+        targetKeywords: ['gastronomia social', 'jantares', 'almocos de lazer', 'delivery', 'ifood', 'cafes especiais'],
+        triggerWords: ['ifood', 'delivery', 'jantar', 'pizza', 'hamburguer', 'churrasco', 'churrascaria', 'bar', 'chopp', 'cerveja', 'rodizio', 'outback', 'mcdonalds', 'burger king'],
+      },
+      {
+        targetSubgroupCode: '2.1', // Mercado Principal
+        targetKeywords: ['mercado principal', 'compras de base', 'graos', 'higiene domestica', 'descartaveis'],
+        triggerWords: ['mercado', 'supermercado', 'compras', 'arroz', 'feijao', 'carrefour', 'pao de acucar', 'assai', 'atacadista', 'despensa', 'sabao', 'detergente'],
+      },
+      {
+        targetSubgroupCode: '2.2', // Açougue, Feira e Perecíveis
+        targetKeywords: ['acougue feira pereciveis', 'proteinas', 'carnes', 'hortifruti', 'verduras', 'padaria'],
+        triggerWords: ['carne', 'acougue', 'açougue', 'feira', 'hortifruti', 'fruta', 'legume', 'verdura', 'padaria', 'pao', 'leite', 'queijo', 'frango', 'peixe'],
+      },
+      {
+        targetSubgroupCode: '1.1', // Estrutural Habitacional
+        targetKeywords: ['estrutural habitacional', 'condominio', 'aluguel', 'taxa de associacao'],
+        triggerWords: ['aluguel', 'condominio', 'condomínio', 'taxa de bairro', 'moradia', 'locacao'],
+      },
+      {
+        targetSubgroupCode: '1.2', // Financiamento Imobiliário
+        targetKeywords: ['financiamento imobiliario', 'amortizacao', 'parcela do imovel'],
+        triggerWords: ['financiamento caixa', 'prestacao da casa', 'parcela apto', 'amortizacao', 'credito imobiliario'],
+      },
+      {
+        targetSubgroupCode: '1.3', // Concessionárias e Utilidades
+        targetKeywords: ['concessionarias utilidades', 'energia eletrica', 'agua esgoto', 'gas canalizado botijao'],
+        triggerWords: ['luz', 'energia', 'enel', 'cpfl', 'light', 'cemig', 'copel', 'agua', 'água', 'sabesp', 'sanepar', 'gas', 'gás', 'botijao', 'conta de luz', 'conta de agua'],
+      },
+      {
+        targetSubgroupCode: '1.4', // Telecomunicação Residencial
+        targetKeywords: ['telecomunicacao residencial', 'internet banda larga', 'tv por assinatura', 'lixo'],
+        triggerWords: ['internet', 'fibra', 'wifi', 'banda larga', 'claro net', 'vivo fibra', 'taxa de lixo'],
+      },
+      {
+        targetSubgroupCode: '3.1', // Consumo dos Veículos
+        targetKeywords: ['consumo dos veiculos', 'abastecimento combustivel', 'etanol gasolina diesel', 'lavagens estacionamentos'],
+        triggerWords: ['combustivel', 'combustível', 'gasolina', 'etanol', 'alcool', 'diesel', 'posto', 'abastecer', 'abastecimento', 'lavagem', 'estacionamento', 'ipiranga', 'shell', 'br'],
+      },
+      {
+        targetSubgroupCode: '3.4', // Deslocamento Alternativo
+        targetKeywords: ['deslocamento alternativo', 'uber', '99', 'pedagio', 'transporte interurbano'],
+        triggerWords: ['uber', '99', '99pop', 'taxi', 'táxi', 'corrida', 'pedagio', 'pedágio', 'onibus', 'metro', 'passagem'],
+      },
+      {
+        targetSubgroupCode: '4.2', // Medicamentos e Farmácia
+        targetKeywords: ['medicamentos farmacia', 'remedios de uso continuo', 'analgesicos suplementacao'],
+        triggerWords: ['farmacia', 'farmácia', 'drogaria', 'drogasil', 'droga raia', 'pague menos', 'remedio', 'remédio', 'medicamento', 'dipirona', 'vitamina', 'suplemento'],
+      },
+      {
+        targetSubgroupCode: '4.1', // Planos de Saúde
+        targetKeywords: ['planos de saude', 'assistencia medica odontologica'],
+        triggerWords: ['plano de saude', 'unimed', 'bradesco saude', 'sulamerica', 'amil', 'notredame', 'convenio'],
+      },
+      {
+        targetSubgroupCode: '4.4', // Autocuidado Físico
+        targetKeywords: ['autocuidado fisico', 'academia pilates natacao assessorias'],
+        triggerWords: ['academia', 'smartfit', 'bluefit', 'pilates', 'natacao', 'personal', 'crossfit', 'musculacao'],
+      },
+      {
+        targetSubgroupCode: '7.2', // Assinaturas e Digitais
+        targetKeywords: ['assinaturas digitais', 'streaming', 'nuvem telefonia celular'],
+        triggerWords: ['netflix', 'spotify', 'prime', 'amazon prime', 'disney', 'youtube premium', 'icloud', 'google one', 'celular', 'tim', 'vivo controle', 'claro movel'],
+      },
+      {
+        targetSubgroupCode: '6.3', // Vestuário e Calçados
+        targetKeywords: ['vestuario calcados', 'roupas', 'pecas basicas'],
+        triggerWords: ['roupa', 'roupas', 'camisa', 'calca', 'calça', 'vestido', 'sapato', 'tenis', 'tênis', 'zara', 'renner', 'riachuelo', 'c&a'],
+      },
+      {
+        targetSubgroupCode: '0.1', // Salários e Remunerações
+        targetKeywords: ['salarios remuneracoes', 'pro labore adiantamentos bonificacoes'],
+        triggerWords: ['salario', 'salário', 'holerite', 'pro labore', 'pró-labore', 'adiantamento', 'quinzena', 'bonus', 'comissao', 'vale'],
+      },
+      {
+        targetSubgroupCode: '0.2', // Outras Entradas
+        targetKeywords: ['outras entradas', 'rendimentos aplicacoes alugueis restituicao ir'],
+        triggerWords: ['freela', 'freelancer', 'rendimento', 'dividendos', 'aluguel recebido', 'restituicao', 'venda', 'reembolso'],
+      },
+    ]
 
     for (const cat of categories) {
-      // Compatibilidade de tipo (income vs expense)
       if (cat.type !== parseResult.type) {
         continue
       }
 
       let score = 0
+      const isSubgroup = Boolean(cat.group_level2)
       const catNameNorm = cleanNorm(cat.name)
       const catGroup1Norm = cleanNorm(cat.group_level1)
       const catGroup2Norm = cleanNorm(cat.group_level2)
-      const catSub3Norm = cleanNorm(cat.subgroup_level3)
+      const catDescNorm = cleanNorm(cat.description)
 
-      // Subgrupos (onde há group_level2 definido) são mais específicos que grupos gerais:
-      const isSubgroup = Boolean(cat.group_level2)
+      // 1. Análise detalhada da DESCRIÇÃO DA UTILIZAÇÃO do Subgrupo (onde reside o significado real do plano de contas)
+      for (const w of textWords) {
+        if (catDescNorm && catDescNorm.includes(w)) {
+          score += 35
+        }
+        if (catNameNorm && catNameNorm.includes(w)) {
+          score += 40
+        }
+        if (catGroup2Norm && catGroup2Norm.includes(w)) {
+          score += 30
+        }
+        if (catGroup1Norm && catGroup1Norm.includes(w)) {
+          score += 15
+        }
 
-      // Verificação por palavras-chave mapeadas
-      for (const [concept, keywords] of Object.entries(keywordMap)) {
-        const matchesConcept =
-          catNameNorm.includes(concept) ||
-          catGroup2Norm.includes(concept) ||
-          catGroup1Norm.includes(concept) ||
-          catSub3Norm.includes(concept)
+        // Proximidade por radical/raiz da palavra (ex: "almoc" casa com "almoço" e "almoços", "refei" com "refeições")
+        if (w.length >= 4) {
+          const root = w.slice(0, Math.min(w.length - 1, 5))
+          if (catDescNorm && catDescNorm.includes(root)) score += 15
+          if (catNameNorm && catNameNorm.includes(root)) score += 20
+        }
+      }
 
-        if (matchesConcept) {
-          for (const kw of keywords) {
-            if (normalizedText.includes(kw)) {
-              score += isSubgroup ? 35 : 20
+      // 2. Análise por conceitos semânticos mapeados
+      for (const concept of semanticConcepts) {
+        const matchesCode = concept.targetSubgroupCode && cat.code === concept.targetSubgroupCode
+        const matchesTargetWords = concept.targetKeywords.some(
+          (tk) => catNameNorm.includes(tk) || catDescNorm.includes(tk) || catGroup2Norm.includes(tk),
+        )
+
+        if (matchesCode || matchesTargetWords) {
+          for (const tw of concept.triggerWords) {
+            if (normalizedText.includes(tw)) {
+              score += isSubgroup ? 60 : 25
             }
           }
         }
       }
 
-      // Match direto de termos
-      if (catNameNorm && normalizedText.includes(catNameNorm)) score += isSubgroup ? 40 : 25
-      if (catGroup2Norm && normalizedText.includes(catGroup2Norm)) score += 30
-      if (catGroup1Norm && normalizedText.includes(catGroup1Norm)) score += 15
-
-      // Bônus para subgrupo quando houver pontuação (preferir a folha específica da árvore)
+      // Bônus prioritário para Subgrupos específicos (evita deixar o subgrupo vazio!)
       if (isSubgroup && score > 0) {
-        score += 15
+        score += 30
       }
 
       if (score > maxScore) {
@@ -143,26 +238,94 @@ export const copilotService = {
       }
     }
 
-    // Se nenhuma categoria específica combinou, usa uma padrão adequada ao tipo (preferindo ativas)
+    // Se o selecionado for um Grupo Puro, busca o subgrupo mais provável filho deste grupo
+    if (bestCategory && !bestCategory.group_level2) {
+      const childSubgroups = categories.filter(
+        (c) => c.type === parseResult.type && c.group_level1 === bestCategory?.group_level1 && Boolean(c.group_level2),
+      )
+      if (childSubgroups.length > 0) {
+        // Encontra o subgrupo filho com melhor descrição
+        let bestChild = childSubgroups[0]
+        let bestChildScore = 0
+        for (const child of childSubgroups) {
+          const childDesc = cleanNorm(child.description)
+          const childName = cleanNorm(child.name)
+          let cScore = 0
+          for (const w of textWords) {
+            if (childDesc.includes(w)) cScore += 30
+            if (childName.includes(w)) cScore += 35
+          }
+          if (cScore > bestChildScore) {
+            bestChildScore = cScore
+            bestChild = child
+          }
+        }
+        bestCategory = bestChild
+      }
+    }
+
+    // Se nenhuma categoria combinou, escolhe o primeiro subgrupo ativo compatível
     if (!bestCategory && categories.length > 0) {
       bestCategory =
-        categories.find((c) => c.type === parseResult.type && (c.status ?? 'active') === 'active') ||
-        categories.find((c) => c.type === parseResult.type) ||
+        categories.find((c) => c.type === parseResult.type && Boolean(c.group_level2) && (c.status ?? 'active') === 'active') ||
+        categories.find((c) => c.type === parseResult.type && Boolean(c.group_level2)) ||
         categories[0]
     }
 
-    // Identificação de Conta
-    let matchedAccount = accounts.find((a) => a.id === parseResult.accountId)
+    // =========================================================================
+    // ENTENDIMENTO AVANÇADO DA CONTA (com proximidade e flexibilidade de nomes)
+    // =========================================================================
+    let matchedAccount: AccountRecord | null = null
+
+    // 1. Se o parser já encontrou por palavras exatas
+    if (parseResult.accountId) {
+      matchedAccount = accounts.find((a) => a.id === parseResult.accountId) || null
+    }
+
+    // 2. Análise contextual pelo nome da conta, banco citado e tipo de transação
     if (!matchedAccount && accounts.length > 0) {
-      if (
+      const isCreditMentioned =
         normalizedText.includes('credito') ||
         normalizedText.includes('cartao') ||
-        normalizedText.includes('fatura')
-      ) {
+        normalizedText.includes('fatura') ||
+        normalizedText.includes('parcelado') ||
+        normalizedText.includes('vezes')
+
+      const isCheckingMentioned =
+        normalizedText.includes('debito') ||
+        normalizedText.includes('corrente') ||
+        normalizedText.includes('pix') ||
+        normalizedText.includes('transferencia') ||
+        normalizedText.includes('ted')
+
+      // Busca por palavras de instituições bancárias populares no Brasil
+      const bankKeywords = ['nubank', 'inter', 'itau', 'itaú', 'bradesco', 'santander', 'caixa', 'bb', 'banco do brasil', 'c6', 'sicredi', 'sicoob', 'mercadopago']
+      let foundBankWord = bankKeywords.find((b) => normalizedText.includes(b))
+
+      // Procura conta que contenha a palavra do banco
+      if (foundBankWord) {
+        const matchingBankAccounts = accounts.filter((a) => cleanNorm(a.name).includes(foundBankWord))
+        if (matchingBankAccounts.length > 0) {
+          if (isCreditMentioned) {
+            matchedAccount = matchingBankAccounts.find((a) => a.type === 'credit_card') || matchingBankAccounts[0]
+          } else if (isCheckingMentioned) {
+            matchedAccount = matchingBankAccounts.find((a) => a.type === 'checking') || matchingBankAccounts[0]
+          } else {
+            matchedAccount = matchingBankAccounts[0]
+          }
+        }
+      }
+
+      // Se mencionou cartão/crédito, seleciona cartão de crédito mais próximo
+      if (!matchedAccount && isCreditMentioned) {
         matchedAccount =
           accounts.find((a) => a.type === 'credit_card' && (a.status ?? 'active') === 'active') ||
-          accounts.find((a) => a.type === 'credit_card')
-      } else {
+          accounts.find((a) => a.type === 'credit_card') ||
+          null
+      }
+
+      // Se mencionou débito/pix ou nada específico, seleciona conta corrente ativa
+      if (!matchedAccount) {
         matchedAccount =
           accounts.find((a) => a.type === 'checking' && (a.status ?? 'active') === 'active') ||
           accounts.find((a) => a.type === 'checking') ||
