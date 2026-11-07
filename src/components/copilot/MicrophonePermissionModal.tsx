@@ -7,7 +7,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Mic, MicOff, Lock, RefreshCw, CheckCircle2, ShieldAlert } from 'lucide-react'
+import { Mic, MicOff, Lock, RefreshCw, CheckCircle2, Monitor, Smartphone, ShieldCheck } from 'lucide-react'
+import { microphoneService } from '@/services/microphoneService'
 
 interface MicrophonePermissionModalProps {
   open: boolean
@@ -22,24 +23,30 @@ export const MicrophonePermissionModal: React.FC<MicrophonePermissionModalProps>
 }) => {
   const [testing, setTesting] = useState(false)
   const [testSuccess, setTestSuccess] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleTestPermission = async () => {
     setTesting(true)
     setTestSuccess(false)
+    setErrorMessage(null)
+
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((track) => track.stop())
+      const result = await microphoneService.requestPermission()
+      if (result.granted) {
         setTestSuccess(true)
         setTimeout(() => {
           onOpenChange(false)
           if (onPermissionGranted) onPermissionGranted()
         }, 1200)
       } else {
-        window.location.reload()
+        setTestSuccess(false)
+        setErrorMessage(
+          'O microfone continua bloqueado no navegador. Siga os passos abaixo e tente novamente.',
+        )
       }
-    } catch {
+    } catch (err: any) {
       setTestSuccess(false)
+      setErrorMessage(err?.message || 'Erro ao testar microfone.')
     } finally {
       setTesting(false)
     }
@@ -51,67 +58,84 @@ export const MicrophonePermissionModal: React.FC<MicrophonePermissionModalProps>
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6">
+      <DialogContent className="max-w-lg p-6">
         <DialogHeader className="space-y-2">
           <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
             <MicOff className="w-6 h-6" />
           </div>
           <DialogTitle className="text-xl font-bold text-center text-slate-900">
-            Acesso ao Microfone Bloqueado
+            Como Liberar o Microfone no Navegador
           </DialogTitle>
           <DialogDescription className="text-center text-xs text-slate-500">
-            O seu navegador bloqueou o microfone para este site. Como o navegador não abre a caixa de diálogo novamente depois de bloqueado, siga os passos abaixo para liberar:
+            Por política de segurança do Google Chrome e Edge, quando o acesso é bloqueado, o navegador não abre o balão de permissão de novo até que você libere no topo da página:
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+        <div className="space-y-3 py-2 text-xs">
+          {/* Passo 1 */}
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
             <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
               1
             </div>
             <div>
               <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 text-indigo-600" /> Clique no cadeado ou ícone de opções
+                <Lock className="w-3.5 h-3.5 text-indigo-600" /> Clique no ícone ao lado do endereço
               </p>
               <p className="text-slate-600 mt-0.5 text-[11px]">
-                No topo do navegador, clique no ícone de <strong>cadeado ou controles de site</strong> à esquerda de <em>https://gestio-financas-app.web.app</em>.
+                No topo da tela do navegador, clique no ícone de <strong>controles deslizantes ou cadeado</strong> que fica à esquerda de <em>https://gestio-financas-app.web.app</em>.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+          {/* Passo 2 */}
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
             <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
               2
             </div>
             <div>
               <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Mic className="w-3.5 h-3.5 text-indigo-600" /> Ative o Microfone
+                <Mic className="w-3.5 h-3.5 text-indigo-600" /> Mude Microfone para "Permitir"
               </p>
               <p className="text-slate-600 mt-0.5 text-[11px]">
-                Procure a opção <strong>Microfone</strong> e altere para <strong>Permitir</strong> (ou clique em <strong>Redefinir permissões</strong>).
+                Localize a linha <strong>Microfone</strong> e mude de "Bloqueado" para <strong>Permitir</strong> (ou ligue a chavinha azul, ou clique em <strong>Redefinir permissões</strong>).
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+          {/* Passo 3 */}
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
             <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
               3
             </div>
             <div>
               <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                <RefreshCw className="w-3.5 h-3.5 text-indigo-600" /> Recarregue ou Teste
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-600" /> Clique em Testar ou Recarregar
               </p>
               <p className="text-slate-600 mt-0.5 text-[11px]">
-                Após mudar para Permitir, clique no botão de testar abaixo para ativar o comando de voz imediatamente.
+                Após liberar, clique no botão azul abaixo <strong>"Testar Permissão Agora"</strong> para começar a usar a voz imediatamente.
               </p>
+            </div>
+          </div>
+
+          {/* Dica para Windows / Mobile */}
+          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <strong>No Windows:</strong> Se continuar bloqueado, verifique no Menu Iniciar ➔ <em>Configurações do Windows ➔ Privacidade e Segurança ➔ Microfone</em> se o Google Chrome está autorizado no sistema.
             </div>
           </div>
         </div>
 
+        {errorMessage && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs font-medium">
+            {errorMessage}
+          </div>
+        )}
+
         {testSuccess && (
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 font-semibold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Microfone liberado com sucesso! Abrindo gravação...</span>
+            <span>Microfone liberado com sucesso! Abrindo reconhecimento de voz...</span>
           </div>
         )}
 

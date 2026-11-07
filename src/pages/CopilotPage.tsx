@@ -32,6 +32,8 @@ import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { CopilotLiveMode } from '@/components/copilot/CopilotLiveMode'
 import { MicrophonePermissionModal } from '@/components/copilot/MicrophonePermissionModal'
+import { MicrophoneStatusBanner } from '@/components/copilot/MicrophoneStatusBanner'
+import { useVoiceCommander } from '@/hooks/useVoiceCommander'
 import { TransactionDialog } from '@/components/transactions/TransactionDialog'
 import { invoicesService } from '@/services/invoices'
 import { deparaService } from '@/services/depara'
@@ -80,9 +82,6 @@ export const CopilotPage: React.FC = () => {
   const [quickInput, setQuickInput] = useState('')
   const [suggestion, setSuggestion] = useState<QuickTransactionSuggestion | null>(null)
   const [isSavingTx, setIsSavingTx] = useState(false)
-  const [isListening, setIsListening] = useState(false)
-  const [micPermissionModalOpen, setMicPermissionModalOpen] = useState(false)
-  const recognitionRef = useRef<any>(null)
 
   // Estado do Orçamento Inteligente
   const [customIncome, setCustomIncome] = useState<number>(4000)
@@ -352,19 +351,6 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Encerra a escuta do microfone com segurança
-  const stopListening = useCallback(() => {
-    setIsListening(false)
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {
-        // ignore
-      }
-      recognitionRef.current = null
-    }
-  }, [])
-
   // Processa o texto falado e abre a tela com sugestões
   const processSpokenTranscript = async (transcript: string) => {
     const text = transcript.trim()
@@ -393,127 +379,33 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Ativa e controla o reconhecimento de voz nativo com solicitação de permissão nativa imediata
-  const handleToggleVoice = async () => {
-    if (isListening) {
-      stopListening()
-      if (quickInput.trim()) {
-        handleSendQuickInput()
-      }
-      return
-    }
-
-    // Feedback imediato ao clique do usuário
-    toast({
-      title: '🎙️ Solicitando microfone...',
-      description: 'Autorize o acesso na janela do navegador para ditar seu gasto.',
-    })
-
-    // 1. Solicita a permissão de áudio via API padrão nativa do navegador (força o balão de permissão [Permitir] / [Bloquear])
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        // Permissão concedida pelo usuário: fecha a stream de verificação para liberar o dispositivo
-        stream.getTracks().forEach((track) => track.stop())
-      }
-    } catch (err: any) {
-      console.warn('Microfone bloqueado ou sem permissão:', err)
-      // Se o usuário bloqueou ou se já estava bloqueado no navegador, abre o modal explicativo com o passo a passo
-      setMicPermissionModalOpen(true)
+  // Hook moderno de comando por voz e permissões nativas
+  const {
+    permissionState,
+    isListening,
+    isRequestingPermission,
+    audioLevel,
+    permissionModalOpen,
+    setPermissionModalOpen,
+    requestPermission,
+    toggleListening,
+    stopListening,
+  } = useVoiceCommander({
+    onInterimResult: (text) => {
+      setQuickInput(text)
+    },
+    onFinalResult: (text) => {
+      setQuickInput(text)
+      processSpokenTranscript(text)
+    },
+    onError: (err) => {
       toast({
-        title: 'Microfone bloqueado',
-        description: 'Clique no ícone de opções/cadeado ao lado do endereço do site para autorizar.',
+        title: 'Microfone',
+        description: err,
         variant: 'destructive',
       })
-      return
-    }
-
-    // 2. Com a permissão nativa concedida, inicializa o SpeechRecognition
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    if (!SpeechRecognition) {
-      toast({
-        title: 'Navegador sem suporte a voz',
-        description: 'Recomendamos usar o Google Chrome ou Microsoft Edge no celular/desktop para comando por voz.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      stopListening()
-      const recognition = new SpeechRecognition()
-      recognitionRef.current = recognition
-      recognition.lang = 'pt-BR'
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.maxAlternatives = 1
-
-      recognition.onstart = () => {
-        setIsListening(true)
-        toast({
-          title: '🎙️ Microfone ativado!',
-          description: 'Pode falar seu gasto (ex: "Almoço 42 reais")',
-        })
-      }
-
-      recognition.onresult = (event: any) => {
-        let interimText = ''
-        let finalText = ''
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalText += event.results[i][0].transcript
-          } else {
-            interimText += event.results[i][0].transcript
-          }
-        }
-
-        const currentSaid = (finalText || interimText).trim()
-        if (currentSaid) {
-          setQuickInput(currentSaid)
-        }
-
-        if (finalText.trim().length > 0) {
-          stopListening()
-          processSpokenTranscript(finalText.trim())
-        }
-      }
-
-      recognition.onerror = (e: any) => {
-        stopListening()
-        if (
-          e.error === 'not-allowed' ||
-          e.error === 'service-not-allowed' ||
-          e.error === 'permission-denied' ||
-          e.error === 'audio-capture'
-        ) {
-          setMicPermissionModalOpen(true)
-        } else if (e.error === 'no-speech') {
-          toast({
-            title: 'Nenhuma voz ouvida',
-            description: 'Não detectamos som. Clique no microfone e tente falar mais próximo do aparelho.',
-          })
-        } else if (e.error !== 'aborted') {
-          toast({
-            title: 'Falha na captura de áudio',
-            description: 'Não foi possível captar o áudio. Tente novamente ou use o campo de texto.',
-            variant: 'destructive',
-          })
-        }
-      }
-
-      recognition.onend = () => {
-        setIsListening(false)
-      }
-
-      recognition.start()
-    } catch (err: any) {
-      stopListening()
-      setMicPermissionModalOpen(true)
-    }
-  }
+    },
+  })
 
   // Recalcular orçamento inteligente
   const handleRecalculateBudget = async () => {
@@ -695,6 +587,14 @@ export const CopilotPage: React.FC = () => {
 
         {/* ABA 1: LANÇAMENTO RÁPIDO POR LINGUAGEM NATURAL */}
         <TabsContent value="quick-tx" className="space-y-6">
+          {/* Banner Reativo de Permissão e Status do Microfone */}
+          <MicrophoneStatusBanner
+            permissionState={permissionState}
+            isRequesting={isRequestingPermission}
+            onRequestPermission={requestPermission}
+            onOpenHelpModal={() => setPermissionModalOpen(true)}
+          />
+
           <Card className="rounded-3xl border-slate-200 shadow-sm overflow-hidden bg-white">
             <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
@@ -739,7 +639,7 @@ export const CopilotPage: React.FC = () => {
                   <Button
                     type="button"
                     size="icon"
-                    onClick={handleToggleVoice}
+                    onClick={toggleListening}
                     className={`h-10 w-10 rounded-xl transition-all shadow-md ${
                       isListening
                         ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-4 ring-rose-200'
@@ -767,7 +667,7 @@ export const CopilotPage: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <Button
                   type="button"
-                  onClick={handleToggleVoice}
+                  onClick={toggleListening}
                   variant={isListening ? 'destructive' : 'outline'}
                   className={`rounded-xl text-xs font-bold gap-2 transition-all ${
                     isListening
@@ -788,23 +688,50 @@ export const CopilotPage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => setMicPermissionModalOpen(true)}
+                  onClick={() => setPermissionModalOpen(true)}
                   className="text-[11px] text-slate-500 hover:text-indigo-600 underline font-medium flex items-center gap-1 cursor-pointer"
                 >
                   <Lock className="w-3.5 h-3.5" /> Como liberar o microfone no navegador?
                 </button>
               </div>
 
-              {/* Indicador em tempo real de gravação */}
+              {/* Indicador em tempo real de gravação com Medidor de Ondas Sonoras */}
               {isListening && (
-                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 text-rose-900 text-xs font-medium animate-pulse">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
-                  </span>
-                  <span>
-                    <strong>Microfone ligado:</strong> fale por exemplo <em>"Almoço restaurante 42 reais hoje"</em>. Ao pausar a fala ou clicar no microfone, a tela abrirá pré-preenchida.
-                  </span>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-indigo-500/10 border border-rose-200 text-rose-950">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 h-6 px-1">
+                      {[0.4, 0.8, 1.3, 0.6, 1.5, 0.9, 0.5, 1.2, 0.7].map((factor, i) => (
+                        <span
+                          key={i}
+                          className="w-1.5 bg-rose-600 rounded-full transition-all duration-75"
+                          style={{
+                            height: `${Math.max(6, Math.min(26, ((audioLevel || 20) * factor) / 3))}px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                        </span>
+                        Microfone captando sua voz em tempo real...
+                      </p>
+                      <p className="text-[11px] text-rose-800 mt-0.5">
+                        Diga ex: <em>"Almoço restaurante 42 reais"</em> ou <em>"Mercado 150 no débito"</em>.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={stopListening}
+                    className="rounded-xl text-xs font-bold gap-1.5 shadow-xs shrink-0"
+                  >
+                    <MicOff className="w-3.5 h-3.5" /> Concluir e Processar
+                  </Button>
                 </div>
               )}
 
@@ -1236,9 +1163,9 @@ export const CopilotPage: React.FC = () => {
 
       {/* Modal didático e ilustrado de permissão do microfone */}
       <MicrophonePermissionModal
-        open={micPermissionModalOpen}
-        onOpenChange={setMicPermissionModalOpen}
-        onPermissionGranted={handleToggleVoice}
+        open={permissionModalOpen}
+        onOpenChange={setPermissionModalOpen}
+        onPermissionGranted={startListening}
       />
     </div>
   )
