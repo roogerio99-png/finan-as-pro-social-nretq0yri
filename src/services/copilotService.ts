@@ -227,9 +227,9 @@ export const copilotService = {
         }
       }
 
-      // Bônus prioritário para Subgrupos específicos (evita deixar o subgrupo vazio!)
+      // Bônus prioritário para Subgrupos específicos (garante que o subgrupo venha sempre preenchido!)
       if (isSubgroup && score > 0) {
-        score += 30
+        score += 60
       }
 
       if (score > maxScore) {
@@ -241,7 +241,12 @@ export const copilotService = {
     // Se o selecionado for um Grupo Puro, busca o subgrupo mais provável filho deste grupo
     if (bestCategory && !bestCategory.group_level2) {
       const childSubgroups = categories.filter(
-        (c) => c.type === parseResult.type && c.group_level1 === bestCategory?.group_level1 && Boolean(c.group_level2),
+        (c) =>
+          c.type === parseResult.type &&
+          Boolean(c.group_level2) &&
+          (c.group_level1 === bestCategory?.group_level1 ||
+            (c.group_code && bestCategory?.group_code && c.group_code === bestCategory.group_code) ||
+            (c.code && bestCategory?.group_code && c.code.startsWith(bestCategory.group_code.replace('.0', '.')))),
       )
       if (childSubgroups.length > 0) {
         // Encontra o subgrupo filho com melhor descrição
@@ -261,6 +266,12 @@ export const copilotService = {
           }
         }
         bestCategory = bestChild
+      } else {
+        // Fallback: se o grupo pai não tem filhos diretos, seleciona o primeiro subgrupo ativo compatível
+        const anyActiveSub = categories.find(
+          (c) => c.type === parseResult.type && Boolean(c.group_level2) && (c.status ?? 'active') === 'active',
+        )
+        if (anyActiveSub) bestCategory = anyActiveSub
       }
     }
 
@@ -282,7 +293,7 @@ export const copilotService = {
       matchedAccount = accounts.find((a) => a.id === parseResult.accountId) || null
     }
 
-    // 2. Análise contextual pelo nome da conta, banco citado e tipo de transação
+    // 2. Pontuação inteligente para cada conta cadastrada com base na frase falada
     if (!matchedAccount && accounts.length > 0) {
       const isCreditMentioned =
         normalizedText.includes('credito') ||
@@ -298,25 +309,38 @@ export const copilotService = {
         normalizedText.includes('transferencia') ||
         normalizedText.includes('ted')
 
-      // Busca por palavras de instituições bancárias populares no Brasil
-      const bankKeywords = ['nubank', 'inter', 'itau', 'itaú', 'bradesco', 'santander', 'caixa', 'bb', 'banco do brasil', 'c6', 'sicredi', 'sicoob', 'mercadopago']
-      let foundBankWord = bankKeywords.find((b) => normalizedText.includes(b))
+      let bestAccScore = 0
+      let bestAccCandidate: AccountRecord | null = null
 
-      // Procura conta que contenha a palavra do banco
-      if (foundBankWord) {
-        const matchingBankAccounts = accounts.filter((a) => cleanNorm(a.name).includes(foundBankWord))
-        if (matchingBankAccounts.length > 0) {
-          if (isCreditMentioned) {
-            matchedAccount = matchingBankAccounts.find((a) => a.type === 'credit_card') || matchingBankAccounts[0]
-          } else if (isCheckingMentioned) {
-            matchedAccount = matchingBankAccounts.find((a) => a.type === 'checking') || matchingBankAccounts[0]
-          } else {
-            matchedAccount = matchingBankAccounts[0]
+      for (const acc of accounts) {
+        if ((acc.status ?? 'active') !== 'active') continue
+
+        let accScore = 0
+        const accNameNorm = cleanNorm(acc.name)
+        const nameParts = accNameNorm.split(' ').filter((p) => p.length >= 2)
+
+        // Verifica correspondência das palavras do nome da conta na frase
+        for (const part of nameParts) {
+          if (normalizedText.includes(part)) {
+            accScore += part.length >= 4 ? 40 : 20
           }
+        }
+
+        // Bônus pelo tipo indicado na frase
+        if (isCreditMentioned && acc.type === 'credit_card') accScore += 35
+        if (isCheckingMentioned && acc.type === 'checking') accScore += 35
+
+        if (accScore > bestAccScore) {
+          bestAccScore = accScore
+          bestAccCandidate = acc
         }
       }
 
-      // Se mencionou cartão/crédito, seleciona cartão de crédito mais próximo
+      if (bestAccScore > 0 && bestAccCandidate) {
+        matchedAccount = bestAccCandidate
+      }
+
+      // 3. Fallbacks por tipo caso nenhuma conta tenha pontuado por nome
       if (!matchedAccount && isCreditMentioned) {
         matchedAccount =
           accounts.find((a) => a.type === 'credit_card' && (a.status ?? 'active') === 'active') ||
@@ -324,7 +348,6 @@ export const copilotService = {
           null
       }
 
-      // Se mencionou débito/pix ou nada específico, seleciona conta corrente ativa
       if (!matchedAccount) {
         matchedAccount =
           accounts.find((a) => a.type === 'checking' && (a.status ?? 'active') === 'active') ||

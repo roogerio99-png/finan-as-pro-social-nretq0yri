@@ -30,6 +30,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
 import { CopilotLiveMode } from '@/components/copilot/CopilotLiveMode'
+import { MicrophonePermissionModal } from '@/components/copilot/MicrophonePermissionModal'
 import { TransactionDialog } from '@/components/transactions/TransactionDialog'
 import { invoicesService } from '@/services/invoices'
 import { deparaService } from '@/services/depara'
@@ -79,6 +80,7 @@ export const CopilotPage: React.FC = () => {
   const [suggestion, setSuggestion] = useState<QuickTransactionSuggestion | null>(null)
   const [isSavingTx, setIsSavingTx] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [micPermissionModalOpen, setMicPermissionModalOpen] = useState(false)
   const recognitionRef = useRef<any>(null)
 
   // Estado do Orçamento Inteligente
@@ -390,8 +392,8 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Ativa e controla o reconhecimento de voz nativo com permissões explícitas e transcrição em tempo real
-  const handleToggleVoice = async () => {
+  // Ativa e controla o reconhecimento de voz nativo com permissão imediata e transcrição em tempo real
+  const handleToggleVoice = () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -410,21 +412,6 @@ export const CopilotPage: React.FC = () => {
         handleSendQuickInput()
       }
       return
-    }
-
-    // Solicita permissão explícita de microfone ao navegador para evitar falha silenciosa
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((track) => track.stop())
-      } catch (err: any) {
-        toast({
-          title: 'Permissão de microfone necessária',
-          description: 'Por favor, clique no ícone de cadeado/permissões ao lado do endereço do site e autorize o microfone.',
-          variant: 'destructive',
-        })
-        return
-      }
     }
 
     try {
@@ -465,12 +452,8 @@ export const CopilotPage: React.FC = () => {
 
       recognition.onerror = (e: any) => {
         stopListening()
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          toast({
-            title: 'Microfone bloqueado',
-            description: 'Autorize o acesso ao microfone nas configurações do navegador para ditar seus gastos.',
-            variant: 'destructive',
-          })
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'permission-denied') {
+          setMicPermissionModalOpen(true)
         } else if (e.error === 'no-speech') {
           toast({
             title: 'Nenhuma voz ouvida',
@@ -489,14 +472,11 @@ export const CopilotPage: React.FC = () => {
         setIsListening(false)
       }
 
+      // Executa de forma 100% síncrona no contexto de ativação do clique do usuário
       recognition.start()
-    } catch {
+    } catch (err: any) {
       stopListening()
-      toast({
-        title: 'Erro ao ligar microfone',
-        description: 'Não foi possível inicializar a captura de áudio.',
-        variant: 'destructive',
-      })
+      setMicPermissionModalOpen(true)
     }
   }
 
@@ -1185,6 +1165,13 @@ export const CopilotPage: React.FC = () => {
         saving={isSavingTx}
         onSubmit={handleSubmitTransaction}
         voiceFields={voiceFields}
+      />
+
+      {/* Modal didático e ilustrado de permissão do microfone */}
+      <MicrophonePermissionModal
+        open={micPermissionModalOpen}
+        onOpenChange={setMicPermissionModalOpen}
+        onPermissionGranted={handleToggleVoice}
       />
     </div>
   )

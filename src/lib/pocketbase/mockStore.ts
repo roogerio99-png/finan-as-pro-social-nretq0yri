@@ -1104,7 +1104,7 @@ export class MockPocketBase {
     this.authStore = new MockAuthStore(defaultUser)
 
     // Auto-migração definitiva para sincronizar as Categorias e Subgrupos da Planilha Oficial
-    const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_planilha_oficial_v6'
+    const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_planilha_oficial_v9_force_sync'
     if (typeof window !== 'undefined' && !localStorage.getItem(CATEGORIES_MIGRATION_KEY)) {
       this.migrateLegacyCategoriesToErpPlan(initial.categories)
       localStorage.setItem(CATEGORIES_MIGRATION_KEY, 'true')
@@ -1119,26 +1119,57 @@ export class MockPocketBase {
   }
 
   private migrateLegacyCategoriesToErpPlan(officialCategories: MockRecord[]) {
-    // Sincroniza integralmente com a árvore oficial da planilha
+    // Sincroniza integralmente com a árvore oficial da planilha (11 grupos e 42 subgrupos com descrições)
     const cats = this.collections.categories || []
-    const hasOfficialPlan = cats.some((c) => c.name === 'Estrutural Habitacional' || c.code === '1.1')
 
-    if (!hasOfficialPlan) {
-      // Preserva categorias customizadas criadas pelo usuário (não pertencentes a seeds antigos)
-      const officialIds = new Set(officialCategories.map((c) => c.id))
-      const oldLegacyPrefixes = ['cat_salario', 'cat_dividendos', 'cat_freela', 'cat_aluguel', 'cat_energia', 'cat_mercado', 'cat_saude', 'cat_telecom', 'cat_restaurantes', 'cat_streaming', 'cat_transporte', 'cat_vestuario', 'cat_reserva_sonho', 'cat_viagem_sonho', 'cat_divida_parcela', 'cat_grp_']
-
-      const userCustomCategories = cats.filter(
-        (c) =>
-          !officialIds.has(c.id) &&
-          !oldLegacyPrefixes.some((p) => c.id.startsWith(p)) &&
-          c.group_level1 !== 'Custos Fixos' &&
-          c.group_level1 !== 'Estilo de Vida',
-      )
-
-      this.collections.categories = [...officialCategories, ...userCustomCategories]
-      this.persist('categories')
+    // Mapeamento de grupos legados/anteriores para os grupos oficiais
+    const groupNameMapping: Record<string, string> = {
+      'Alimentação e Mercado': 'Alimentação e Despensa',
+      'Custos Fixos': 'Habitação e Moradia',
+      'Estilo de Vida': 'Lazer e Bem-Estar',
+      'Despesas Financeiras': 'Serviços Financeiros',
+      'Dívidas': 'Serviços Financeiros',
+      'Dívidas e Empréstimos': 'Serviços Financeiros',
+      'Investimentos': 'Obrigações e Investimentos',
+      'Investimentos e Sonhos': 'Obrigações e Investimentos',
     }
+
+    const officialIdSet = new Set(officialCategories.map((c) => c.id))
+    const officialCodeMap = new Map<string, MockRecord>()
+    for (const off of officialCategories) {
+      if (off.code) officialCodeMap.set(off.code, off)
+    }
+
+    // Mantém categorias customizadas que o usuário tenha criado manualmente
+    const userCustom: MockRecord[] = []
+    for (const c of cats) {
+      // Ignora registros padrão antigos para dar lugar aos oficiais com descrição completa
+      if (
+        !officialIdSet.has(c.id) &&
+        !officialCodeMap.has(c.code) &&
+        !c.id.startsWith('cat_grp_') &&
+        !c.id.startsWith('cat_sub_') &&
+        !c.id.startsWith('cat_salario') &&
+        !c.id.startsWith('cat_mercado') &&
+        !c.id.startsWith('cat_restaurantes') &&
+        !c.id.startsWith('cat_aluguel') &&
+        !c.id.startsWith('cat_energia') &&
+        !c.id.startsWith('cat_transporte') &&
+        !c.id.startsWith('cat_saude') &&
+        !c.id.startsWith('cat_telecom') &&
+        !c.id.startsWith('cat_vestuario')
+      ) {
+        const mappedGroup = groupNameMapping[c.group_level1] || c.group_level1
+        userCustom.push({
+          ...c,
+          group_level1: mappedGroup,
+        })
+      }
+    }
+
+    // Define a coleção como todas as categorias oficiais da planilha + categorias personalizadas do usuário
+    this.collections.categories = [...officialCategories, ...userCustom]
+    this.persist('categories')
   }
 
   clearAllTransactions() {
