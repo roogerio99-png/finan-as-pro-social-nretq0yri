@@ -183,7 +183,10 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
       }
 
       recognition.onerror = (e: any) => {
-        if (e.error !== 'no-speech') {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          setLiveState('idle')
+          setLastBotReply('Acesso ao microfone negado. Por favor, clique no cadeado da barra de endereço do seu navegador e autorize o microfone.')
+        } else if (e.error !== 'no-speech') {
           console.warn('Erro de fala no modo live:', e.error)
         }
       }

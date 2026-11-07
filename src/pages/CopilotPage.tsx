@@ -79,6 +79,7 @@ export const CopilotPage: React.FC = () => {
   const [suggestion, setSuggestion] = useState<QuickTransactionSuggestion | null>(null)
   const [isSavingTx, setIsSavingTx] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
 
   // Estado do Orçamento Inteligente
   const [customIncome, setCustomIncome] = useState<number>(4000)
@@ -348,57 +349,154 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Ativa reconhecimento de voz: ao concluir a fala, preenche e abre a tela de lançamento
-  const handleToggleVoice = () => {
+  // Encerra a escuta do microfone com segurança
+  const stopListening = useCallback(() => {
+    setIsListening(false)
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null
+    }
+  }, [])
+
+  // Processa o texto falado e abre a tela com sugestões
+  const processSpokenTranscript = async (transcript: string) => {
+    const text = transcript.trim()
+    if (!text) return
+    setQuickInput(text)
+    try {
+      const parsed = await copilotService.parseNaturalTransaction(text, accounts, categories)
+      setSuggestion(parsed)
+      if (parsed.parseResult.amount !== null && parsed.parseResult.amount > 0) {
+        openTransactionDialogWithData({
+          type: parsed.parseResult.type,
+          description: parsed.parseResult.description,
+          amount: parsed.parseResult.amount,
+          date: parsed.parseResult.date,
+          accountId: parsed.suggestedAccountId,
+          categoryId: parsed.suggestedCategoryId,
+        })
+      } else {
+        toast({
+          title: 'Frase reconhecida!',
+          description: `"${text}" — Para abrir a tela de lançamento, inclua também o valor (ex: "Almoço 42 reais").`,
+        })
+      }
+    } catch (err) {
+      console.error('Erro ao interpretar fala:', err)
+    }
+  }
+
+  // Ativa e controla o reconhecimento de voz nativo com permissões explícitas e transcrição em tempo real
+  const handleToggleVoice = async () => {
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
     if (!SpeechRecognition) {
       toast({
-        title: 'Voz não suportada neste navegador',
-        description: 'Você pode digitar normalmente no campo de texto.',
+        title: 'Microfone não suportado neste navegador',
+        description: 'Recomendamos usar o Google Chrome ou Microsoft Edge no celular/desktop para comando por voz.',
+        variant: 'destructive',
       })
       return
     }
 
     if (isListening) {
-      setIsListening(false)
+      stopListening()
+      if (quickInput.trim()) {
+        handleSendQuickInput()
+      }
       return
     }
 
+    // Solicita permissão explícita de microfone ao navegador para evitar falha silenciosa
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((track) => track.stop())
+      } catch (err: any) {
+        toast({
+          title: 'Permissão de microfone necessária',
+          description: 'Por favor, clique no ícone de cadeado/permissões ao lado do endereço do site e autorize o microfone.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
     try {
+      stopListening()
       const recognition = new SpeechRecognition()
+      recognitionRef.current = recognition
       recognition.lang = 'pt-BR'
       recognition.continuous = false
-      recognition.interimResults = false
+      recognition.interimResults = true
+      recognition.maxAlternatives = 1
 
-      recognition.onstart = () => setIsListening(true)
-      recognition.onend = () => setIsListening(false)
-      recognition.onerror = () => setIsListening(false)
-      recognition.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript
-        setQuickInput(transcript)
-        try {
-          const parsed = await copilotService.parseNaturalTransaction(transcript, accounts, categories)
-          setSuggestion(parsed)
-          if (parsed.parseResult.amount !== null && parsed.parseResult.amount > 0) {
-            openTransactionDialogWithData({
-              type: parsed.parseResult.type,
-              description: parsed.parseResult.description,
-              amount: parsed.parseResult.amount,
-              date: parsed.parseResult.date,
-              accountId: parsed.suggestedAccountId,
-              categoryId: parsed.suggestedCategoryId,
-            })
+      recognition.onstart = () => {
+        setIsListening(true)
+      }
+
+      recognition.onresult = (event: any) => {
+        let interimText = ''
+        let finalText = ''
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalText += event.results[i][0].transcript
+          } else {
+            interimText += event.results[i][0].transcript
           }
-        } catch (err) {
-          console.error('Erro ao interpretar fala:', err)
         }
+
+        const currentSaid = (finalText || interimText).trim()
+        if (currentSaid) {
+          setQuickInput(currentSaid)
+        }
+
+        if (finalText.trim().length > 0) {
+          stopListening()
+          processSpokenTranscript(finalText.trim())
+        }
+      }
+
+      recognition.onerror = (e: any) => {
+        stopListening()
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          toast({
+            title: 'Microfone bloqueado',
+            description: 'Autorize o acesso ao microfone nas configurações do navegador para ditar seus gastos.',
+            variant: 'destructive',
+          })
+        } else if (e.error === 'no-speech') {
+          toast({
+            title: 'Nenhuma voz ouvida',
+            description: 'Não detectamos som. Clique no microfone e tente falar mais próximo do aparelho.',
+          })
+        } else if (e.error !== 'aborted') {
+          toast({
+            title: 'Falha na captura de áudio',
+            description: 'Não foi possível captar o áudio. Tente novamente ou use o campo de texto.',
+            variant: 'destructive',
+          })
+        }
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
       }
 
       recognition.start()
     } catch {
-      setIsListening(false)
+      stopListening()
+      toast({
+        title: 'Erro ao ligar microfone',
+        description: 'Não foi possível inicializar a captura de áudio.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -611,22 +709,30 @@ export const CopilotPage: React.FC = () => {
                       handleSendQuickInput()
                     }
                   }}
-                  placeholder="Ex: Paguei 54 reais no almoço hoje com cartão de crédito..."
-                  className="h-16 pl-5 pr-28 sm:pr-36 text-base sm:text-lg rounded-2xl border-slate-300 focus-visible:ring-indigo-500 bg-slate-50/50"
+                  placeholder={
+                    isListening
+                      ? '🎙️ Gravando sua voz... Fale agora seu lançamento!'
+                      : 'Ex: Paguei 54 reais no almoço hoje com cartão de crédito...'
+                  }
+                  className={`h-16 pl-5 pr-28 sm:pr-36 text-base sm:text-lg rounded-2xl transition-all ${
+                    isListening
+                      ? 'border-rose-400 ring-4 ring-rose-100 bg-rose-50/30'
+                      : 'border-slate-300 focus-visible:ring-indigo-500 bg-slate-50/50'
+                  }`}
                 />
                 <div className="absolute right-3 top-3 flex items-center gap-2">
                   <Button
                     type="button"
                     size="icon"
                     onClick={handleToggleVoice}
-                    className={`h-10 w-10 rounded-xl transition-all ${
+                    className={`h-10 w-10 rounded-xl transition-all shadow-md ${
                       isListening
-                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-4 ring-rose-200'
                         : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                     }`}
-                    title={isListening ? 'Parar gravação' : 'Falar comando de voz'}
+                    title={isListening ? 'Parar gravação e processar' : 'Falar comando de voz'}
                   >
-                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    {isListening ? <MicOff className="w-5 h-5 animate-bounce" /> : <Mic className="w-5 h-5" />}
                   </Button>
 
                   <Button
@@ -641,6 +747,19 @@ export const CopilotPage: React.FC = () => {
                   </Button>
                 </div>
               </div>
+
+              {/* Indicador em tempo real de gravação */}
+              {isListening && (
+                <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 text-rose-900 text-xs font-medium animate-pulse">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
+                  </span>
+                  <span>
+                    <strong>Microfone ligado:</strong> fale por exemplo <em>"Almoço restaurante 42 reais hoje"</em>. Ao pausar a fala ou clicar no microfone, a tela abrirá pré-preenchida.
+                  </span>
+                </div>
+              )}
 
               {/* Botões com Exemplos Práticos */}
               <div className="space-y-2">
