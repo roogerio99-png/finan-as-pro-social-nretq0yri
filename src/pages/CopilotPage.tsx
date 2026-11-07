@@ -392,25 +392,40 @@ export const CopilotPage: React.FC = () => {
     }
   }
 
-  // Ativa e controla o reconhecimento de voz nativo com permissão imediata e transcrição em tempo real
-  const handleToggleVoice = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-
-    if (!SpeechRecognition) {
-      toast({
-        title: 'Microfone não suportado neste navegador',
-        description: 'Recomendamos usar o Google Chrome ou Microsoft Edge no celular/desktop para comando por voz.',
-        variant: 'destructive',
-      })
-      return
-    }
-
+  // Ativa e controla o reconhecimento de voz nativo com solicitação de permissão nativa imediata
+  const handleToggleVoice = async () => {
     if (isListening) {
       stopListening()
       if (quickInput.trim()) {
         handleSendQuickInput()
       }
+      return
+    }
+
+    // 1. Solicita a permissão de áudio via API padrão nativa do navegador (força o balão de permissão [Permitir] / [Bloquear])
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        // Permissão concedida pelo usuário: fecha a stream de verificação para liberar o dispositivo
+        stream.getTracks().forEach((track) => track.stop())
+      }
+    } catch (err: any) {
+      console.warn('Microfone bloqueado ou sem permissão:', err)
+      // Se o usuário bloqueou ou se já estava bloqueado no navegador, abre o modal explicativo com o passo a passo
+      setMicPermissionModalOpen(true)
+      return
+    }
+
+    // 2. Com a permissão nativa concedida, inicializa o SpeechRecognition
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+    if (!SpeechRecognition) {
+      toast({
+        title: 'Navegador sem suporte a voz',
+        description: 'Recomendamos usar o Google Chrome ou Microsoft Edge no celular/desktop para comando por voz.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -425,6 +440,10 @@ export const CopilotPage: React.FC = () => {
 
       recognition.onstart = () => {
         setIsListening(true)
+        toast({
+          title: '🎙️ Microfone ativado!',
+          description: 'Pode falar seu gasto (ex: "Almoço 42 reais")',
+        })
       }
 
       recognition.onresult = (event: any) => {
@@ -472,7 +491,6 @@ export const CopilotPage: React.FC = () => {
         setIsListening(false)
       }
 
-      // Executa de forma 100% síncrona no contexto de ativação do clique do usuário
       recognition.start()
     } catch (err: any) {
       stopListening()
