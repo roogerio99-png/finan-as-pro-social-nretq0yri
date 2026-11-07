@@ -402,6 +402,12 @@ export const CopilotPage: React.FC = () => {
       return
     }
 
+    // Feedback imediato ao clique do usuário
+    toast({
+      title: '🎙️ Solicitando microfone...',
+      description: 'Autorize o acesso na janela do navegador para ditar seu gasto.',
+    })
+
     // 1. Solicita a permissão de áudio via API padrão nativa do navegador (força o balão de permissão [Permitir] / [Bloquear])
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -413,6 +419,11 @@ export const CopilotPage: React.FC = () => {
       console.warn('Microfone bloqueado ou sem permissão:', err)
       // Se o usuário bloqueou ou se já estava bloqueado no navegador, abre o modal explicativo com o passo a passo
       setMicPermissionModalOpen(true)
+      toast({
+        title: 'Microfone bloqueado',
+        description: 'Clique no ícone de opções/cadeado ao lado do endereço do site para autorizar.',
+        variant: 'destructive',
+      })
       return
     }
 
@@ -471,7 +482,12 @@ export const CopilotPage: React.FC = () => {
 
       recognition.onerror = (e: any) => {
         stopListening()
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'permission-denied') {
+        if (
+          e.error === 'not-allowed' ||
+          e.error === 'service-not-allowed' ||
+          e.error === 'permission-denied' ||
+          e.error === 'audio-capture'
+        ) {
           setMicPermissionModalOpen(true)
         } else if (e.error === 'no-speech') {
           toast({
@@ -718,7 +734,7 @@ export const CopilotPage: React.FC = () => {
                       : 'border-slate-300 focus-visible:ring-indigo-500 bg-slate-50/50'
                   }`}
                 />
-                <div className="absolute right-3 top-3 flex items-center gap-2">
+                <div className="absolute right-3 top-3 z-30 flex items-center gap-2 pointer-events-auto">
                   <Button
                     type="button"
                     size="icon"
@@ -744,6 +760,38 @@ export const CopilotPage: React.FC = () => {
                     <span className="hidden sm:inline text-xs font-semibold">Enviar</span>
                   </Button>
                 </div>
+              </div>
+
+              {/* Ações Rápidas de Acessibilidade ao Microfone */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <Button
+                  type="button"
+                  onClick={handleToggleVoice}
+                  variant={isListening ? 'destructive' : 'outline'}
+                  className={`rounded-xl text-xs font-bold gap-2 transition-all ${
+                    isListening
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                      : 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700'
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <MicOff className="w-4 h-4 animate-bounce" /> Parar Gravação e Processar
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-4 h-4 text-indigo-600" /> Ditar Lançamento por Voz
+                    </>
+                  )}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setMicPermissionModalOpen(true)}
+                  className="text-[11px] text-slate-500 hover:text-indigo-600 underline font-medium flex items-center gap-1 cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" /> Como liberar o microfone no navegador?
+                </button>
               </div>
 
               {/* Indicador em tempo real de gravação */}
