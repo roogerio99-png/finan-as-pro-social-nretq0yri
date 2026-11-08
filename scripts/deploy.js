@@ -12,21 +12,21 @@ function run(command, description) {
   }
 }
 
-console.log('🚀 Iniciando pipeline de automação (Validação ➔ Versão ➔ GitHub ➔ Firebase Hosting)...\n');
+console.log('🚀 Iniciando pipeline de automação (Versão ➔ Validação ➔ GitHub ➔ Firebase Hosting)...\n');
 
-// 1. Auditoria e Validação Automática Obrigatória (Qualquer erro aborta imediatamente o deploy)
-run('node scripts/validate.js', 'Auditoria e Validação Automática (Tipos, Testes, Lint e Build)');
-
-// 2. Atualiza timestamp de versão para acionar auto-update seguro nos navegadores dos usuários
+// 1. Atualiza timestamp de versão para acionar auto-update seguro nos navegadores dos usuários
 const now = new Date();
 const versionPayload = {
-  version: "0.0.57",
+  version: "0.0.60",
   buildTimestamp: now.getTime(),
   releaseDate: now.toISOString(),
-  description: "Atualização com validações automatizadas de qualidade e integridade contínua."
+  description: "Atualização com suporte nativo a extratos e faturas em PDF, Excel XLSX, OFX e CSV multi-banco."
 };
 fs.writeFileSync('public/version.json', JSON.stringify(versionPayload, null, 2), 'utf8');
 console.log(`📦 [Versão do App] Novo buildTimestamp gerado: ${versionPayload.buildTimestamp} (${versionPayload.releaseDate})`);
+
+// 2. Auditoria e Validação Automática Obrigatória (Qualquer erro aborta imediatamente o deploy)
+run('node scripts/validate.js', 'Auditoria e Validação Automática (Tipos, Testes, Lint e Build)');
 
 // 3. Sincronização com o GitHub
 const commitMsg = process.argv.slice(2).join(' ') || `chore: atualizacao e auto-update de versao [${now.toLocaleString('pt-BR')}]`;

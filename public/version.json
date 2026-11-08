@@ -1,6 +1,6 @@
 {
-  "version": "0.0.57",
-  "buildTimestamp": 1794111277411,
-  "releaseDate": "2026-11-08T04:14:37.411Z",
-  "description": "Atualização com validações automatizadas de qualidade e integridade contínua."
+  "version": "0.0.60",
+  "buildTimestamp": 1794112284588,
+  "releaseDate": "2026-11-08T04:31:24.588Z",
+  "description": "Atualização com suporte nativo a extratos e faturas em PDF, Excel XLSX, OFX e CSV multi-banco."
 }

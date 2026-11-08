@@ -503,66 +503,295 @@ export const statementParserService = {
   },
 
   /**
-   * Envia o extrato em PDF para o backend Skip Cloud, que converte com
-   * $documents.toMarkdown e aplica o parser genérico multi-banco.
+   * Parser nativo e inteligente de extratos e faturas em PDF (Nubank, BB, Mercado Pago e outros).
+   * Processa 100% no cliente sem depender de backend.
    */
-  async parsePdf(file: File): Promise<ParseResult> {
-    const formData = new FormData()
-    formData.append('file', file)
-
-    let response: Response | null = null
-    try {
-      response = await fetch(`${pb.baseUrl || ''}/backend/v1/statements/parse-pdf`, {
-        method: 'POST',
-        headers: {
-          ...(pb.authStore.token ? { Authorization: pb.authStore.token } : {}),
-        },
-        body: formData,
-      })
-    } catch {
-      throw new Error(
-        'Serviço de extração de PDF indisponível offline. Você pode exportar seu extrato em formato OFX ou CSV no banco para importar instantaneamente.',
-      )
-    }
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      if (!pb.baseUrl || response.status === 404) {
-        throw new Error(
-          'O leitor de PDF requer conexão com o backend. Recomendamos exportar o extrato no app do banco como OFX ou CSV para leitura 100% offline e instantânea.',
-        )
+  async parsePdfClient(buffer: ArrayBuffer | Uint8Array): Promise<ParseResult> {
+    const pdfjs = await import('pdfjs-dist')
+    if (typeof window !== 'undefined' && pdfjs.GlobalWorkerOptions && !pdfjs.GlobalWorkerOptions.workerSrc) {
+      try {
+        const workerModule = await import('pdfjs-dist/build/pdf.worker.mjs?url')
+        pdfjs.GlobalWorkerOptions.workerSrc = workerModule.default
+      } catch {
+        // Fallback fake worker
       }
-      const message =
-        data?.message ||
-        data?.error ||
-        (response.status === 401
-          ? 'Sessão expirada. Faça login novamente para importar extratos.'
-          : 'Não foi possível ler o arquivo PDF do extrato.')
-      throw new Error(message)
     }
 
-    if (!data?.transactions || !Array.isArray(data.transactions)) {
-      throw new Error('Formato de resposta inesperado do servidor.')
+    const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+    const doc = await pdfjs.getDocument({ data }).promise
+
+    const allLines: string[] = []
+    let fullHeader = ''
+
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p)
+      const content = await page.getTextContent()
+      const linesMap = new Map<number, { str: string; x: number }[]>()
+      for (const item of content.items as any[]) {
+        if (!item.str || !item.str.trim()) continue
+        const y = Math.round(item.transform[5] / 4) * 4
+        if (!linesMap.has(y)) linesMap.set(y, [])
+        linesMap.get(y)!.push({ str: item.str, x: item.transform[4] })
+      }
+      const sortedY = [...linesMap.keys()].sort((a, b) => b - a)
+      for (const y of sortedY) {
+        const lineItems = linesMap.get(y)!.sort((a, b) => a.x - b.x)
+        const lineText = lineItems.map((i) => i.str).join(' ').trim()
+        if (lineText) {
+          allLines.push(lineText)
+          if (p <= 2) fullHeader += ' ' + lineText
+        }
+      }
     }
 
-    const rawTxs: ParsedStatementTransaction[] = data.transactions
+    const MONTH_MAP: Record<string, string> = {
+      JAN: '01', FEV: '02', MAR: '03', ABR: '04', MAI: '05', JUN: '06',
+      JUL: '07', AGO: '08', SET: '09', OUT: '10', NOV: '11', DEZ: '12',
+    }
+
+    let bank: string | undefined = undefined
+    let document_type: 'statement' | 'invoice' = 'statement'
+    let year = new Date().getFullYear()
+
+    const yearMatch = fullHeader.match(/20\d{2}/)
+    if (yearMatch) year = parseInt(yearMatch[0], 10)
+
+    const isNubank = /nubank/i.test(fullHeader) || /nutag/i.test(allLines.join(' '))
+    const isBB = /banco do brasil|agência:\s*\d{3,4}-\d/i.test(fullHeader) || allLines.some((l) => /extrato de conta corrente/i.test(l))
+    const isMP = /mercado\s*pago|mercadolivre/i.test(fullHeader)
+
+    if (isNubank) {
+      bank = 'Nubank'
+      document_type = 'invoice'
+    } else if (isBB) {
+      bank = 'Banco do Brasil'
+      document_type = 'statement'
+    } else if (isMP) {
+      bank = 'Mercado Pago'
+      document_type = allLines.some((l) => /detalhes de consumo|movimentações na fatura/i.test(l)) ? 'invoice' : 'statement'
+    }
+
+    const transactions: ParsedStatementTransaction[] = []
+
+    for (const line of allLines) {
+      const lower = line.toLowerCase()
+      if (
+        lower.includes('saldo anterior') ||
+        lower.includes('saldo do dia') ||
+        lower.includes('s a l d o') ||
+        lower.includes('saldo inicial') ||
+        lower.includes('saldo final') ||
+        lower.includes('limite cheque') ||
+        lower.includes('custo efetivo') ||
+        lower.includes('total a pagar') ||
+        lower.includes('pagamento mínimo')
+      ) {
+        continue
+      }
+
+      // 1. Banco do Brasil Extrato
+      const bbMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s+(?:(?:\d+)\s+)?(?:(?:\d+)\s+)?(.+?)\s+([\d.,]+)\s*\(([+-])\)$/)
+      if (bbMatch) {
+        bank = bank || 'Banco do Brasil'
+        document_type = 'statement'
+        const [, dStr, desc, valStr, sign] = bbMatch
+        const [day, mon, yr] = dStr.split('/')
+        const amt = parseFloat(valStr.replace(/\./g, '').replace(',', '.'))
+        if (amt > 0) {
+          const inst = extractInstallments(desc)
+          transactions.push({
+            date: `${yr}-${mon}-${day}`,
+            desc: desc.trim(),
+            amount: amt,
+            type: sign === '+' ? 'income' : 'expense',
+            installments_total: inst.total,
+            installment_index: inst.index,
+          })
+          continue
+        }
+      }
+
+      // 2. Nubank Fatura
+      const nuMatch = line.match(/^(\d{2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(?:••••\s*\d{4}\s+)?(?:Transação de\s+)?(.+?)\s+([−-]?\s*R\$\s*[\d.,]+)$/i)
+      if (nuMatch) {
+        bank = bank || 'Nubank'
+        document_type = 'invoice'
+        const [, day, monStr, desc, valStr] = nuMatch
+        const mon = MONTH_MAP[monStr.toUpperCase()]
+        const cleanVal = valStr.replace(/R\$/g, '').replace(/\s+/g, '').replace(/\./g, '').replace(',', '.')
+        const isNeg = cleanVal.startsWith('−') || cleanVal.startsWith('-')
+        const amt = Math.abs(parseFloat(cleanVal.replace(/[−-]/g, '')))
+        if (amt > 0) {
+          const inst = extractInstallments(desc)
+          transactions.push({
+            date: `${year}-${mon}-${day}`,
+            desc: desc.trim(),
+            amount: amt,
+            type: isNeg ? 'income' : 'expense',
+            installments_total: inst.total,
+            installment_index: inst.index,
+          })
+          continue
+        }
+      }
+
+      // 3. Mercado Pago Fatura
+      const mpFatMatch = line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+R\$\s*([\d.,]+)$/i)
+      if (mpFatMatch) {
+        bank = bank || 'Mercado Pago'
+        document_type = 'invoice'
+        const [, dm, desc, valStr] = mpFatMatch
+        const [day, mon] = dm.split('/')
+        const amt = parseFloat(valStr.replace(/\./g, '').replace(',', '.'))
+        if (amt > 0 && !desc.toLowerCase().includes('pagamento da fatura')) {
+          const inst = extractInstallments(desc)
+          transactions.push({
+            date: `${year}-${mon}-${day}`,
+            desc: desc.trim(),
+            amount: amt,
+            type: 'expense',
+            installments_total: inst.total,
+            installment_index: inst.index,
+          })
+          continue
+        }
+      }
+
+      // 4. Mercado Pago Conta
+      const mpContaMatch = line.match(/^(\d{2}-\d{2}-\d{4})\s+(.+?)\s+(?:\d{10,14}\s+)?R\$\s*([−-]?[\d.,]+)(?:\s+R\$\s*[\d.,]+)?$/i)
+      if (mpContaMatch) {
+        bank = bank || 'Mercado Pago'
+        document_type = 'statement'
+        const [, dStr, desc, valStr] = mpContaMatch
+        const [day, mon, yr] = dStr.split('-')
+        const cleanVal = valStr.replace(/\./g, '').replace(',', '.')
+        const num = parseFloat(cleanVal)
+        if (Math.abs(num) > 0) {
+          transactions.push({
+            date: `${yr}-${mon}-${day}`,
+            desc: desc.trim(),
+            amount: Math.abs(num),
+            type: num >= 0 ? 'income' : 'expense',
+          })
+          continue
+        }
+      }
+
+      // 5. Linha genérica com Data e Valor
+      const genMatch = line.match(/(\d{2}[/-]\d{2}(?:[/-]\d{2,4})?)\s+(.+?)\s+([−-]?\s*(?:R\$\s*)?[\d.]+,\d{2})/i)
+      if (genMatch && !line.toLowerCase().includes('saldo')) {
+        const [, rawD, rawDesc, rawV] = genMatch
+        const amt = parseFlexibleAmount(rawV)
+        if (amt !== 0) {
+          const normD = normalizeDate(rawD)
+          const inst = extractInstallments(rawDesc)
+          transactions.push({
+            date: normD,
+            desc: rawDesc.trim(),
+            amount: Math.abs(amt),
+            type: amt >= 0 ? 'income' : 'expense',
+            installments_total: inst.total,
+            installment_index: inst.index,
+          })
+        }
+      }
+    }
+
     let totalIncome = 0
     let totalExpense = 0
-    for (const t of rawTxs) {
+    let startDate: string | undefined = undefined
+    let endDate: string | undefined = undefined
+
+    for (const t of transactions) {
       if (t.type === 'expense') totalExpense += t.amount
       else totalIncome += t.amount
+      if (!startDate || t.date < startDate) startDate = t.date
+      if (!endDate || t.date > endDate) endDate = t.date
     }
 
+    const badge = `${document_type === 'invoice' ? 'Fatura' : 'Extrato'} ${bank || 'PDF'}`
+
     return {
-      ok: true,
-      document_type: data.document_type || 'statement',
-      bank: data.bank,
-      badge: data.badge || (data.bank ? `${data.document_type === 'invoice' ? 'Fatura' : 'Extrato'} ${data.bank}` : 'Documento PDF'),
+      ok: transactions.length > 0,
+      document_type,
+      bank,
+      badge,
+      startDate,
+      endDate,
       totalIncome: Math.round(totalIncome * 100) / 100,
       totalExpense: Math.round(totalExpense * 100) / 100,
-      transactions: rawTxs,
-      count: rawTxs.length,
+      transactions,
+      count: transactions.length,
     }
+  },
+
+  /**
+   * Envia o extrato em PDF para processamento nativo offline (cliente)
+   * e caso necessário recorre ao backend Skip Cloud.
+   */
+  async parsePdf(file: File | ArrayBuffer | Uint8Array): Promise<ParseResult> {
+    try {
+      let arrayBuffer: ArrayBuffer
+      if (file instanceof File) {
+        arrayBuffer = await file.arrayBuffer()
+      } else if (file instanceof Uint8Array) {
+        arrayBuffer = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer
+      } else {
+        arrayBuffer = file
+      }
+
+      const clientResult = await this.parsePdfClient(arrayBuffer)
+      if (clientResult && clientResult.count > 0) {
+        return clientResult
+      }
+    } catch (clientErr) {
+      console.warn('[statementParser] Client PDF parser falhou ou fallback necessário:', clientErr)
+    }
+
+    // Se for objeto File e houver URL de backend PocketBase, tenta rota remota
+    if (file instanceof File && pb.baseUrl) {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      let response: Response | null = null
+      try {
+        response = await fetch(`${pb.baseUrl}/backend/v1/statements/parse-pdf`, {
+          method: 'POST',
+          headers: {
+            ...(pb.authStore.token ? { Authorization: pb.authStore.token } : {}),
+          },
+          body: formData,
+        })
+      } catch {
+        throw new Error(
+          'Serviço de extração de PDF indisponível offline. Você pode exportar seu extrato em formato OFX ou CSV no banco para importar instantaneamente.',
+        )
+      }
+
+      const data = await response.json().catch(() => null)
+
+      if (response.ok && data?.transactions && Array.isArray(data.transactions)) {
+        const rawTxs: ParsedStatementTransaction[] = data.transactions
+        let totalIncome = 0
+        let totalExpense = 0
+        for (const t of rawTxs) {
+          if (t.type === 'expense') totalExpense += t.amount
+          else totalIncome += t.amount
+        }
+
+        return {
+          ok: true,
+          document_type: data.document_type || 'statement',
+          bank: data.bank,
+          badge: data.badge || (data.bank ? `${data.document_type === 'invoice' ? 'Fatura' : 'Extrato'} ${data.bank}` : 'Documento PDF'),
+          totalIncome: Math.round(totalIncome * 100) / 100,
+          totalExpense: Math.round(totalExpense * 100) / 100,
+          transactions: rawTxs,
+          count: rawTxs.length,
+        }
+      }
+    }
+
+    throw new Error('Não foi possível extrair lançamentos do arquivo PDF. Verifique se o arquivo possui texto selecionável ou exporte em OFX/CSV no seu banco.')
   },
 }

@@ -647,7 +647,7 @@ export const ReconciliationPage: React.FC = () => {
           </div>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
             Importe <strong>Extratos Bancários</strong> ou <strong>Faturas de Cartão</strong> nos
-            formatos <strong>OFX</strong>, <strong>Excel (XLSX)</strong> ou <strong>CSV</strong> (Nubank, Banco
+            formatos <strong>OFX</strong>, <strong>PDF</strong>, <strong>Excel (XLSX)</strong> ou <strong>CSV</strong> (Nubank, Banco
             do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.). Detecção automática do banco,
             parcelas, identificadores e bloqueio de duplicatas.
           </p>
@@ -655,7 +655,7 @@ export const ReconciliationPage: React.FC = () => {
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={async () => {
               if (typeof window !== 'undefined' && 'caches' in window) {
@@ -669,9 +669,9 @@ export const ReconciliationPage: React.FC = () => {
               window.location.reload()
             }}
             title="Limpar cache do navegador e carregar a versão mais recente publicada"
-            className="text-xs text-slate-500 hover:text-slate-800 gap-1 rounded-xl h-11 px-3 border border-slate-200 hover:bg-slate-50"
+            className="text-xs text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 gap-1 rounded-xl h-11 px-3 border border-indigo-200 font-semibold transition-all shadow-xs"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <RefreshCw className="w-3.5 h-3.5 text-indigo-600 animate-spin-hover" />
             Atualizar App
           </Button>
 
@@ -700,7 +700,7 @@ export const ReconciliationPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <FileText className="w-4 h-4" /> Importar OFX / Excel / CSV
+                  <FileText className="w-4 h-4" /> Importar OFX / PDF / Excel / CSV
                 </>
               )}
             </div>

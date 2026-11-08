@@ -92,8 +92,8 @@ export const useAutoUpdate = () => {
   }
 
   useEffect(() => {
-    // 1. Checa 3 segundos após o app iniciar (evita piscar no carregamento inicial)
-    const initialTimer = setTimeout(checkVersion, 3000)
+    // 1. Checa 1 segundo após o app iniciar
+    const initialTimer = setTimeout(checkVersion, 1000)
 
     // 2. Checa quando o usuário volta para o app no celular ou troca de aba
     const handleVisibilityChange = () => {
@@ -103,8 +103,8 @@ export const useAutoUpdate = () => {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // 3. Polling leve a cada 2 minutos
-    const interval = setInterval(checkVersion, 120 * 1000)
+    // 3. Polling ativo a cada 15 segundos para atualizar navegadores abertos
+    const interval = setInterval(checkVersion, 15000)
 
     return () => {
       clearTimeout(initialTimer)
