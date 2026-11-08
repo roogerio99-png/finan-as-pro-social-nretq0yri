@@ -1,11 +1,12 @@
 import pb from '@/lib/pocketbase/client'
 import * as XLSX from 'xlsx'
+import { TransactionType } from '@/types/finance'
 
 export interface ParsedStatementTransaction {
   date: string // YYYY-MM-DD
   desc: string
   amount: number
-  type: 'income' | 'expense'
+  type: TransactionType
   fitId?: string
   installments_total?: number
   installment_index?: number

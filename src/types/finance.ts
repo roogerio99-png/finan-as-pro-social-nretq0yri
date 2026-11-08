@@ -233,7 +233,9 @@ export interface StatementImportLine {
   date: string
   description: string
   amount: number
-  type: 'income' | 'expense'
+  type: TransactionType
+  transfer_account_id?: string
+  invoice_id?: string
   installments_total?: number
   installment_index?: number
   suggested_category_id?: string

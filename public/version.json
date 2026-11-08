@@ -1,6 +1,6 @@
 {
-  "version": "0.0.60",
-  "buildTimestamp": 1794112284588,
-  "releaseDate": "2026-11-08T04:31:24.588Z",
-  "description": "Atualização com suporte nativo a extratos e faturas em PDF, Excel XLSX, OFX e CSV multi-banco."
+  "version": "0.0.61",
+  "buildTimestamp": 1794114301161,
+  "releaseDate": "2026-11-08T05:05:01.161Z",
+  "description": "Suporte a transferencias entre contas e pagamento de fatura no extrato com novo cache busting v14."
 }

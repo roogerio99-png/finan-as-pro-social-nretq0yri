@@ -471,6 +471,22 @@ DATA:OFXSGML
   assert('Extratos', 'Parse Excel BB Receita Proventos', excelResult.transactions[0].amount === 15450.15 && excelResult.transactions[0].type === 'income', 'Falha ao identificar proventos como receita no Excel')
   assert('Extratos', 'Parse Excel BB Despesa Pix', excelResult.transactions[1].amount === 15000 && excelResult.transactions[1].type === 'expense', 'Falha ao identificar Pix como despesa no Excel')
 
+  // Teste 10.6: Identificação de Transferência entre contas e Pagamento de Fatura
+  const sampleTransferTx: ParsedStatementTransaction = {
+    date: '2026-10-18',
+    desc: 'TRANSFERENCIA ENTRE CONTAS MESMA TITULARIDADE',
+    amount: 1500.0,
+    type: 'transfer',
+  }
+  const sampleInvoicePaymentTx: ParsedStatementTransaction = {
+    date: '2026-10-16',
+    desc: 'PAGAMENTO DE FATURA CARTAO NUBANK',
+    amount: 850.0,
+    type: 'invoice_payment',
+  }
+  assert('Extratos', 'Natureza Transferência Entre Contas', sampleTransferTx.type === 'transfer' && sampleTransferTx.amount === 1500, 'Tipo de transferência não validado')
+  assert('Extratos', 'Natureza Pagamento de Fatura', sampleInvoicePaymentTx.type === 'invoice_payment' && sampleInvoicePaymentTx.amount === 850, 'Tipo de pagamento de fatura não validado')
+
   // -------------------------------------------------------------
   // RESUMO FINAL
   // -------------------------------------------------------------

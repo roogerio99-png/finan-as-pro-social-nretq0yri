@@ -8,11 +8,19 @@ import {
   CategoryRecord,
   AccountRecord,
   StatementImportLine,
+  TransactionType,
 } from '@/types/finance'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -22,13 +30,10 @@ import {
 } from '@/components/ui/dialog'
 import {
   FileSpreadsheet,
-  Upload,
   CheckCircle,
   AlertTriangle,
   Trash2,
   Sparkles,
-  ArrowRight,
-  ShieldCheck,
   RefreshCw,
   Plus,
   FileText,
@@ -36,6 +41,9 @@ import {
   Building2,
   Loader2,
   Pencil,
+  ArrowRightLeft,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { statementParserService, ParsedStatementTransaction } from '@/services/statementParser'
@@ -151,6 +159,18 @@ export const ReconciliationPage: React.FC = () => {
         desc: 'ESTORNO COMPRA CANCELADA',
         amount: 75.0,
         type: 'income',
+      },
+      {
+        date: `${currMonth}-16`,
+        desc: 'PAGAMENTO DE FATURA CARTAO DE CREDITO',
+        amount: 850.0,
+        type: 'invoice_payment',
+      },
+      {
+        date: `${currMonth}-18`,
+        desc: 'TRANSFERENCIA ENTRE CONTAS MESMA TITULARIDADE',
+        amount: 1500.0,
+        type: 'transfer',
       },
       {
         date: `${currMonth}-08`,
@@ -440,6 +460,38 @@ export const ReconciliationPage: React.FC = () => {
     setIsDragOver(false)
   }
 
+  const handleUpdateLineType = (lineId: string, newType: TransactionType) => {
+    setImportLines((prev) =>
+      prev.map((item) => {
+        if (item.id !== lineId) return item
+        let transferId = item.transfer_account_id
+        if (newType === 'transfer' && !transferId) {
+          const other = accounts.find((a) => a.id !== selectedAccountId && a.status !== 'archived')
+          if (other) transferId = other.id
+        } else if (newType === 'invoice_payment' && !transferId) {
+          const card = accounts.find((a) => a.type === 'credit_card' && a.status !== 'archived')
+          if (card) transferId = card.id
+        }
+        return {
+          ...item,
+          type: newType,
+          transfer_account_id: transferId,
+          // se virou transferência ou quitação de fatura, remove obrigatoriedade de categoria
+          selected_category_id:
+            newType === 'transfer' || newType === 'invoice_payment'
+              ? ''
+              : item.selected_category_id || item.suggested_category_id || '',
+        }
+      }),
+    )
+  }
+
+  const handleUpdateLineTransferAccount = (lineId: string, targetAccountId: string) => {
+    setImportLines((prev) =>
+      prev.map((item) => (item.id === lineId ? { ...item, transfer_account_id: targetAccountId } : item)),
+    )
+  }
+
   const processExtractedLines = (raw: ParsedStatementTransaction[]) => {
     const seen = new Set<string>()
 
@@ -451,8 +503,42 @@ export const ReconciliationPage: React.FC = () => {
       const isDuplicate = seen.has(key)
       seen.add(key)
 
-      // Classificação automática via De-Para com nível de confiança
-      const suggestion = deparaService.suggestCategory(item.desc, rules, categories)
+      // Detecção inteligente de Pagamento de Fatura ou Transferência
+      const descLower = item.desc.toLowerCase()
+      let initialType: TransactionType = item.type
+      let initialTransferAccId: string | undefined = undefined
+
+      if (
+        initialType === 'invoice_payment' ||
+        descLower.includes('pagamento de fatura') ||
+        descLower.includes('pagto fatura') ||
+        descLower.includes('pgto fatura') ||
+        descLower.includes('pagamento da fatura') ||
+        descLower.includes('pagamento recebido') ||
+        descLower.includes('pg fatura') ||
+        descLower.includes('fatura cartao') ||
+        descLower.includes('fatura cartão')
+      ) {
+        initialType = 'invoice_payment'
+        const cardAcc = accounts.find((a) => a.type === 'credit_card' && a.id !== selectedAccountId)
+        if (cardAcc) initialTransferAccId = cardAcc.id
+      } else if (
+        initialType === 'transfer' ||
+        descLower.includes('transferencia entre contas') ||
+        descLower.includes('transf entre contas') ||
+        descLower.includes('mesma titularidade') ||
+        descLower.includes('entre contas')
+      ) {
+        initialType = 'transfer'
+        const otherAcc = accounts.find((a) => a.id !== selectedAccountId && a.status !== 'archived')
+        if (otherAcc) initialTransferAccId = otherAcc.id
+      }
+
+      // Classificação automática via De-Para com nível de confiança (apenas despesa e receita)
+      const suggestion =
+        initialType === 'expense' || initialType === 'income'
+          ? deparaService.suggestCategory(item.desc, rules, categories)
+          : null
       const suggestedCatId = suggestion?.categoryId
       const suggestedSource = suggestion?.source
 
@@ -461,7 +547,8 @@ export const ReconciliationPage: React.FC = () => {
         date: item.date,
         description: item.desc,
         amount: item.amount,
-        type: item.type,
+        type: initialType,
+        transfer_account_id: initialTransferAccId,
         installments_total: item.installments_total,
         installment_index: item.installment_index,
         suggested_category_id: suggestedCatId,
@@ -507,29 +594,85 @@ export const ReconciliationPage: React.FC = () => {
     setSavingBatch(true)
     try {
       const batchId = `batch-${Date.now()}`
-      const toCreate = validLines.map((l) => ({
-        account_id: selectedAccountId,
-        description: l.description,
-        amount: l.amount,
-        type: l.type,
-        date: l.date,
-        competence_month: l.competence_month,
-        cash_month: l.cash_month,
-        installments_total: l.installments_total,
-        installments_paid: l.installment_index ?? (l.installments_total ? 1 : undefined),
-        category_id: l.selected_category_id || undefined,
-        is_reconciled: true,
-        import_batch_id: batchId,
-      }))
 
-      await transactionsService.createBatch(toCreate)
+      for (const line of validLines) {
+        if (line.type === 'transfer') {
+          // Transferência entre contas
+          if (line.transfer_account_id) {
+            try {
+              await transactionsService.transfer({
+                sourceAccountId: selectedAccountId,
+                targetAccountId: line.transfer_account_id,
+                amount: line.amount,
+                date: line.date,
+                description: line.description || 'Transferência entre contas',
+              })
+            } catch {
+              await transactionsService.create({
+                account_id: selectedAccountId,
+                transfer_account_id: line.transfer_account_id,
+                description: line.description,
+                amount: line.amount,
+                type: 'transfer',
+                date: line.date,
+                competence_month: line.competence_month,
+                cash_month: line.cash_month,
+                is_reconciled: true,
+                import_batch_id: batchId,
+              })
+            }
+          } else {
+            await transactionsService.create({
+              account_id: selectedAccountId,
+              description: line.description,
+              amount: line.amount,
+              type: 'transfer',
+              date: line.date,
+              competence_month: line.competence_month,
+              cash_month: line.cash_month,
+              is_reconciled: true,
+              import_batch_id: batchId,
+            })
+          }
+        } else if (line.type === 'invoice_payment') {
+          // Pagamento de fatura de cartão
+          await transactionsService.create({
+            account_id: selectedAccountId,
+            transfer_account_id: line.transfer_account_id || undefined,
+            description: line.description,
+            amount: line.amount,
+            type: 'invoice_payment',
+            date: line.date,
+            competence_month: line.competence_month,
+            cash_month: line.cash_month,
+            is_reconciled: true,
+            import_batch_id: batchId,
+          })
+        } else {
+          // Despesa ou Receita normal
+          await transactionsService.create({
+            account_id: selectedAccountId,
+            description: line.description,
+            amount: line.amount,
+            type: line.type,
+            date: line.date,
+            competence_month: line.competence_month,
+            cash_month: line.cash_month,
+            installments_total: line.installments_total,
+            installments_paid: line.installment_index ?? (line.installments_total ? 1 : undefined),
+            category_id: line.selected_category_id || undefined,
+            is_reconciled: true,
+            import_batch_id: batchId,
+          })
+        }
+      }
 
       // Aprendizado: reforça regras existentes (uso) ou cria por palavra-chave
       // do estabelecimento (ex: 'UBER' a partir de 'UBER DO BRASIL*1234')
       let learnedCount = 0
       let workingRules = [...rules]
       for (const line of validLines) {
-        if (!line.selected_category_id) continue
+        if (!line.selected_category_id || line.type === 'transfer' || line.type === 'invoice_payment') continue
         try {
           const learned = await deparaService.applyConfirmed(
             line.description,
@@ -571,11 +714,13 @@ export const ReconciliationPage: React.FC = () => {
   // Sugerir categorias em massa: aplica as regras aprendidas nas linhas sem
   // categoria e informa quantas foram classificadas de uma vez.
   const handleBulkSuggest = () => {
-    const pending = importLines.filter((l) => l.status === 'ready' && !l.selected_category_id)
+    const pending = importLines.filter(
+      (l) => l.status === 'ready' && !l.selected_category_id && l.type !== 'transfer' && l.type !== 'invoice_payment',
+    )
     if (pending.length === 0) {
       toast({
         title: 'Nada a sugerir',
-        description: 'Todas as linhas prontas já têm categoria definida.',
+        description: 'Todas as despesas e receitas já têm categoria definida.',
       })
       return
     }
@@ -583,7 +728,7 @@ export const ReconciliationPage: React.FC = () => {
     let categorized = 0
     setImportLines((prev) =>
       prev.map((line) => {
-        if (line.status !== 'ready' || line.selected_category_id) return line
+        if (line.status !== 'ready' || line.selected_category_id || line.type === 'transfer' || line.type === 'invoice_payment') return line
         const suggestion = deparaService.suggestCategory(line.description, rules, categories)
         if (!suggestion?.categoryId) return line
         categorized++
@@ -745,15 +890,28 @@ export const ReconciliationPage: React.FC = () => {
                 <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
                 Lote Importado: Revisão e Classificação De-Para
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {importLines.filter((l) => l.status === 'ready').length} prontos para salvar •{' '}
-                {importLines.filter((l) => l.is_duplicate).length} duplicatas bloqueadas
-              </p>
+              <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <span>{importLines.filter((l) => l.status === 'ready').length} prontos para salvar</span>
+                <span>•</span>
+                <span>{importLines.filter((l) => l.is_duplicate).length} duplicatas bloqueadas</span>
+                {importLines.filter((l) => l.status === 'ready' && l.type === 'transfer').length > 0 && (
+                  <span className="inline-flex items-center gap-1 font-bold text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    <ArrowRightLeft className="w-3 h-3 text-blue-600" />{' '}
+                    {importLines.filter((l) => l.status === 'ready' && l.type === 'transfer').length} transf. entre contas
+                  </span>
+                )}
+                {importLines.filter((l) => l.status === 'ready' && l.type === 'invoice_payment').length > 0 && (
+                  <span className="inline-flex items-center gap-1 font-bold text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                    <CreditCard className="w-3 h-3 text-purple-600" />{' '}
+                    {importLines.filter((l) => l.status === 'ready' && l.type === 'invoice_payment').length} pagto. fatura
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
-                <Label htmlFor="accSelect">Conta Destino:</Label>
+                <Label htmlFor="accSelect">Conta do Extrato:</Label>
                 <select
                   id="accSelect"
                   value={selectedAccountId}
@@ -843,10 +1001,23 @@ export const ReconciliationPage: React.FC = () => {
                   <div className="text-right flex-shrink-0">
                     <p
                       className={`text-sm font-black ${
-                        line.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'
+                        line.type === 'expense'
+                          ? 'text-rose-600'
+                          : line.type === 'income'
+                          ? 'text-emerald-600'
+                          : line.type === 'transfer'
+                          ? 'text-blue-600'
+                          : 'text-purple-600'
                       }`}
                     >
-                      {line.type === 'expense' ? '-' : '+'} {formatCurrency(line.amount)}
+                      {line.type === 'expense'
+                        ? '-'
+                        : line.type === 'income'
+                        ? '+'
+                        : line.type === 'transfer'
+                        ? '⇄'
+                        : '💳'}{' '}
+                      {formatCurrency(line.amount)}
                     </p>
                     <button
                       onClick={() =>
@@ -860,36 +1031,134 @@ export const ReconciliationPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="pt-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                    Categoria (De-Para):
-                  </label>
-                  <CategoryCascadeSelect
-                    categories={categories}
-                    type={line.type === 'income' ? 'income' : 'expense'}
-                    categoryId={line.selected_category_id || ''}
-                    onCategoryChange={(val) => {
-                      setImportLines((prev) =>
-                        prev.map((item) =>
-                          item.id === line.id
-                            ? { ...item, selected_category_id: val, is_suggested: false }
-                            : item,
-                        ),
-                      )
-                    }}
-                    variant="compact"
-                    idPrefix={`cat-mobile-${line.id}`}
-                    selectClassName={
-                      line.is_suggested && line.selected_category_id
-                        ? 'border-purple-300 bg-purple-50 text-purple-900'
-                        : 'bg-white border-slate-200 text-slate-800'
-                    }
-                  />
-                  {line.is_suggested && line.selected_category_id && (
-                    <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                      <Sparkles className="w-2.5 h-2.5" /> sugerido
-                    </span>
-                  )}
+                {/* Seletor de Tipo / Natureza e Vínculo (Mobile) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Natureza:
+                    </label>
+                    <Select
+                      value={line.type}
+                      onValueChange={(val: TransactionType) => handleUpdateLineType(line.id, val)}
+                    >
+                      <SelectTrigger className="h-8 text-xs font-bold border-slate-200 rounded-lg w-full bg-slate-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="expense" className="text-xs font-bold text-rose-700">
+                          <div className="flex items-center gap-1.5">
+                            <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />
+                            Despesa
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="income" className="text-xs font-bold text-emerald-700">
+                          <div className="flex items-center gap-1.5">
+                            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                            Receita
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="transfer" className="text-xs font-bold text-blue-700">
+                          <div className="flex items-center gap-1.5">
+                            <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
+                            Transferência
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="invoice_payment" className="text-xs font-bold text-purple-700">
+                          <div className="flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-purple-600" />
+                            Pagto. Fatura
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {line.type === 'transfer'
+                        ? 'Conta Destino:'
+                        : line.type === 'invoice_payment'
+                        ? 'Cartão Quitado:'
+                        : 'Categoria (De-Para):'}
+                    </label>
+
+                    {line.type === 'transfer' ? (
+                      <div className="space-y-1">
+                        <Select
+                          value={line.transfer_account_id || ''}
+                          onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-medium border-blue-200 bg-blue-50/70 text-blue-900 rounded-lg w-full">
+                            <SelectValue placeholder="Selecione conta destino..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accounts
+                              .filter((a) => a.id !== selectedAccountId && a.status !== 'archived')
+                              .map((acc) => (
+                                <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                  {acc.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                          <ArrowRightLeft className="w-2.5 h-2.5" /> Movimentação neutra de saldo
+                        </span>
+                      </div>
+                    ) : line.type === 'invoice_payment' ? (
+                      <div className="space-y-1">
+                        <Select
+                          value={line.transfer_account_id || ''}
+                          onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-medium border-purple-200 bg-purple-50/70 text-purple-900 rounded-lg w-full">
+                            <SelectValue placeholder="Selecione o cartão..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {accounts
+                              .filter((a) => a.status !== 'archived')
+                              .map((acc) => (
+                                <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                  {acc.name} {acc.type === 'credit_card' ? '(Cartão)' : ''}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-purple-600 font-semibold flex items-center gap-1">
+                          <CreditCard className="w-2.5 h-2.5" /> Quitação da fatura do cartão
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <CategoryCascadeSelect
+                          categories={categories}
+                          type={line.type === 'income' ? 'income' : 'expense'}
+                          categoryId={line.selected_category_id || ''}
+                          onCategoryChange={(val) => {
+                            setImportLines((prev) =>
+                              prev.map((item) =>
+                                item.id === line.id
+                                  ? { ...item, selected_category_id: val, is_suggested: false }
+                                  : item,
+                              ),
+                            )
+                          }}
+                          variant="compact"
+                          idPrefix={`cat-mobile-${line.id}`}
+                          selectClassName={
+                            line.is_suggested && line.selected_category_id
+                              ? 'border-purple-300 bg-purple-50 text-purple-900'
+                              : 'bg-white border-slate-200 text-slate-800'
+                          }
+                        />
+                        {line.is_suggested && line.selected_category_id && (
+                          <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                            <Sparkles className="w-2.5 h-2.5" /> sugerido
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -902,10 +1171,11 @@ export const ReconciliationPage: React.FC = () => {
                 <tr>
                   <th className="py-2.5 px-3">Data</th>
                   <th className="py-2.5 px-3">Descrição / Estabelecimento</th>
+                  <th className="py-2.5 px-3">Tipo / Natureza</th>
                   <th className="py-2.5 px-3">Parcelas</th>
                   <th className="py-2.5 px-3">Valor</th>
-                  <th className="py-2.5 px-3">Categoria Sugerida (De-Para)</th>
-                  <th className="py-2.5 px-3">Status / Duplicidade</th>
+                  <th className="py-2.5 px-3">Classificação (Categoria / Vínculo)</th>
+                  <th className="py-2.5 px-3">Status</th>
                   <th className="py-2.5 px-3 text-center">Ações</th>
                 </tr>
               </thead>
@@ -925,6 +1195,53 @@ export const ReconciliationPage: React.FC = () => {
                       {line.description}
                     </td>
 
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <Select
+                        value={line.type}
+                        onValueChange={(val: TransactionType) => handleUpdateLineType(line.id, val)}
+                      >
+                        <SelectTrigger
+                          className={`h-8 text-xs font-bold rounded-lg border w-[145px] ${
+                            line.type === 'expense'
+                              ? 'border-rose-200 bg-rose-50 text-rose-800'
+                              : line.type === 'income'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                              : line.type === 'transfer'
+                              ? 'border-blue-200 bg-blue-50 text-blue-800'
+                              : 'border-purple-200 bg-purple-50 text-purple-800'
+                          }`}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="expense" className="text-xs font-bold text-rose-700">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowDownRight className="w-3.5 h-3.5 text-rose-600" />
+                              Despesa
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="income" className="text-xs font-bold text-emerald-700">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                              Receita
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="transfer" className="text-xs font-bold text-blue-700">
+                            <div className="flex items-center gap-1.5">
+                              <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" />
+                              Transferência
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="invoice_payment" className="text-xs font-bold text-purple-700">
+                            <div className="flex items-center gap-1.5">
+                              <CreditCard className="w-3.5 h-3.5 text-purple-600" />
+                              Pagto. Fatura
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+
                     <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
                       {line.installments_total ? (
                         <span className="inline-flex items-center gap-1 font-bold text-[11px] px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
@@ -939,42 +1256,106 @@ export const ReconciliationPage: React.FC = () => {
 
                     <td className="py-2.5 px-3 font-bold text-xs whitespace-nowrap">
                       <span
-                        className={line.type === 'expense' ? 'text-rose-600' : 'text-emerald-600'}
+                        className={
+                          line.type === 'expense'
+                            ? 'text-rose-600'
+                            : line.type === 'income'
+                            ? 'text-emerald-600'
+                            : line.type === 'transfer'
+                            ? 'text-blue-600'
+                            : 'text-purple-600'
+                        }
                       >
-                        {line.type === 'expense' ? '-' : '+'} {formatCurrency(line.amount)}
+                        {line.type === 'expense'
+                          ? '-'
+                          : line.type === 'income'
+                          ? '+'
+                          : line.type === 'transfer'
+                          ? '⇄'
+                          : '💳'}{' '}
+                        {formatCurrency(line.amount)}
                       </span>
                     </td>
 
                     <td className="py-2.5 px-3">
-                      <div className="space-y-1">
-                        <CategoryCascadeSelect
-                          categories={categories}
-                          type={line.type === 'income' ? 'income' : 'expense'}
-                          categoryId={line.selected_category_id || ''}
-                          onCategoryChange={(val) => {
-                            setImportLines((prev) =>
-                              prev.map((item) =>
-                                item.id === line.id
-                                  ? { ...item, selected_category_id: val, is_suggested: false }
-                                  : item,
-                              ),
-                            )
-                          }}
-                          variant="compact"
-                          idPrefix={`cat-desktop-${line.id}`}
-                          selectClassName={`max-w-[220px] ${
-                            line.is_suggested && line.selected_category_id
-                              ? 'border-purple-300 bg-purple-50 text-purple-900'
-                              : 'bg-white border-slate-200 text-slate-800'
-                          }`}
-                        />
-                        {line.is_suggested && line.selected_category_id && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
-                            <Sparkles className="w-3 h-3" /> sugerido
-                          </span>
-                        )}
-                      </div>
+                      {line.type === 'transfer' ? (
+                        <div className="space-y-1">
+                          <Select
+                            value={line.transfer_account_id || ''}
+                            onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-medium border-blue-200 bg-blue-50/70 text-blue-900 rounded-lg max-w-[220px]">
+                              <SelectValue placeholder="Selecione conta destino..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {accounts
+                                .filter((a) => a.id !== selectedAccountId && a.status !== 'archived')
+                                .map((acc) => (
+                                  <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                    {acc.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
+                            <ArrowRightLeft className="w-2.5 h-2.5" /> Movimentação neutra de saldo
+                          </p>
+                        </div>
+                      ) : line.type === 'invoice_payment' ? (
+                        <div className="space-y-1">
+                          <Select
+                            value={line.transfer_account_id || ''}
+                            onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
+                          >
+                            <SelectTrigger className="h-8 text-xs font-medium border-purple-200 bg-purple-50/70 text-purple-900 rounded-lg max-w-[220px]">
+                              <SelectValue placeholder="Selecione o cartão..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {accounts
+                                .filter((a) => a.status !== 'archived')
+                                .map((acc) => (
+                                  <SelectItem key={acc.id} value={acc.id} className="text-xs">
+                                    {acc.name} {acc.type === 'credit_card' ? '(Cartão)' : ''}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-purple-600 font-semibold flex items-center gap-1">
+                            <CreditCard className="w-2.5 h-2.5" /> Quitação da fatura do cartão
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <CategoryCascadeSelect
+                            categories={categories}
+                            type={line.type === 'income' ? 'income' : 'expense'}
+                            categoryId={line.selected_category_id || ''}
+                            onCategoryChange={(val) => {
+                              setImportLines((prev) =>
+                                prev.map((item) =>
+                                  item.id === line.id
+                                    ? { ...item, selected_category_id: val, is_suggested: false }
+                                    : item,
+                                ),
+                              )
+                            }}
+                            variant="compact"
+                            idPrefix={`cat-desktop-${line.id}`}
+                            selectClassName={`max-w-[220px] ${
+                              line.is_suggested && line.selected_category_id
+                                ? 'border-purple-300 bg-purple-50 text-purple-900'
+                                : 'bg-white border-slate-200 text-slate-800'
+                            }`}
+                          />
+                          {line.is_suggested && line.selected_category_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                              <Sparkles className="w-3 h-3" /> sugerido
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
+
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {line.is_duplicate ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
