@@ -14,15 +14,15 @@ export interface AppLicenseConfig {
 
 const DEFAULT_CONFIG: AppLicenseConfig = {
   status: 'TRIAL',
-  version: '1.0.0',
+  version: '0.1.0',
   appName: 'Gestio Finanças',
-  trialNotice: 'Versão de Testes Autorizada para Convidados',
+  trialNotice: 'Versão de Testes Locais — Cofres Isolados por Perfil',
   blockedMessage:
-    'O período de testes gratuitos do Gestio Finanças foi encerrado. Para continuar com acesso completo às suas finanças, adquira sua licença ou plano de assinatura.',
+    'O período de avaliação foi encerrado. Para continuar utilizando o Gestio Finanças, entre em contato com o suporte.',
   checkoutUrl:
-    'https://wa.me/5599999999999?text=Olá!%20Gostaria%20de%20adquirir%20minha%20assinatura%20do%20Gestio%20Finanças',
+    'https://wa.me/5599999999999?text=Ol%C3%A1!%20Gostaria%20de%20informacoes%20sobre%20o%20Gestio%20Financas',
   supportContact: 'suporte@gestiofinancas.com.br',
-  allowedAdmins: ['roogerio99@gmail.com'],
+  allowedAdmins: [],
   updatedAt: new Date().toISOString(),
 }
 
@@ -31,8 +31,7 @@ const LICENSE_CACHE_KEY = 'gestio_app_license_cache'
 export const licenseService = {
   async fetchLicense(): Promise<AppLicenseConfig> {
     try {
-      // Adiciona timestamp para não pegar cache estático
-      const res = await fetch(`/app-license.json?t=${Date.now()}`, {
+      const res = await fetch('/app-license.json', {
         cache: 'no-store',
       })
       if (res.ok) {
@@ -46,7 +45,6 @@ export const licenseService = {
       // ignore
     }
 
-    // Fallback de cache local
     try {
       const cached = localStorage.getItem(LICENSE_CACHE_KEY)
       if (cached) return JSON.parse(cached)
@@ -60,9 +58,10 @@ export const licenseService = {
   isBlocked(config: AppLicenseConfig, userEmail?: string | null): boolean {
     if (config.status !== 'BLOCKED') return false
 
-    // Administradores autorizados nunca são bloqueados
     const emailNorm = String(userEmail || '').trim().toLowerCase()
-    const isAdmin = config.allowedAdmins.some((a) => a.toLowerCase() === emailNorm)
+    const isAdmin =
+      Array.isArray(config.allowedAdmins) &&
+      config.allowedAdmins.some((a) => a.toLowerCase() === emailNorm)
     if (isAdmin) return false
 
     return true

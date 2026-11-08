@@ -365,13 +365,13 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
                       <span>Instalar no Celular (PWA)</span>
                     </DropdownMenuItem>
 
-                                        {user.email?.toLowerCase() === 'roogerio99@gmail.com' && (
+                    {user.family_role === 'admin' && (
                       <DropdownMenuItem
                         onClick={() => setAdminLicenseOpen(true)}
                         className="text-xs gap-2 py-2 cursor-pointer font-bold text-amber-800 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/60 rounded-md my-1"
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>👑 Controle de Licença Comercial</span>
+                        <span>Controle de Licença Local</span>
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -406,7 +406,7 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
                     className="text-xs gap-2 py-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer font-bold"
                   >
                     <LogOut className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Sair da conta</span>
+                    <span>Bloquear Cofre / Sair</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -445,6 +445,15 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
           </div>
         </DialogContent>
       </Dialog>
+
+      {licenseConfig && onUpdateLicense && (
+        <AdminLicenseModal
+          isOpen={adminLicenseOpen}
+          onClose={() => setAdminLicenseOpen(false)}
+          currentLicense={licenseConfig}
+          onSaveLicense={onUpdateLicense}
+        />
+      )}
     </>
   )
 }

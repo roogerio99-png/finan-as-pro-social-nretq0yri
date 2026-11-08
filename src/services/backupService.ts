@@ -1,6 +1,7 @@
 /**
  * Serviço de Backup e Restauração Criptografada do Gestio Finanças
  * Opera 100% no dispositivo (client-side) gerando e importando arquivos .gestiobackup
+ * protegidos obrigatoriamente por AES-GCM 256 bits com derivação PBKDF2 (100.000 iterações).
  */
 
 import { indexedDbStore } from '@/lib/storage/indexedDbStore'
@@ -27,28 +28,31 @@ export interface EncryptedBackupFile {
 }
 
 const LAST_BACKUP_STORAGE_KEY = 'gestio_last_backup_timestamp'
+const MAX_BACKUP_BYTES = 50 * 1024 * 1024 // Limite de segurança de 50 MB para restauração
 
 export const backupService = {
-  /**
-   * Retorna a data do último backup realizado pelo usuário no dispositivo
-   */
   getLastBackupDate(): string | null {
     if (typeof window === 'undefined') return null
     return localStorage.getItem(LAST_BACKUP_STORAGE_KEY)
   },
 
-  /**
-   * Registra o momento da realização de um backup
-   */
   setLastBackupDate(): void {
     if (typeof window === 'undefined') return
     localStorage.setItem(LAST_BACKUP_STORAGE_KEY, new Date().toISOString())
   },
 
   /**
-   * Gera o conteúdo do backup completo (criptografado ou em formato JSON estruturado)
+   * Gera backup criptografado obrigatório (AES-GCM 256-bit + PBKDF2 100.000 iterações).
+   * Exige senha de no mínimo 6 caracteres para impedir exportação acidental em texto puro.
    */
-  async createBackup(password?: string): Promise<{ filename: string; content: string }> {
+  async createBackup(password: string): Promise<{ filename: string; content: string }> {
+    const cleanPassword = (password || '').trim()
+    if (cleanPassword.length < 6) {
+      throw new Error(
+        'Defina uma senha de proteção com no mínimo 6 caracteres para criptografar o arquivo de backup.',
+      )
+    }
+
     const data = await indexedDbStore.exportFullDatabase()
 
     const counts: Record<string, number> = {}
@@ -62,46 +66,43 @@ export const backupService = {
 
     const metadata: BackupMetadata = {
       app: 'GestioFinancasPro',
-      version: '0.0.65',
+      version: '0.1.0',
       schemaVersion: 1,
       createdAt: nowIso,
-      deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'LocalDevice',
-      isEncrypted: !!password && password.trim().length > 0,
+      deviceInfo:
+        typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'LocalDevice',
+      isEncrypted: true,
       counts,
     }
 
-    let fileContent = ''
-    let filename = `gestio_financas_backup_${dateFormatted}`
-
-    if (password && password.trim().length > 0) {
-      const payload = await vaultCrypto.encrypt(data, password.trim())
-      const encryptedBackup: EncryptedBackupFile = {
-        metadata,
-        payload,
-      }
-      fileContent = JSON.stringify(encryptedBackup, null, 2)
-      filename += '_protegido.gestiobackup'
-    } else {
-      const unencryptedBackup: UnencryptedBackupFile = {
-        metadata,
-        data,
-      }
-      fileContent = JSON.stringify(unencryptedBackup, null, 2)
-      filename += '_completo.gestiobackup'
+    const payload = await vaultCrypto.encrypt(data, cleanPassword)
+    const encryptedBackup: EncryptedBackupFile = {
+      metadata,
+      payload,
     }
+    const fileContent = JSON.stringify(encryptedBackup, null, 2)
+    const filename = `gestio_financas_backup_${dateFormatted}_protegido.gestiobackup`
 
     this.setLastBackupDate()
     return { filename, content: fileContent }
   },
 
   /**
-   * Valida e inspeciona um arquivo de backup antes de restaurar
+   * Valida formato, limites e versão do esquema antes de restaurar
    */
   async inspectBackupFile(fileContent: string): Promise<{
     metadata: BackupMetadata
     isEncrypted: boolean
     schemaCompatible: boolean
   }> {
+    if (!fileContent || typeof fileContent !== 'string') {
+      throw new Error('Conteúdo do arquivo de backup vazio ou inválido.')
+    }
+
+    if (fileContent.length > MAX_BACKUP_BYTES) {
+      throw new Error('O arquivo excede o limite de segurança de 50 MB para restauração local.')
+    }
+
     let parsed: any
     try {
       parsed = JSON.parse(fileContent)
@@ -115,6 +116,11 @@ export const backupService = {
 
     const metadata = parsed.metadata as BackupMetadata
     const schemaCompatible = metadata.schemaVersion === 1
+    if (!schemaCompatible) {
+      throw new Error(
+        `Versão de esquema incompatível (${metadata.schemaVersion}). Atualize o aplicativo antes de restaurar.`,
+      )
+    }
 
     return {
       metadata,
@@ -124,9 +130,12 @@ export const backupService = {
   },
 
   /**
-   * Restaura o banco de dados a partir de um backup, com validação de senha e integridade
+   * Restaura o banco de dados a partir de um backup, com validação estrita de senha, esquema e integridade
    */
-  async restoreBackup(fileContent: string, password?: string): Promise<{ restoredCounts: Record<string, number> }> {
+  async restoreBackup(
+    fileContent: string,
+    password?: string,
+  ): Promise<{ restoredCounts: Record<string, number> }> {
     const inspection = await this.inspectBackupFile(fileContent)
     const parsed = JSON.parse(fileContent)
 
@@ -134,7 +143,9 @@ export const backupService = {
 
     if (inspection.isEncrypted) {
       if (!password || password.trim().length === 0) {
-        throw new Error('Este arquivo de backup está criptografado e requer a senha definida na sua criação.')
+        throw new Error(
+          'Este arquivo de backup está criptografado e requer a senha definida na sua criação.',
+        )
       }
 
       if (!parsed.payload) {
@@ -144,16 +155,26 @@ export const backupService = {
       try {
         finalData = await vaultCrypto.decrypt(parsed.payload, password.trim())
       } catch (err: any) {
-        throw new Error(err?.message || 'Senha incorreta para descriptografar o backup.')
+        throw new Error(err?.message || 'Senha incorreta ou arquivo de backup adulterado.')
       }
     } else {
-      if (!parsed.data) {
+      if (!parsed.data || typeof parsed.data !== 'object') {
         throw new Error('Estrutura de registros financeiros ausente no arquivo de backup.')
       }
       finalData = parsed.data
     }
 
-    // Executa a substituição atômica no IndexedDB
+    if (!finalData || typeof finalData !== 'object' || Array.isArray(finalData)) {
+      throw new Error('Estrutura interna do backup inválida após verificação.')
+    }
+
+    // Valida que cada coleção presente é uma lista válida antes de tocar no IndexedDB
+    for (const [col, records] of Object.entries(finalData)) {
+      if (!Array.isArray(records)) {
+        throw new Error(`Coleção "${col}" corrompida no arquivo de backup.`)
+      }
+    }
+
     await indexedDbStore.restoreFullDatabase(finalData)
 
     const restoredCounts: Record<string, number> = {}
@@ -164,9 +185,6 @@ export const backupService = {
     return { restoredCounts }
   },
 
-  /**
-   * Baixa o arquivo gerado no computador/celular do usuário sem trafegar pela nuvem
-   */
   triggerDownload(filename: string, content: string): void {
     if (typeof window === 'undefined') return
     const blob = new Blob([content], { type: 'application/json' })

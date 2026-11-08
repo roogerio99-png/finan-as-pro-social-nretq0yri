@@ -1,6 +1,13 @@
 import pb from '@/lib/pocketbase/client'
 import * as XLSX from 'xlsx'
 import { TransactionType } from '@/types/finance'
+import { roundMoney, toCents, fromCents } from '@/lib/money'
+
+export const STATEMENT_LIMITS = {
+  MAX_FILE_BYTES: 15 * 1024 * 1024, // 15 MB
+  MAX_PDF_PAGES: 60,
+  MAX_TABLE_ROWS: 10000,
+}
 
 export interface ParsedStatementTransaction {
   date: string // YYYY-MM-DD
@@ -166,6 +173,12 @@ function extractInstallments(text: string): { total?: number; index?: number } {
 function parseTableRows(rows: any[][], formatHint: 'Excel' | 'CSV' = 'CSV'): ParseResult {
   if (!rows || rows.length === 0) {
     return { ok: false, totalIncome: 0, totalExpense: 0, transactions: [], count: 0 }
+  }
+
+  if (rows.length > STATEMENT_LIMITS.MAX_TABLE_ROWS) {
+    throw new Error(
+      `O arquivo possui ${rows.length} linhas e excede o limite de segurança de ${STATEMENT_LIMITS.MAX_TABLE_ROWS} linhas por importação.`,
+    )
   }
 
   let headerRowIndex = -1
@@ -520,7 +533,16 @@ export const statementParserService = {
     }
 
     const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+    if (data.byteLength > STATEMENT_LIMITS.MAX_FILE_BYTES) {
+      throw new Error('O arquivo PDF excede o limite máximo de 15 MB permitido para importação local.')
+    }
+
     const doc = await pdfjs.getDocument({ data }).promise
+    if (doc.numPages > STATEMENT_LIMITS.MAX_PDF_PAGES) {
+      throw new Error(
+        `O PDF possui ${doc.numPages} páginas e excede o limite de segurança de ${STATEMENT_LIMITS.MAX_PDF_PAGES} páginas por importação.`,
+      )
+    }
 
     const allLines: string[] = []
     let fullHeader = ''
@@ -720,9 +742,9 @@ export const statementParserService = {
       badge,
       startDate,
       endDate,
-      totalIncome: Math.round(totalIncome * 100) / 100,
-      totalExpense: Math.round(totalExpense * 100) / 100,
-      transactions,
+      totalIncome: fromCents(toCents(totalIncome)),
+      totalExpense: fromCents(toCents(totalExpense)),
+      transactions: transactions.map((t) => ({ ...t, amount: roundMoney(t.amount) })),
       count: transactions.length,
     }
   },

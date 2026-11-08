@@ -1,6 +1,0 @@
-{
-  "version": "0.0.65",
-  "buildTimestamp": 1794143471039,
-  "releaseDate": "2026-11-08T13:11:11.039Z",
-  "description": "Blindagem de sessao e login restrito para terceiros com isolamento estrito de conta e limpeza forcada de cache SW v19."
-}

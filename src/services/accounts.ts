@@ -2,13 +2,12 @@ import pb from '@/lib/pocketbase/client'
 import { AccountRecord } from '@/types/finance'
 
 export const accountsService = {
-  async list(familyId?: string, options?: { includeArchived?: boolean }): Promise<AccountRecord[]> {
+  async list(_familyId?: string, options?: { includeArchived?: boolean }): Promise<AccountRecord[]> {
     const currentUserId = pb.authStore.record?.id
-    const filter = currentUserId
-      ? `user_id = '${currentUserId}' || user_id = '' || user_id = 'usr_rogerio'`
-      : ''
+    if (!currentUserId) return []
+    const filter = `user_id = '${currentUserId}'`
     let records = await pb.collection('accounts').getFullList<AccountRecord>({
-      filter: filter || undefined,
+      filter,
       sort: '-created',
     })
 

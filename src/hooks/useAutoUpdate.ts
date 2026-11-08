@@ -10,6 +10,37 @@ interface VersionPayload {
 
 const STORAGE_KEY = 'gestio_app_active_build_timestamp'
 const LAST_RELOAD_TIME_KEY = 'gestio_app_last_auto_reload_time'
+const CACHE_PREFIX = 'gestio-financas-shell-'
+
+/**
+ * Verifica se o usuário está no meio de uma edição ou importação que não pode ser interrompida por reload automático
+ */
+function hasActiveUserWorkInProgress(): boolean {
+  if (typeof document === 'undefined') return false
+
+  // Se houver modal/dialog aberto
+  const openDialog = document.querySelector('[role="dialog"], [data-state="open"]')
+  if (openDialog) return true
+
+  // Se o foco atual estiver em um campo de formulário
+  const activeEl = document.activeElement
+  if (
+    activeEl &&
+    (activeEl.tagName === 'INPUT' ||
+      activeEl.tagName === 'TEXTAREA' ||
+      activeEl.tagName === 'SELECT' ||
+      (activeEl as HTMLElement).isContentEditable)
+  ) {
+    return true
+  }
+
+  // Se estiver na tela de conciliação/importação de extrato
+  if (typeof window !== 'undefined' && window.location.pathname.includes('conciliacao')) {
+    return true
+  }
+
+  return false
+}
 
 export const useAutoUpdate = () => {
   const { toast } = useToast()
@@ -19,7 +50,7 @@ export const useAutoUpdate = () => {
     if (isUpdatingRef.current) return
 
     try {
-      const res = await fetch(`/version.json?t=${Date.now()}`, {
+      const res = await fetch('/version.json', {
         cache: 'no-store',
       })
       if (!res.ok) return
@@ -30,75 +61,76 @@ export const useAutoUpdate = () => {
       const localBuildStr = localStorage.getItem(STORAGE_KEY)
       const localBuild = Number(localBuildStr) || 0
 
-      // Se a versão já for conhecida e igual ou superior, o app já está atualizado
-      if (localBuild && remote.buildTimestamp <= localBuild) {
-        return
-      }
-
-      // Trava contra loop infinito: se já recarregou nos últimos 30 segundos, não recarrega de novo
-      const lastReload = Number(sessionStorage.getItem(LAST_RELOAD_TIME_KEY) || 0)
-      if (Date.now() - lastReload < 30000) {
-        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
-        return
-      }
-
-      // Se for primeira leitura deste dispositivo mas houver um service worker ativo gerenciando a página,
-      // força a sincronização para não ficar preso em bundles defasados de versões anteriores.
       if (!localBuild) {
         localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
-        if (!navigator.serviceWorker?.controller) {
-          return
-        }
+        return
       }
 
-      // Nova versão detectada!
+      if (remote.buildTimestamp <= localBuild) {
+        return
+      }
+
+      // Trava contra recarregamentos repetidos
+      const lastReload = Number(sessionStorage.getItem(LAST_RELOAD_TIME_KEY) || 0)
+      if (Date.now() - lastReload < 60000) {
+        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
+        return
+      }
+
+      // Nunca interromper formulário, modal ou importação em andamento
+      if (hasActiveUserWorkInProgress()) {
+        return
+      }
+
       isUpdatingRef.current = true
       sessionStorage.setItem(LAST_RELOAD_TIME_KEY, String(Date.now()))
       localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
 
       toast({
-        title: 'Atualização do Sistema',
+        title: 'Nova versão disponível',
         description:
-          'Nova melhoria de conciliação e segurança publicada. Sincronizando...',
+          'Atualizando arquivos da interface. Seus dados locais no IndexedDB permanecem preservados.',
       })
 
-      // Limpa os caches locais do navegador para garantir que o bundle novo seja carregado imediatamente
+      // Limpa somente caches do prefixo do shell da aplicação
       if (typeof window !== 'undefined' && 'caches' in window) {
         try {
           const keys = await caches.keys()
-          await Promise.all(keys.map((k) => caches.delete(k)))
+          const shellKeys = keys.filter((k) => k.startsWith(CACHE_PREFIX))
+          await Promise.all(shellKeys.map((k) => caches.delete(k)))
         } catch {
           // ignore
         }
       }
 
-      // Atualiza caches do Service Worker caso disponível e envia comando de ativação imediata
+      // Solicita ativação coordenada ao Service Worker em espera
       if ('serviceWorker' in navigator) {
         try {
           const registrations = await navigator.serviceWorker.getRegistrations()
           for (const reg of registrations) {
-            reg.waiting?.postMessage({ type: 'SKIP_WAITING' })
             await reg.update()
+            reg.waiting?.postMessage({ type: 'SKIP_WAITING' })
           }
         } catch {
           // ignore
         }
       }
 
-      // Recarrega uma única vez de forma suave após 1s
       setTimeout(() => {
-        window.location.reload()
-      }, 1000)
+        if (!hasActiveUserWorkInProgress()) {
+          window.location.reload()
+        } else {
+          isUpdatingRef.current = false
+        }
+      }, 1200)
     } catch {
       // Ignora erro em modo offline
     }
   }
 
   useEffect(() => {
-    // 1. Checa 1 segundo após o app iniciar
-    const initialTimer = setTimeout(checkVersion, 1000)
+    const initialTimer = setTimeout(checkVersion, 2000)
 
-    // 2. Checa quando o usuário volta para o app no celular ou troca de aba
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         checkVersion()
@@ -106,8 +138,7 @@ export const useAutoUpdate = () => {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    // 3. Polling ativo a cada 15 segundos para atualizar navegadores abertos
-    const interval = setInterval(checkVersion, 15000)
+    const interval = setInterval(checkVersion, 60000)
 
     return () => {
       clearTimeout(initialTimer)

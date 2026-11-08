@@ -267,7 +267,14 @@ export const ReconciliationPage: React.FC = () => {
   // Processamento genérico e multi-formato de arquivo (OFX, CSV, PDF, TXT)
   const processIncomingFile = async (file: File) => {
     const fileName = file.name.toLowerCase()
-    console.log('[Conciliação] Processando arquivo:', file.name, 'Tamanho:', file.size, 'Tipo:', file.type)
+    if (file.size > 15 * 1024 * 1024) {
+      toast({
+        title: 'Arquivo excede o limite de segurança',
+        description: 'O tamanho máximo permitido por extrato ou fatura é 15 MB.',
+        variant: 'destructive',
+      })
+      return
+    }
     setDetectedBadge(null)
     setDetectedDocType(null)
     setStatementSummary(null)

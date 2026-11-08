@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { authService } from '@/services/auth'
+import { SavedGoogleAccount } from '@/services/auth'
 import {
   ShieldCheck,
   Smartphone,
@@ -20,6 +20,7 @@ import {
   EyeOff,
   UserPlus,
   Trash2,
+  Unlock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,21 +35,23 @@ import {
 } from '@/components/ui/dialog'
 
 export const GoogleLoginPage: React.FC = () => {
-  const { loginWithGoogle, savedAccounts, removeSavedAccount } = useAuth()
+  const { loginWithGoogle, unlockOfflineVault, loginDemo, savedAccounts, removeSavedAccount } =
+    useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
 
-  // Estados de controle de autenticação e modais
   const [loadingEmail, setLoadingEmail] = useState<string | null>(null)
   const [googleChooserOpen, setGoogleChooserOpen] = useState(false)
   const [isUsingAnotherAccount, setIsUsingAnotherAccount] = useState(false)
   const [customEmail, setCustomEmail] = useState('')
   const [customName, setCustomName] = useState('')
+  const [customPin, setCustomPin] = useState('')
+  const [unlockModalAccount, setUnlockModalAccount] = useState<SavedGoogleAccount | null>(null)
+  const [unlockPin, setUnlockPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false)
 
-  // Copiar link da aplicação para outros computadores
   const handleCopyLink = async () => {
     try {
       const urlToCopy = window.location.origin || window.location.href
@@ -57,7 +60,7 @@ export const GoogleLoginPage: React.FC = () => {
       toast({
         title: 'Link copiado com sucesso!',
         description:
-          'Cole no navegador de outros computadores ou envie para seu celular para acessar.',
+          'Cada pessoa que abrir o link iniciará em seu próprio cofre isolado após entrar com sua própria Conta Google.',
       })
       setTimeout(() => setCopiedLink(false), 3000)
     } catch {
@@ -68,33 +71,99 @@ export const GoogleLoginPage: React.FC = () => {
     }
   }
 
-  // Efetua autenticação direta ou via Conta Google
-  const handleSignIn = async (email?: string, name?: string) => {
-    const targetEmail = (email || 'visitante@gestio.app').trim()
-    setLoadingEmail(targetEmail)
+  // Autenticação explícita com Conta Google própria
+  const handleGoogleSignIn = async (email: string, name?: string, vaultPassword?: string) => {
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setError('Informe um endereço de e-mail válido da sua Conta Google.')
+      return
+    }
+
+    setLoadingEmail(trimmedEmail)
     setError(null)
     try {
-      const loggedUser = await loginWithGoogle({ email: targetEmail, name })
+      const loggedUser = await loginWithGoogle({
+        email: trimmedEmail,
+        name: name?.trim() || undefined,
+        vaultPassword: vaultPassword?.trim() || undefined,
+      })
       setGoogleChooserOpen(false)
+      setCustomPin('')
       toast({
         title: `Bem-vindo(a), ${loggedUser.name}!`,
-        description: email
-          ? `Sessão iniciada com a Conta Google (${targetEmail}).`
-          : 'Acesso de avaliação liberado com sucesso.',
+        description: `Cofre local isolado ativo para ${loggedUser.email}.`,
       })
       navigate('/painel')
     } catch (err: any) {
-      const rawMsg = err?.message || ''
-      let friendly = 'Não foi possível autenticar com a Conta Google. Tente novamente.'
-      if (
-        rawMsg.toLowerCase().includes('failed to create record') ||
-        rawMsg.toLowerCase().includes('unique')
-      ) {
-        friendly = 'Erro temporário ao sincronizar a conta. Tente novamente.'
-      } else if (rawMsg) {
-        friendly = rawMsg
-      }
-      setError(friendly)
+      setError(
+        err?.message ||
+          'Não foi possível autenticar com a Conta Google. Verifique os dados informados.',
+      )
+    } finally {
+      setLoadingEmail(null)
+    }
+  }
+
+  // Desbloqueio offline de cofre local já configurado neste aparelho
+  const handleOfflineVaultSelect = async (acc: SavedGoogleAccount) => {
+    setError(null)
+    if (acc.hasPin) {
+      setUnlockModalAccount(acc)
+      setUnlockPin('')
+      return
+    }
+
+    setLoadingEmail(acc.email)
+    try {
+      const unlocked = await unlockOfflineVault(acc.email)
+      setGoogleChooserOpen(false)
+      toast({
+        title: `Cofre desbloqueado: ${unlocked.name}`,
+        description: `Acesso offline ao compartimento local (${unlocked.email}).`,
+      })
+      navigate('/painel')
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível desbloquear o cofre local.')
+    } finally {
+      setLoadingEmail(null)
+    }
+  }
+
+  const handleConfirmPinUnlock = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!unlockModalAccount) return
+    setLoadingEmail(unlockModalAccount.email)
+    setError(null)
+    try {
+      const unlocked = await unlockOfflineVault(unlockModalAccount.email, unlockPin)
+      setUnlockModalAccount(null)
+      setUnlockPin('')
+      setGoogleChooserOpen(false)
+      toast({
+        title: `Cofre desbloqueado: ${unlocked.name}`,
+        description: 'Validação de PIN local concluída com sucesso.',
+      })
+      navigate('/painel')
+    } catch (err: any) {
+      setError(err?.message || 'Senha/PIN incorreta. O cofre permanece bloqueado.')
+    } finally {
+      setLoadingEmail(null)
+    }
+  }
+
+  // Modo Demonstração explícito e isolado
+  const handleDemoAccess = async () => {
+    setLoadingEmail('visitante@gestio.app')
+    setError(null)
+    try {
+      const demoUser = await loginDemo()
+      toast({
+        title: 'Modo Demonstração Ativado',
+        description: `Você está em um cofre de avaliação isolado (${demoUser.name}).`,
+      })
+      navigate('/painel')
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao iniciar o modo demonstração.')
     } finally {
       setLoadingEmail(null)
     }
@@ -104,10 +173,16 @@ export const GoogleLoginPage: React.FC = () => {
     e.preventDefault()
     const trimmed = customEmail.trim()
     if (!trimmed || !trimmed.includes('@')) {
-      setError('Por favor, informe um e-mail válido da Conta Google (ex: seu.email@gmail.com).')
+      setError('Por favor, informe um e-mail válido da sua Conta Google (ex: voce@gmail.com).')
       return
     }
-    handleSignIn(trimmed, customName.trim() || undefined)
+    handleGoogleSignIn(trimmed, customName.trim() || undefined, customPin.trim() || undefined)
+  }
+
+  const openGoogleSelector = () => {
+    setError(null)
+    setIsUsingAnotherAccount(savedAccounts.length === 0)
+    setGoogleChooserOpen(true)
   }
 
   const getInitials = (name?: string, email?: string) => {
@@ -122,14 +197,12 @@ export const GoogleLoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 antialiased selection:bg-indigo-500 selection:text-white relative overflow-hidden font-sans">
-      {/* Background ambient lighting glows (Task Account visual aesthetic) */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-80 bg-gradient-to-b from-indigo-600/15 via-blue-600/5 to-transparent blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/3 -left-20 w-80 h-80 bg-emerald-600/5 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Top Header - Idêntico ao Task Account com PRO pill e botão Copiar Link */}
+      {/* Top Header */}
       <header className="relative z-10 max-w-6xl w-full mx-auto flex items-center justify-between py-2 sm:py-3">
-        {/* Marca / Identidade do App */}
         <div className="flex items-center space-x-3.5">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 p-[1px] shadow-lg shadow-indigo-950/60 flex items-center justify-center">
             <div className="w-full h-full bg-[#0a0f1d] rounded-[11px] flex items-center justify-center">
@@ -151,7 +224,6 @@ export const GoogleLoginPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Ações Topo Direito: Copiar Link p/ Outros PCs & Instalar App */}
         <div className="flex items-center gap-2.5">
           <button
             type="button"
@@ -168,7 +240,7 @@ export const GoogleLoginPage: React.FC = () => {
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">Copiar Link p/ Outros PCs</span>
+                <span className="hidden sm:inline">Compartilhar Link do App</span>
                 <span className="sm:hidden">Copiar Link</span>
               </>
             )}
@@ -186,68 +258,100 @@ export const GoogleLoginPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Login Card - Design Dark Corporativo com Exclusividade de Conta Google */}
+      {/* Main Login Card */}
       <main className="relative z-10 max-w-md w-full mx-auto my-auto py-6">
         <div className="bg-[#0c1222]/90 backdrop-blur-2xl rounded-3xl p-7 sm:p-9 text-slate-100 shadow-2xl shadow-black/80 border border-slate-800/90 relative overflow-hidden space-y-6">
-          {/* Subtle top glowing hairline */}
           <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-indigo-500/70 to-transparent pointer-events-none" />
 
-          {/* Badge superior: Portal de Acesso Corporativo / Seguro */}
           <div className="flex justify-center">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-slate-300 text-xs font-medium shadow-xs">
               <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-              <span>Portal de Acesso Seguro</span>
+              <span>Identidade &amp; Cofre Local Isolado</span>
             </div>
           </div>
 
-          {/* Título & Descrição de Acesso */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Acesso ao Cofre Local
+              Acesse sua Conta
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-sm mx-auto">
-              Armazenamento <strong className="text-emerald-400 font-semibold">100% no seu dispositivo</strong> (PWA Offline-First). Seus dados financeiros não dependem de servidores externos.
+              Cada Conta Google possui seu próprio{' '}
+              <strong className="text-emerald-400 font-semibold">
+                compartimento local isolado
+              </strong>{' '}
+              neste navegador. Nenhum dado pessoal vem pré-carregado.
             </p>
           </div>
 
-          {/* Alerta de erro amigável se houver */}
           {error && (
             <div className="p-3.5 rounded-2xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs font-medium leading-relaxed">
               {error}
             </div>
           )}
 
-          {/* Botão Principal: Acesso Direto ao Cofre Local */}
+          {/* Se já existirem cofres locais configurados neste navegador, mostra opção de desbloqueio offline */}
+          {savedAccounts.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                <span>Cofres Locais Neste Navegador</span>
+                <span className="text-emerald-400">Desbloqueio Offline</span>
+              </div>
+              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                {savedAccounts.map((acc) => (
+                  <div
+                    key={acc.email}
+                    className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/50 transition-all"
+                  >
+                    <button
+                      type="button"
+                      disabled={Boolean(loadingEmail)}
+                      onClick={() => handleOfflineVaultSelect(acc)}
+                      className="flex-1 flex items-center gap-3 text-left min-w-0 cursor-pointer"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0">
+                        {getInitials(acc.name, acc.email)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                          <span>{acc.name}</span>
+                          {acc.hasPin && (
+                            <Lock
+                              className="w-3 h-3 text-amber-400 flex-shrink-0"
+                              title="Protegido por PIN local"
+                            />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-400 truncate">{acc.email}</div>
+                      </div>
+                      {loadingEmail === acc.email ? (
+                        <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                      ) : (
+                        <Unlock className="w-4 h-4 text-emerald-400 flex-shrink-0 mr-1" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeSavedAccount(acc.email)}
+                      className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                      title="Remover atalho deste dispositivo (o banco IndexedDB permanece isolado)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Botão Principal: Entrar com Sua Conta Google */}
           <div className="space-y-3">
             <button
               type="button"
               disabled={Boolean(loadingEmail)}
-              onClick={() => {
-                setError(null)
-                authService.loginLocal('Minhas Finanças')
-                toast({
-                  title: 'Cofre Local Aberto',
-                  description: 'Você está no modo offline seguro com dados salvos no IndexedDB.',
-                })
-                navigate('/')
-              }}
-              className="w-full flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm h-12 rounded-2xl border border-emerald-400/80 shadow-lg shadow-emerald-950/40 hover:shadow-xl transition-all active:scale-[0.99] cursor-pointer"
+              onClick={openGoogleSelector}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-950 font-extrabold text-sm h-12 rounded-2xl border border-white/80 shadow-lg shadow-indigo-950/40 hover:shadow-xl transition-all active:scale-[0.99] cursor-pointer"
             >
-              <ShieldCheck className="w-5 h-5 text-slate-950 flex-shrink-0" />
-              <span>Acessar Meu Cofre Local (Sem Servidor)</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={Boolean(loadingEmail)}
-              onClick={() => {
-                setError(null)
-                setGoogleChooserOpen(true)
-              }}
-              className="w-full flex items-center justify-center gap-3 bg-slate-900/90 hover:bg-slate-800 text-slate-200 font-semibold text-xs h-10 rounded-xl border border-slate-700/80 transition-all cursor-pointer"
-            >
-              {/* Ícone Multicolorido do Google */}
-              <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -265,16 +369,16 @@ export const GoogleLoginPage: React.FC = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span>Personalizar Perfil com Conta Google</span>
+              <span>Entrar com Sua Conta Google</span>
             </button>
           </div>
 
-          {/* Destaque de Privacidade Local & Garantia Zero Terceiros */}
+          {/* Destaque de Privacidade Local & Isolamento */}
           <div className="p-4 rounded-2xl bg-[#080d19]/80 border border-slate-800/90 text-left space-y-2">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                Salvo 100% no seu Dispositivo
+                Cofre Individual por Perfil
               </span>
               <button
                 type="button"
@@ -285,21 +389,21 @@ export const GoogleLoginPage: React.FC = () => {
               </button>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Os dados de login e lançamentos residem unicamente na memória deste aparelho. Nenhuma
-              informação pessoal ou financeira é repassada para terceiros.
+              Os dados ficam gravados no IndexedDB deste navegador em um compartimento exclusivo da
+              sua conta. Outra conta autenticada não acessa nem visualiza o seu cofre.
             </p>
           </div>
 
-          {/* Acesso Convidado (Modo Demonstração) - Ideal para compartilhamento com terceiros sem expor dados */}
+          {/* Modo Demonstração Isolado */}
           <div className="pt-2 border-t border-slate-800/80 space-y-2.5">
             <button
               type="button"
               disabled={Boolean(loadingEmail)}
-              onClick={() => handleSignIn('visitante@gestio.app', 'Visitante Convidado')}
+              onClick={handleDemoAccess}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 transition-colors cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Modo Avaliação / Convidado (Sem Login)</span>
+              <span>Entrar em Modo Demonstração (Dados Fictícios Isolados)</span>
             </button>
 
             <button
@@ -308,7 +412,7 @@ export const GoogleLoginPage: React.FC = () => {
               className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-medium text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Instalar Aplicativo no Celular (PWA)</span>
+              <span>Instalar Aplicativo no Dispositivo (PWA)</span>
             </button>
           </div>
         </div>
@@ -333,11 +437,18 @@ export const GoogleLoginPage: React.FC = () => {
         </div>
       </main>
 
-      {/* MODAL OFICIAL: Escolha de Conta Google (Idêntico ao Google Chrome OAuth Popup) */}
-      <Dialog open={googleChooserOpen} onOpenChange={setGoogleChooserOpen}>
+      {/* MODAL: Identificação da Conta Google */}
+      <Dialog
+        open={googleChooserOpen}
+        onOpenChange={(open) => {
+          setGoogleChooserOpen(open)
+          if (!open) {
+            setError(null)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[420px] bg-white rounded-3xl p-6 sm:p-7 text-slate-900 border-none shadow-2xl">
           <DialogHeader className="text-left space-y-1">
-            {/* Cabeçalho da Janela de Login Google */}
             <div className="flex items-center gap-2 mb-2">
               <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
                 <path
@@ -357,84 +468,59 @@ export const GoogleLoginPage: React.FC = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                 />
               </svg>
-              <span className="text-sm font-semibold text-slate-800">Fazer Login com o Google</span>
+              <span className="text-sm font-semibold text-slate-800">
+                Identificação com Conta Google
+              </span>
             </div>
 
             <DialogTitle className="text-2xl font-normal text-slate-900 tracking-tight">
-              Escolha uma conta
+              {isUsingAnotherAccount ? 'Informe sua Conta Google' : 'Escolha uma conta deste aparelho'}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-600">
-              Prosseguir para{' '}
-              <span className="text-blue-600 font-semibold">gestio-financas.app</span>
+              Cada conta abre seu próprio cofre financeiro isolado neste navegador.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Conteúdo: Lista de Contas Disponíveis ou Formulário de Outra Conta */}
-          {!isUsingAnotherAccount ? (
+          {!isUsingAnotherAccount && savedAccounts.length > 0 ? (
             <div className="space-y-1.5 pt-3">
-              {/* Opção 1: Rogério Coimbra (Conta Principal Conhecida) */}
-              <button
-                type="button"
-                disabled={Boolean(loadingEmail)}
-                onClick={() => handleSignIn('roogerio99@gmail.com', 'Rogério Coimbra')}
-                className="w-full flex items-center gap-3.5 p-3 rounded-2xl hover:bg-slate-100 transition-colors text-left group cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500"
-              >
-                <div className="w-10 h-10 rounded-full bg-purple-700 text-white font-semibold text-base flex items-center justify-center flex-shrink-0 shadow-xs">
-                  R
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                    Rogério Coimbra
-                  </div>
-                  <div className="text-xs text-slate-500 truncate">roogerio99@gmail.com</div>
-                </div>
-                {loadingEmail === 'roogerio99@gmail.com' && (
-                  <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                )}
-              </button>
-
-              {/* Contas salvas dinamicamente no navegador (se houver) */}
-              {savedAccounts &&
-                savedAccounts
-                  .filter((acc) => acc.email !== 'roogerio99@gmail.com')
-                  .map((acc) => (
-                    <div
-                      key={acc.email}
-                      className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-100 transition-colors"
-                    >
-                      <button
-                        type="button"
-                        disabled={Boolean(loadingEmail)}
-                        onClick={() => handleSignIn(acc.email, acc.name)}
-                        className="flex-1 flex items-center gap-3.5 p-1 text-left min-w-0 cursor-pointer"
-                      >
-                        <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-semibold text-sm flex items-center justify-center flex-shrink-0 shadow-xs">
-                          {getInitials(acc.name, acc.email)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-bold text-slate-900 truncate">
-                            {acc.name}
-                          </div>
-                          <div className="text-xs text-slate-500 truncate">{acc.email}</div>
-                        </div>
-                        {loadingEmail === acc.email && (
-                          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeSavedAccount(acc.email)}
-                        className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                        title="Remover conta deste dispositivo"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+              {savedAccounts.map((acc) => (
+                <div
+                  key={acc.email}
+                  className="flex items-center justify-between p-2 rounded-2xl hover:bg-slate-100 transition-colors"
+                >
+                  <button
+                    type="button"
+                    disabled={Boolean(loadingEmail)}
+                    onClick={() => handleOfflineVaultSelect(acc)}
+                    className="flex-1 flex items-center gap-3.5 p-1 text-left min-w-0 cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-semibold text-sm flex items-center justify-center flex-shrink-0 shadow-xs">
+                      {getInitials(acc.name, acc.email)}
                     </div>
-                  ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold text-slate-900 truncate flex items-center gap-1.5">
+                        <span>{acc.name}</span>
+                        {acc.hasPin && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">{acc.email}</div>
+                    </div>
+                    {loadingEmail === acc.email && (
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeSavedAccount(acc.email)}
+                    className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                    title="Remover atalho deste dispositivo"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
 
               <div className="border-t border-slate-100 my-2" />
 
-              {/* Opção 2: Usar outra conta Google */}
               <button
                 type="button"
                 onClick={() => setIsUsingAnotherAccount(true)}
@@ -443,36 +529,39 @@ export const GoogleLoginPage: React.FC = () => {
                 <div className="w-10 h-10 rounded-full border border-slate-300 flex items-center justify-center text-slate-600 flex-shrink-0">
                   <UserPlus className="w-5 h-5" />
                 </div>
-                <div className="text-sm font-medium text-slate-800">Usar outra conta</div>
+                <div className="text-sm font-medium text-slate-800">
+                  Usar outra Conta Google
+                </div>
               </button>
             </div>
           ) : (
-            /* Formulário quando clica em 'Usar outra conta' */
             <form onSubmit={handleCustomSubmit} className="space-y-3.5 pt-2">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsUsingAnotherAccount(false)}
-                  className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <span className="text-xs font-bold text-slate-800">
-                  Informar outra Conta Google
-                </span>
-              </div>
+              {savedAccounts.length > 0 && (
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsUsingAnotherAccount(false)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-bold text-slate-800">
+                    Voltar para contas salvas neste navegador
+                  </span>
+                </div>
+              )}
 
               <div className="space-y-1 text-left">
                 <Label htmlFor="googleEmail" className="text-xs font-semibold text-slate-700">
-                  E-mail da Conta Google
+                  Seu E-mail da Conta Google *
                 </Label>
                 <Input
                   id="googleEmail"
                   type="email"
                   value={customEmail}
                   onChange={(e) => setCustomEmail(e.target.value)}
-                  placeholder="exemplo@gmail.com"
-                  className="h-11 rounded-xl text-sm"
+                  placeholder="seu.email@gmail.com"
+                  className="h-11 rounded-xl text-sm text-slate-900 bg-white border-slate-300"
                   required
                   autoFocus
                 />
@@ -480,15 +569,29 @@ export const GoogleLoginPage: React.FC = () => {
 
               <div className="space-y-1 text-left">
                 <Label htmlFor="googleName" className="text-xs font-semibold text-slate-700">
-                  Nome Completo (Opcional)
+                  Seu Nome de Exibição
                 </Label>
                 <Input
                   id="googleName"
                   type="text"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
-                  placeholder="Como prefere ser chamado(a)?"
-                  className="h-11 rounded-xl text-sm"
+                  placeholder="Como prefere ser identificado(a)?"
+                  className="h-11 rounded-xl text-sm text-slate-900 bg-white border-slate-300"
+                />
+              </div>
+
+              <div className="space-y-1 text-left">
+                <Label htmlFor="googleVaultPin" className="text-xs font-semibold text-slate-700">
+                  PIN / Senha Local do Cofre neste Aparelho (Opcional, mín. 4 dígitos)
+                </Label>
+                <Input
+                  id="googleVaultPin"
+                  type="password"
+                  value={customPin}
+                  onChange={(e) => setCustomPin(e.target.value)}
+                  placeholder="Protege o desbloqueio offline neste navegador"
+                  className="h-11 rounded-xl text-sm text-slate-900 bg-white border-slate-300"
                 />
               </div>
 
@@ -496,10 +599,16 @@ export const GoogleLoginPage: React.FC = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsUsingAnotherAccount(false)}
+                  onClick={() => {
+                    if (savedAccounts.length > 0) {
+                      setIsUsingAnotherAccount(false)
+                    } else {
+                      setGoogleChooserOpen(false)
+                    }
+                  }}
                   className="w-1/3 h-11 rounded-xl text-xs font-semibold cursor-pointer"
                 >
-                  Voltar
+                  Cancelar
                 </Button>
                 <Button
                   type="submit"
@@ -509,44 +618,97 @@ export const GoogleLoginPage: React.FC = () => {
                   {loadingEmail ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Conectando...</span>
+                      <span>Abrindo Cofre...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Continuar</span>
+                      <span>Entrar no Meu Cofre</span>
                     </>
                   )}
                 </Button>
               </div>
             </form>
           )}
-
-          {/* Rodapé Google: Português (Brasil) • Ajuda • Privacidade • Termos */}
-          <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-            <span className="hover:text-slate-800 cursor-pointer">Português (Brasil) ▾</span>
-            <div className="flex items-center gap-3">
-              <span className="hover:text-slate-800 cursor-pointer">Ajuda</span>
-              <span className="hover:text-slate-800 cursor-pointer">Privacidade</span>
-              <span className="hover:text-slate-800 cursor-pointer">Termos</span>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Garantia de Privacidade e Armazenamento Local */}
+      {/* MODAL: Desbloqueio de Cofre Protegido por PIN */}
+      <Dialog
+        open={Boolean(unlockModalAccount)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUnlockModalAccount(null)
+            setUnlockPin('')
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[380px] bg-white rounded-3xl p-6 text-slate-900 border-none shadow-2xl">
+          <DialogHeader className="text-left space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold w-fit">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Cofre Local Protegido</span>
+            </div>
+            <DialogTitle className="text-lg font-black text-slate-900">
+              Desbloquear Cofre de {unlockModalAccount?.name}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600">
+              Informe o PIN ou senha local configurada para <strong>{unlockModalAccount?.email}</strong> neste dispositivo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleConfirmPinUnlock} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="vaultPinInput" className="text-xs font-bold text-slate-700">
+                Senha / PIN do Cofre Local
+              </Label>
+              <Input
+                id="vaultPinInput"
+                type="password"
+                value={unlockPin}
+                onChange={(e) => setUnlockPin(e.target.value)}
+                placeholder="Digite seu PIN local"
+                className="h-11 rounded-xl text-sm text-slate-900 bg-white border-slate-300"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUnlockModalAccount(null)}
+                className="rounded-xl text-xs font-semibold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={Boolean(loadingEmail)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold gap-1.5"
+              >
+                <Unlock className="w-4 h-4" />
+                <span>Desbloquear</span>
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Transparência de Arquitetura e Privacidade Local */}
       <Dialog open={privacyModalOpen} onOpenChange={setPrivacyModalOpen}>
         <DialogContent className="sm:max-w-lg bg-white rounded-3xl p-6 text-slate-900 border-none shadow-2xl">
           <DialogHeader className="text-left space-y-1 pb-2 border-b border-slate-100">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold w-fit">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Garantia de Privacidade Local</span>
+              <span>Arquitetura Local &amp; Isolamento</span>
             </div>
             <DialogTitle className="text-lg font-black text-slate-900">
-              Seus dados pertencem apenas a você
+              Como seus dados são isolados neste navegador
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Transparência total sobre como seus dados de login e finanças são tratados no Gestio.
+              Transparência técnica sobre armazenamento local, perfis e backups criptografados.
             </DialogDescription>
           </DialogHeader>
 
@@ -554,47 +716,48 @@ export const GoogleLoginPage: React.FC = () => {
             <div className="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-100 space-y-1">
               <h4 className="font-bold text-emerald-950 flex items-center gap-1.5 text-xs">
                 <Smartphone className="w-4 h-4 text-emerald-600" />
-                1. Salvo Exclusivamente no seu Celular / Aparelho
+                1. Compartimento IndexedDB Independente por Conta
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Todas as contas, cartões, extratos e lançamentos ficam armazenados na memória local
-                segura do seu navegador/aplicativo. Não há envio para servidores externos ou bancos
-                de dados remotos de terceiros.
+                Cada Conta Google recebe um banco de dados local próprio (
+                <code>GestioFinancas_Vault_&lt;id&gt;</code>) no navegador. Uma segunda conta não
+                consegue ler nem sobrescrever os lançamentos de outra conta.
               </p>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                 <Lock className="w-4 h-4 text-teal-600" />
-                2. Autenticação Segura com Conta Google
+                2. Bloqueio de Sessão vs Exclusão de Dados
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                A identificação com a Conta Google é utilizada para criar seu perfil e associar suas
-                finanças localmente no seu aparelho. Sua senha pessoal da Google nunca é solicitada
-                nem exposta.
+                Ao clicar em <strong>Sair / Bloquear</strong>, os dados em memória são limpos
+                imediatamente em todas as abas abertas, enquanto seu banco permanece preservado no
+                IndexedDB para o próximo desbloqueio.
               </p>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                 <EyeOff className="w-4 h-4 text-indigo-600" />
-                3. Zero Compartilhamento com Terceiros
+                3. Sem Servidor de Banco de Dados Central
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Não há anúncios, rastreadores comerciais ou scripts invasivos. Nenhuma informação
-                financeira ou de perfil é transferida ou comercializada com terceiros.
+                A aplicação é servida como PWA estático e processa lançamentos, conciliação e
+                relatórios diretamente no navegador, sem enviar seu banco financeiro para servidores
+                de aplicação externos.
               </p>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
               <h4 className="font-bold text-slate-900 flex items-center gap-1.5 text-xs">
                 <HardDrive className="w-4 h-4 text-blue-600" />
-                4. Soberania e Backup nas suas Mãos
+                4. Backup Criptografado com Senha Obrigatória
               </h4>
               <p className="text-[11px] text-slate-600 leading-relaxed">
-                Ao entrar no app, acesse <strong>Cadastros &gt; Privacidade</strong> para baixar um
-                arquivo de backup em JSON com todos os seus dados a qualquer momento ou limpar os
-                registros se for transferir o celular para outra pessoa.
+                Em <strong>Cadastros &gt; Privacidade</strong>, você pode exportar e restaurar
+                backups criptografados (AES-GCM 256 bits + PBKDF2) protegidos por senha definida por
+                você.
               </p>
             </div>
           </div>
@@ -611,10 +774,9 @@ export const GoogleLoginPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Footer */}
       <footer className="relative z-10 max-w-6xl w-full mx-auto text-center py-2 text-xs text-slate-500">
-        Gestio Finanças &copy; {new Date().getFullYear()} — Plataforma Segura com Armazenamento 100%
-        Local no Aparelho
+        Gestio Finanças &copy; {new Date().getFullYear()} — Arquitetura Local-First com Cofre
+        Isolado por Perfil
       </footer>
     </div>
   )

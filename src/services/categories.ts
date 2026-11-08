@@ -8,11 +8,11 @@ export const categoriesService = {
   },
 
   async list(options?: { includeInactive?: boolean }): Promise<CategoryRecord[]> {
-    const filter = pb.authStore.record
-      ? `user_id = '${pb.authStore.record.id}' || user_id = '' || user_id = 'usr_rogerio'`
-      : ''
+    const currentUserId = pb.authStore.record?.id
+    if (!currentUserId) return []
+    const filter = `user_id = '${currentUserId}' || user_id = ''`
     const records = await pb.collection('categories').getFullList<CategoryRecord>({
-      filter: filter || undefined,
+      filter,
       sort: 'group_level1,group_level2,name',
     })
     if (options?.includeInactive) return records

@@ -1,109 +1,176 @@
 import pb from '@/lib/pocketbase/client'
 import { UserRecord } from '@/types/finance'
+import { indexedDbStore } from '@/lib/storage/indexedDbStore'
+import { vaultCrypto } from '@/lib/storage/vaultCrypto'
 
 export interface GoogleAuthPayload {
   email?: string
   name?: string
   avatar?: string
+  sub?: string // Identificador estável do provedor OIDC quando disponível
+  vaultPassword?: string // Senha/PIN opcional do cofre local
 }
 
 export interface SavedGoogleAccount {
   email: string
   name: string
+  sub?: string
+  vaultId: string
   avatar?: string
+  hasPin?: boolean
+  pinHash?: string
+  pinSalt?: string
   lastUsed: number
 }
 
-const SAVED_ACCOUNTS_KEY = 'gestio_saved_google_accounts'
+const SAVED_ACCOUNTS_KEY = 'gestio_local_vault_profiles_v2'
+const LEGACY_SAVED_ACCOUNTS_KEY = 'gestio_saved_google_accounts'
 
-// Contas salvas padrão vazias para não exibir informações pessoais de terceiros
-const DEFAULT_ACCOUNTS: SavedGoogleAccount[] = []
+/**
+ * Gera um avatar SVG 100% local (Data URI) sem requisições a APIs externas (ex: ui-avatars.com)
+ */
+export function generateLocalAvatarSvg(nameOrEmail: string): string {
+  const clean = (nameOrEmail || 'U').trim()
+  const parts = clean.split(/\s+/).filter(Boolean)
+  const initials =
+    parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : clean.slice(0, 2).toUpperCase()
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="#059669"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="system-ui, sans-serif" font-size="38" font-weight="700">${initials.replace(/[<>&"']/g, '')}</text></svg>`
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+}
+
+/**
+ * Deriva identificador de compartimento local estável a partir do sub/email
+ */
+export function deriveProfileVaultId(email: string, sub?: string): string {
+  const normEmail = email.trim().toLowerCase()
+  if (normEmail === 'visitante@gestio.app' || normEmail === 'demo@gestio.app') {
+    return 'usr_convidado_demo'
+  }
+  const seed = sub ? `sub_${sub.trim()}` : `email_${normEmail}`
+  let h1 = 0xdeadbeef ^ seed.length
+  let h2 = 0x41c6ce57 ^ seed.length
+  for (let i = 0; i < seed.length; i++) {
+    const ch = seed.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  const hex = (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
+  return `usr_v_${hex}`
+}
 
 export const authService = {
   getCurrentUser(): UserRecord | null {
     if (!pb.authStore.isValid || !pb.authStore.record) {
       return null
     }
-    const user = pb.authStore.record as unknown as UserRecord
-    return user
+    return pb.authStore.record as unknown as UserRecord
   },
 
   isAuthenticated(): boolean {
-    return pb.authStore.isValid && !!pb.authStore.record
+    return pb.authStore.isValid && !!pb.authStore.record && !!pb.authStore.record.id
   },
 
   /**
-   * Bloqueia o acesso ao cofre local, preservando os dados intactos no IndexedDB
+   * Inicializa a sessão na abertura do app, carregando o compartimento IndexedDB correspondente
+   * caso já exista uma sessão verificada ativa neste perfil do navegador.
+   */
+  async initializeSession(): Promise<UserRecord | null> {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(LEGACY_SAVED_ACCOUNTS_KEY)
+      } catch {
+        // ignore
+      }
+    }
+
+    const current = this.getCurrentUser()
+    if (!current || !current.id) {
+      pb.lockCompartment?.()
+      return null
+    }
+
+    await pb.initFromIndexedDb?.(current.id)
+    return current
+  },
+
+  /**
+   * Bloqueia o acesso ao cofre local, limpando o estado em memória e preservando a base no IndexedDB.
+   * Coordena o bloqueio com outras abas abertas.
    */
   lockVault(): void {
+    pb.lockCompartment?.()
     pb.authStore.clear()
+    indexedDbStore.broadcast({ type: 'VAULT_LOCKED', profileId: null })
   },
 
   /**
-   * Desbloqueia o cofre local sem requisições remotas
+   * Lista apenas os perfis cujos cofres locais já foram criados neste navegador específico.
+   * Inicia sempre vazio em instalações ou dispositivos novos.
    */
-  loginLocal(customName?: string): UserRecord {
-    const name = customName?.trim() || 'Minhas Finanças'
-    const nowIso = new Date().toISOString()
-    const localUser: UserRecord = {
-      id: 'usr_local',
-      email: 'usuario@local.app',
-      name,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`,
-      created: nowIso,
-      updated: nowIso,
-    }
-    pb.authStore.save('jwt_local_vault_token', localUser as any)
-    return localUser
-  },
-
   getSavedAccounts(): SavedGoogleAccount[] {
+    if (typeof window === 'undefined') return []
     try {
       const stored = localStorage.getItem(SAVED_ACCOUNTS_KEY)
       if (stored) {
         const parsed = JSON.parse(stored) as SavedGoogleAccount[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Remove contas legadas que continham dados pessoais estáticos
-          const filtered = parsed.filter(
-            (acc) =>
-              acc &&
-              acc.email &&
-              acc.email.toLowerCase() !== 'roogerio99@gmail.com' &&
-              !acc.name?.includes('Rogério Silva'),
-          )
-          if (filtered.length !== parsed.length) {
-            localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(filtered))
-          }
-          return filtered.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((acc) => acc && acc.email && acc.vaultId)
+            .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))
         }
       }
     } catch {
       // fallback
     }
-    return DEFAULT_ACCOUNTS
+    return []
   },
 
-  saveAccount(account: { email: string; name: string; avatar?: string }): void {
+  saveAccount(account: {
+    email: string
+    name: string
+    vaultId: string
+    sub?: string
+    avatar?: string
+    pinHash?: string
+    pinSalt?: string
+  }): void {
+    if (typeof window === 'undefined') return
     try {
-      // Não salvar e-mails temporários de demonstração na lista persistente a menos que desejado
       const normalizedEmail = account.email.trim().toLowerCase()
+      if (normalizedEmail === 'visitante@gestio.app' || normalizedEmail === 'demo@gestio.app') {
+        return
+      }
       const current = this.getSavedAccounts()
+      const existing = current.find((acc) => acc.email.toLowerCase() === normalizedEmail)
       const updated = current.filter((acc) => acc.email.toLowerCase() !== normalizedEmail)
+
+      const pinHash = account.pinHash ?? existing?.pinHash
+      const pinSalt = account.pinSalt ?? existing?.pinSalt
+
       updated.unshift({
         email: normalizedEmail,
         name: account.name.trim(),
-        avatar:
-          account.avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=059669&color=fff&bold=true`,
+        vaultId: account.vaultId,
+        sub: account.sub || existing?.sub,
+        avatar: account.avatar || generateLocalAvatarSvg(account.name),
+        hasPin: Boolean(pinHash && pinSalt),
+        pinHash,
+        pinSalt,
         lastUsed: Date.now(),
       })
-      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(updated.slice(0, 5)))
+      localStorage.setItem(SAVED_ACCOUNTS_KEY, JSON.stringify(updated.slice(0, 8)))
     } catch {
       // ignore storage error
     }
   },
 
   removeSavedAccount(email: string): SavedGoogleAccount[] {
+    if (typeof window === 'undefined') return []
     try {
       const current = this.getSavedAccounts()
       const normalizedEmail = email.trim().toLowerCase()
@@ -116,138 +183,159 @@ export const authService = {
   },
 
   /**
-   * Autenticação exclusiva com a Conta Google ou Modo Demonstração para terceiros.
+   * Configura uma senha/PIN local para proteger o desbloqueio do cofre neste navegador
+   */
+  async setVaultPin(email: string, pin: string): Promise<void> {
+    if (!pin || pin.trim().length < 4) {
+      throw new Error('O PIN/Senha do cofre deve ter no mínimo 4 caracteres.')
+    }
+    const normEmail = email.trim().toLowerCase()
+    const salt = vaultCrypto.generateSalt()
+    const saltB64 = btoa(String.fromCharCode(...salt))
+    const hash = await vaultCrypto.hashPassword(pin.trim(), salt)
+
+    const current = this.getSavedAccounts()
+    const target = current.find((a) => a.email.toLowerCase() === normEmail)
+    if (target) {
+      this.saveAccount({
+        ...target,
+        pinHash: hash,
+        pinSalt: saltB64,
+      })
+    }
+  },
+
+  /**
+   * Desbloqueio Offline Explícito: desbloqueia somente um cofre local já configurado neste navegador.
+   * Não simula login Google nem permite abrir cofre inexistente.
+   */
+  async unlockOfflineVault(email: string, pin?: string): Promise<UserRecord> {
+    const normEmail = email.trim().toLowerCase()
+    const saved = this.getSavedAccounts().find((a) => a.email.toLowerCase() === normEmail)
+    if (!saved) {
+      throw new Error(
+        'Nenhum cofre local encontrado para esta conta neste dispositivo. Realize a identificação online com sua Conta Google primeiro.',
+      )
+    }
+
+    if (saved.hasPin && saved.pinHash && saved.pinSalt) {
+      if (!pin || !pin.trim()) {
+        throw new Error('Informe a senha/PIN do seu cofre local para desbloqueá-lo.')
+      }
+      const binary = atob(saved.pinSalt)
+      const saltBytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        saltBytes[i] = binary.charCodeAt(i)
+      }
+      const computedHash = await vaultCrypto.hashPassword(pin.trim(), saltBytes)
+      if (computedHash !== saved.pinHash) {
+        throw new Error('Senha/PIN do cofre local incorreta. O cofre permanece bloqueado.')
+      }
+    }
+
+    const nowIso = new Date().toISOString()
+    const unlockedUser: UserRecord = {
+      id: saved.vaultId,
+      email: saved.email,
+      name: saved.name,
+      avatar: saved.avatar || generateLocalAvatarSvg(saved.name),
+      created: nowIso,
+      updated: nowIso,
+    }
+
+    pb.activateUserCompartmentSync?.(unlockedUser as any)
+    pb.authStore.save(`offline_vault_${saved.vaultId}_${Date.now()}`, unlockedUser as any)
+    await pb.initFromIndexedDb?.(saved.vaultId)
+    this.saveAccount(saved)
+
+    return unlockedUser
+  },
+
+  /**
+   * Identificação com Conta Google própria (ou entrada explícita em Modo Demonstração).
+   * Se cancelado ou chamado sem credenciais válidas, falha sem usar fallback automático.
    */
   async loginWithGoogle(payload?: GoogleAuthPayload): Promise<UserRecord> {
-    const isDemo =
-      !payload?.email ||
-      payload.email.toLowerCase() === 'visitante@gestio.app' ||
-      payload.email.toLowerCase() === 'demo@gestio.app'
-    const email = (payload?.email || 'visitante@gestio.app').trim().toLowerCase()
+    if (!payload || !payload.email || !payload.email.trim()) {
+      throw new Error(
+        'Identificação Google não concluída. Selecione ou informe sua própria Conta Google para acessar.',
+      )
+    }
+
+    const email = payload.email.trim().toLowerCase()
+    if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
+      throw new Error('Informe um endereço de e-mail válido da sua Conta Google.')
+    }
+
+    const isDemo = email === 'visitante@gestio.app' || email === 'demo@gestio.app'
     const name =
-      payload?.name?.trim() ||
-      (isDemo ? 'Convidado (Demonstração)' : email.split('@')[0])
-    const avatar =
-      payload?.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`
+      payload.name?.trim() || (isDemo ? 'Convidado (Demonstração)' : email.split('@')[0])
+    const avatar = payload.avatar || generateLocalAvatarSvg(name)
+    const vaultId = deriveProfileVaultId(email, payload.sub)
 
-    if (!email.includes('@')) {
-      throw new Error('Informe um e-mail de Conta Google válido.')
-    }
-
-    const defaultSeedPass = 'Skip@Pass'
-    const deterministicGooglePass = `GoogleAuth_${email}_Gestio2026!`
-    const candidatePasswords = [deterministicGooglePass, defaultSeedPass]
-
-    let authRecord: any = null
-
-    // 1. Tenta autenticar diretamente caso o usuário já exista com alguma das senhas conhecidas
-    for (const pass of candidatePasswords) {
-      try {
-        const authData = await pb.collection('users').authWithPassword(email, pass)
-        if (authData?.record) {
-          authRecord = authData.record
-          break
-        }
-      } catch {
-        // Tenta próxima credencial
+    // Se já houver cofre protegido por PIN para esta conta neste navegador, valida caso exigido
+    const existingSaved = this.getSavedAccounts().find((a) => a.email.toLowerCase() === email)
+    if (existingSaved?.hasPin && existingSaved.pinHash && existingSaved.pinSalt && payload.vaultPassword !== undefined) {
+      const binary = atob(existingSaved.pinSalt)
+      const saltBytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) {
+        saltBytes[i] = binary.charCodeAt(i)
+      }
+      const computedHash = await vaultCrypto.hashPassword(payload.vaultPassword.trim(), saltBytes)
+      if (computedHash !== existingSaved.pinHash) {
+        throw new Error('Senha de proteção do cofre local incorreta.')
       }
     }
 
-    // 2. Se não conseguiu autenticar, tenta criar o usuário no PocketBase com senha determinística
-    // ATENÇÃO: NÃO envie 'avatar' como string de URL para pb.collection('users').create,
-    // pois o PocketBase espera upload de arquivo no campo avatar do sistema, o que causaria "Failed to create record."
-    if (!authRecord) {
-      try {
-        await pb.collection('users').create({
-          email,
-          name,
-          password: deterministicGooglePass,
-          passwordConfirm: deterministicGooglePass,
-          emailVisibility: true,
-        })
-        const authData = await pb
-          .collection('users')
-          .authWithPassword(email, deterministicGooglePass)
-        authRecord = authData?.record
-      } catch (createErr: any) {
-        console.warn(
-          'Tentativa secundária de autenticação após falha na criação:',
-          createErr?.message,
-        )
-        // Se já existia e por isso a criação falhou, tenta as senhas candidatas novamente
-        for (const pass of candidatePasswords) {
-          try {
-            const authData = await pb.collection('users').authWithPassword(email, pass)
-            if (authData?.record) {
-              authRecord = authData.record
-              break
-            }
-          } catch {
-            // Continua
-          }
-        }
-      }
-    }
-
-    // 3. Fallback resiliente caso o PocketBase esteja indisponível ou em modo mock sem conexão
-    if (!authRecord) {
-      const nowIso = new Date().toISOString()
-      const deterministicEmailId = `usr_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`
-      const effectiveId = isDemo ? 'usr_convidado_demo' : deterministicEmailId
-      const fallbackUser: UserRecord = {
-        id: effectiveId,
-        email,
-        name,
-        avatar,
-        created: nowIso,
-        updated: nowIso,
-      }
-      pb.authStore.save(`google_oauth_token_${Date.now()}`, fallbackUser as any)
-      authRecord = fallbackUser
-    }
-
-    // Monta o objeto UserRecord final enriquecido com nome e avatar
-    const resolvedName = (payload?.name && payload.name.trim()) || authRecord.name || name
-    const resolvedAvatar = payload?.avatar || authRecord.avatar || avatar
-
+    const nowIso = new Date().toISOString()
     const finalUser: UserRecord = {
-      id: isDemo ? 'usr_convidado_demo' : authRecord?.id || `usr_${Date.now()}`,
-      email: authRecord?.email || email,
-      name: resolvedName,
-      avatar: resolvedAvatar,
-      family_role: authRecord?.family_role,
-      created: authRecord?.created || new Date().toISOString(),
-      updated: authRecord?.updated || new Date().toISOString(),
+      id: vaultId,
+      email,
+      name,
+      avatar,
+      created: nowIso,
+      updated: nowIso,
     }
 
-    // Atualiza authStore em memória
-    if (pb.authStore.record) {
-      ;(pb.authStore.record as any).name = finalUser.name
-      ;(pb.authStore.record as any).avatar = finalUser.avatar
-    }
+    // Ativa o compartimento isolado deste perfil (Conta B nunca acessa o cofre da Conta A)
+    pb.activateUserCompartmentSync?.(finalUser as any)
+    pb.authStore.save(`google_verified_${vaultId}_${Date.now()}`, finalUser as any)
+    await pb.initFromIndexedDb?.(vaultId)
 
-    // Sincroniza atualização no backend/mock se necessário
-    try {
-      if (authRecord.id && authRecord.name !== finalUser.name && pb.collection('users')?.update) {
-        pb.collection('users')
-          .update(authRecord.id, { name: finalUser.name })
-          .catch(() => {})
+    if (!isDemo) {
+      let pinHash: string | undefined
+      let pinSalt: string | undefined
+      if (payload.vaultPassword && payload.vaultPassword.trim().length >= 4) {
+        const salt = vaultCrypto.generateSalt()
+        pinSalt = btoa(String.fromCharCode(...salt))
+        pinHash = await vaultCrypto.hashPassword(payload.vaultPassword.trim(), salt)
       }
-    } catch {
-      // ignore
-    }
-
-    // Salva na lista de contas Google conhecidas do dispositivo (apenas contas reais, não o visitante temporário)
-    if (!isDemo && finalUser.email !== 'visitante@gestio.app') {
-      this.saveAccount({ email: finalUser.email, name: finalUser.name, avatar: finalUser.avatar })
+      this.saveAccount({
+        email: finalUser.email,
+        name: finalUser.name,
+        vaultId,
+        sub: payload.sub,
+        avatar: finalUser.avatar,
+        pinHash,
+        pinSalt,
+      })
     }
 
     return finalUser
   },
 
+  /**
+   * Acesso explícito ao Modo Demonstração (cofre isolado para testes com dados fictícios)
+   */
+  async loginDemo(): Promise<UserRecord> {
+    return await this.loginWithGoogle({
+      email: 'visitante@gestio.app',
+      name: 'Convidado (Demonstração)',
+    })
+  },
+
   logout(): void {
-    pb.authStore.clear()
+    this.lockVault()
   },
 
   subscribe(callback: (user: UserRecord | null) => void): () => void {

@@ -67,6 +67,20 @@ export const CopilotPage: React.FC = () => {
   // Estados gerais
   const [activeTab, setActiveTab] = useState<'quick-tx' | 'budget' | 'insights' | 'chat'>('quick-tx')
   const [liveModeOpen, setLiveModeOpen] = useState(false)
+  const [voiceOptIn, setVoiceOptIn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('gestio_voice_opt_in') === 'true'
+  })
+
+  const handleToggleVoiceOptIn = (enabled: boolean) => {
+    setVoiceOptIn(enabled)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gestio_voice_opt_in', enabled ? 'true' : 'false')
+    }
+    if (!enabled && isListening) {
+      stopListening()
+    }
+  }
   const [loading, setLoading] = useState(false)
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
@@ -595,28 +609,43 @@ export const CopilotPage: React.FC = () => {
           <div className="space-y-3 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold">
               <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span>Copiloto de Inteligência Financeira</span>
+              <span>Copiloto Financeiro • Motor Heurístico &amp; Regras Locais</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Seu Assistente Pessoal para Lançamentos, Orçamento &amp; Economia
+              Assistente Local para Lançamentos, Orçamento &amp; Diagnóstico
             </h1>
             <p className="text-slate-300 text-sm leading-relaxed">
-              Interprete gastos em linguagem natural, gere tetos orçamentários realistas com a regra
-              50/30/20 e receba diagnósticos práticos para acelerar sua liberdade financeira.
+              Interprete gastos por texto com regras determinísticas locais, personalize tetos
+              orçamentários 50/30/20 e revise todos os campos antes de confirmar a gravação.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex flex-col gap-1.5 w-full sm:w-auto">
               <Button
-                onClick={() => setLiveModeOpen(true)}
-                className="bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl h-14 px-6 text-sm gap-2.5 shadow-xl transition-all active:scale-95 border border-white/20 w-full sm:w-auto"
+                onClick={() => {
+                  if (!voiceOptIn) {
+                    toast({
+                      title: 'Voz desabilitada por padrão no modo estritamente local',
+                      description:
+                        'Ative a opção de reconhecimento de voz abaixo caso deseje utilizar a API de voz do navegador.',
+                    })
+                    return
+                  }
+                  setLiveModeOpen(true)
+                }}
+                variant={voiceOptIn ? 'default' : 'outline'}
+                className={
+                  voiceOptIn
+                    ? 'bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl h-14 px-6 text-sm gap-2.5 shadow-xl transition-all active:scale-95 border border-white/20 w-full sm:w-auto'
+                    : 'bg-slate-900/70 hover:bg-slate-800 text-slate-300 border-slate-700 font-bold rounded-2xl h-12 px-5 text-xs gap-2 w-full sm:w-auto'
+                }
               >
-                <Radio className="w-5 h-5 text-rose-300 animate-pulse" />
-                <span>Iniciar Modo Live</span>
+                <Radio className="w-4 h-4 text-rose-300" />
+                <span>{voiceOptIn ? 'Iniciar Modo Live (Voz)' : 'Voz Desativada (Modo Local)'}</span>
               </Button>
               <span className="text-[11px] text-center text-slate-300">
-                Conversa bidirecional por voz
+                {voiceOptIn ? 'Web Speech API habilitada pelo usuário' : 'Digitação local ativa por padrão'}
               </span>
             </div>
 
@@ -692,13 +721,46 @@ export const CopilotPage: React.FC = () => {
 
         {/* ABA 1: LANÇAMENTO RÁPIDO POR LINGUAGEM NATURAL */}
         <TabsContent value="quick-tx" className="space-y-6">
-          {/* Banner Reativo de Permissão e Status do Microfone */}
-          <MicrophoneStatusBanner
-            permissionState={permissionState}
-            isRequesting={isRequestingPermission}
-            onRequestPermission={requestPermission}
-            onOpenHelpModal={() => setPermissionModalOpen(true)}
-          />
+          {/* Controle Explícito de Reconhecimento de Voz (Desabilitado por Padrão no Modo Local) */}
+          <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1 text-xs">
+              <div className="font-bold text-white flex items-center gap-2">
+                <MicOff className={`w-4 h-4 ${voiceOptIn ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <span>
+                  Reconhecimento de Voz do Navegador:{' '}
+                  <strong className={voiceOptIn ? 'text-emerald-400' : 'text-amber-400'}>
+                    {voiceOptIn ? 'Habilitado por Você' : 'Desabilitado por Padrão (Modo Estritamente Local)'}
+                  </strong>
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                A digitação por texto é 100% processada localmente no navegador. Ao ativar a entrada
+                por voz (Web Speech API), o navegador/sistema operacional pode utilizar seu serviço
+                nativo de transcrição de áudio.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={voiceOptIn ? 'outline' : 'default'}
+              onClick={() => handleToggleVoiceOptIn(!voiceOptIn)}
+              className={
+                voiceOptIn
+                  ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-bold rounded-xl shrink-0'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shrink-0'
+              }
+            >
+              {voiceOptIn ? 'Desativar Voz (Usar Apenas Texto)' : 'Habilitar Entrada por Voz'}
+            </Button>
+          </div>
+
+          {voiceOptIn && (
+            <MicrophoneStatusBanner
+              permissionState={permissionState}
+              isRequesting={isRequestingPermission}
+              onRequestPermission={requestPermission}
+              onOpenHelpModal={() => setPermissionModalOpen(true)}
+            />
+          )}
 
           <Card className="rounded-3xl border-slate-200 shadow-sm overflow-hidden bg-white">
             <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
@@ -708,11 +770,11 @@ export const CopilotPage: React.FC = () => {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-bold text-slate-900">
-                    Lançamento Inteligente por Texto ou Voz
+                    Lançamento Rápido com Revisão Obrigatória Antes de Salvar
                   </CardTitle>
                   <CardDescription className="text-xs text-slate-500">
-                    Basta digitar ou ditar a despesa ou receita como você fala. A IA detecta o valor, a
-                    conta e a categoria ideal.
+                    Digite a despesa ou receita (ex: &quot;Almoço 45 reais&quot;). O motor local sugere
+                    valor, conta e categoria e abre o formulário para sua confirmação explícita.
                   </CardDescription>
                 </div>
               </div>
@@ -741,64 +803,68 @@ export const CopilotPage: React.FC = () => {
                   }`}
                 />
                 <div className="absolute right-3 top-3 z-30 flex items-center gap-2 pointer-events-auto">
-                  <Button
-                    type="button"
-                    size="icon"
-                    onClick={toggleListening}
-                    className={`h-10 w-10 rounded-xl transition-all shadow-md ${
-                      isListening
-                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-4 ring-rose-200'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                    }`}
-                    title={isListening ? 'Parar gravação e processar' : 'Falar comando de voz'}
-                  >
-                    {isListening ? <MicOff className="w-5 h-5 animate-bounce" /> : <Mic className="w-5 h-5" />}
-                  </Button>
+                  {voiceOptIn && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      onClick={toggleListening}
+                      className={`h-10 w-10 rounded-xl transition-all shadow-md ${
+                        isListening
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse ring-4 ring-rose-200'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      }`}
+                      title={isListening ? 'Parar gravação e processar' : 'Falar comando de voz'}
+                    >
+                      {isListening ? <MicOff className="w-5 h-5 animate-bounce" /> : <Mic className="w-5 h-5" />}
+                    </Button>
+                  )}
 
                   <Button
                     type="button"
                     onClick={handleSendQuickInput}
                     disabled={!quickInput.trim() || isSavingTx}
                     className="h-10 px-3.5 sm:px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-1.5 shadow-sm transition-all active:scale-95 disabled:opacity-40"
-                    title="Enviar e processar lançamento (Enter)"
+                    title="Revisar e confirmar lançamento (Enter)"
                   >
                     <Send className="w-4 h-4" />
-                    <span className="hidden sm:inline text-xs font-semibold">Enviar</span>
+                    <span className="hidden sm:inline text-xs font-semibold">Revisar</span>
                   </Button>
                 </div>
               </div>
 
-              {/* Ações Rápidas de Acessibilidade ao Microfone */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <Button
-                  type="button"
-                  onClick={toggleListening}
-                  variant={isListening ? 'destructive' : 'outline'}
-                  className={`rounded-xl text-xs font-bold gap-2 transition-all ${
-                    isListening
-                      ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
-                      : 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700'
-                  }`}
-                >
-                  {isListening ? (
-                    <>
-                      <MicOff className="w-4 h-4 animate-bounce" /> Parar Gravação e Processar
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-4 h-4 text-indigo-600" /> Ditar Lançamento por Voz
-                    </>
-                  )}
-                </Button>
+              {/* Ações Rápidas de Acessibilidade ao Microfone (apenas quando habilitado) */}
+              {voiceOptIn && (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <Button
+                    type="button"
+                    onClick={toggleListening}
+                    variant={isListening ? 'destructive' : 'outline'}
+                    className={`rounded-xl text-xs font-bold gap-2 transition-all ${
+                      isListening
+                        ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                        : 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700'
+                    }`}
+                  >
+                    {isListening ? (
+                      <>
+                        <MicOff className="w-4 h-4 animate-bounce" /> Parar Gravação e Processar
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-4 h-4 text-indigo-600" /> Ditar Lançamento por Voz
+                      </>
+                    )}
+                  </Button>
 
-                <button
-                  type="button"
-                  onClick={() => setPermissionModalOpen(true)}
-                  className="text-[11px] text-slate-500 hover:text-indigo-600 underline font-medium flex items-center gap-1 cursor-pointer"
-                >
-                  <Lock className="w-3.5 h-3.5" /> Como liberar o microfone no navegador?
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => setPermissionModalOpen(true)}
+                    className="text-[11px] text-slate-500 hover:text-indigo-600 underline font-medium flex items-center gap-1 cursor-pointer"
+                  >
+                    <Lock className="w-3.5 h-3.5" /> Como liberar o microfone no navegador?
+                  </button>
+                </div>
+              )}
 
               {/* Indicador em tempo real de gravação com Medidor de Ondas Sonoras */}
               {isListening && (

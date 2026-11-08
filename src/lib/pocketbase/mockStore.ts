@@ -1,7 +1,8 @@
 // Repositório Local Durável baseado em IndexedDB com execução 100% autônoma (PWA Offline-First)
-// Dados sensíveis residem exclusivamente no armazenamento persistente do dispositivo do usuário.
+// Dados sensíveis residem exclusivamente em compartimentos IndexedDB isolados por perfil no dispositivo do usuário.
 
-import { indexedDbStore, StoreName, STORES } from '@/lib/storage/indexedDbStore'
+import { indexedDbStore, STORES } from '@/lib/storage/indexedDbStore'
+import { roundMoney, subtractMoney, sumMoney } from '@/lib/money'
 
 export interface MockRecord {
   id: string
@@ -12,34 +13,15 @@ export interface MockRecord {
 
 const STORAGE_PREFIX = 'gestio_financas_pb_'
 
-function getStored<T>(key: string, defaultValue: T): T {
-  try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + key)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
-  }
-  return defaultValue
-}
-
-function setStored<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value))
-  } catch {
-    // ignore
-  }
-}
-
-// Initial seed generators
-function createInitialData() {
+// Gera estrutura inicial (contas vazias e plano de contas ERP) estritamente vinculada ao perfil autenticado
+function createInitialData(ownerId: string = 'usr_unassigned') {
   const now = new Date()
   const nowIso = now.toISOString()
-  const currentYearMonth = nowIso.slice(0, 7)
 
   const defaultUser: MockRecord = {
-    id: 'usr_local',
-    email: 'usuario@local.app',
-    name: 'Minhas Finanças',
+    id: ownerId,
+    email: ownerId === 'usr_convidado_demo' ? 'visitante@gestio.app' : '',
+    name: ownerId === 'usr_convidado_demo' ? 'Convidado (Demonstração)' : '',
     verified: true,
     created: nowIso,
     updated: nowIso,
@@ -1001,25 +983,26 @@ function createInitialData() {
   }
 }
 
-const AUTH_STORE_STORAGE_KEY = 'gestio_financas_auth_session'
+const AUTH_STORE_STORAGE_KEY = 'gestio_verified_google_session_v2'
+const LEGACY_AUTH_KEYS = ['gestio_financas_auth_session', 'pocketbase_auth']
 const VAULT_LOCKED_KEY = 'gestio_vault_locked'
 
-const defaultLocalUser: MockRecord = {
-  id: 'usr_local',
-  email: 'usuario@local.app',
-  name: 'Minhas Finanças',
-  created: new Date().toISOString(),
-  updated: new Date().toISOString(),
-}
-
 class MockAuthStore {
-  isValid = true
-  token = 'mock_jwt_local_vault'
-  record: MockRecord | null = defaultLocalUser
+  isValid = false
+  token = ''
+  record: MockRecord | null = null
   private listeners: (() => void)[] = []
 
-  constructor(initialUser?: MockRecord | null) {
+  constructor() {
     if (typeof window !== 'undefined') {
+      try {
+        for (const k of LEGACY_AUTH_KEYS) {
+          localStorage.removeItem(k)
+        }
+      } catch {
+        // ignore
+      }
+
       const isLocked = localStorage.getItem(VAULT_LOCKED_KEY) === 'true'
       if (isLocked) {
         this.record = null
@@ -1032,11 +1015,21 @@ class MockAuthStore {
         const stored = localStorage.getItem(AUTH_STORE_STORAGE_KEY)
         if (stored) {
           const parsed = JSON.parse(stored)
-          if (parsed && parsed.record && parsed.token) {
+          if (
+            parsed &&
+            parsed.record &&
+            typeof parsed.record.id === 'string' &&
+            (parsed.record.id.startsWith('usr_v_') || parsed.record.id === 'usr_convidado_demo') &&
+            parsed.record.email &&
+            parsed.record.verified_session === true &&
+            parsed.token
+          ) {
             this.record = parsed.record
             this.token = parsed.token
             this.isValid = true
             return
+          } else {
+            localStorage.removeItem(AUTH_STORE_STORAGE_KEY)
           }
         }
       } catch {
@@ -1044,15 +1037,19 @@ class MockAuthStore {
       }
     }
 
-    // Primeiro acesso local: entra diretamente no cofre local privado
-    this.record = initialUser !== undefined ? initialUser : defaultLocalUser
-    this.token = this.record ? 'mock_jwt_local_vault' : ''
-    this.isValid = !!this.record
+    // Em instalação ou perfil novo: inicia sem usuário e sem registros pessoais
+    this.record = null
+    this.token = ''
+    this.isValid = false
   }
 
   save(token: string, record: MockRecord) {
+    const enrichedRecord: MockRecord = {
+      ...record,
+      verified_session: true,
+    }
     this.token = token
-    this.record = record
+    this.record = enrichedRecord
     this.isValid = true
 
     if (typeof window !== 'undefined') {
@@ -1105,128 +1102,173 @@ class MockAuthStore {
   }
 }
 
+function createEmptyCollections(): Record<string, MockRecord[]> {
+  return {
+    users: [],
+    families: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
+    budgets: [],
+    debts: [],
+    dreams: [],
+    depara_rules: [],
+    invoices: [],
+    payments: [],
+    invoice_adjustments: [],
+    investment_operations: [],
+    investment_quotes: [],
+  }
+}
+
 export class MockPocketBase {
   baseUrl = ''
   authStore: MockAuthStore
-  private collections: Record<string, MockRecord[]> = {}
+  private collections: Record<string, MockRecord[]> = createEmptyCollections()
+  // Compartimentos isolados em memória por usuário para garantir isolamento imediato mesmo em testes síncronos/Node
+  private memoryCompartments: Map<string, Record<string, MockRecord[]>> = new Map()
   private subscriptions: Record<string, ((event: any) => void)[]> = {}
 
   constructor() {
-    const initial = createInitialData()
-    for (const [col, defaultRecords] of Object.entries(initial)) {
-      this.collections[col] = getStored(col, defaultRecords)
+    this.authStore = new MockAuthStore()
+
+    // Purga dados financeiros legados que possam existir em localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        const sensitiveKeys = [
+          'transactions',
+          'accounts',
+          'debts',
+          'dreams',
+          'budgets',
+          'depara_rules',
+          'categories',
+          'users',
+          'families',
+          'invoices',
+          'payments',
+        ]
+        for (const key of sensitiveKeys) {
+          localStorage.removeItem(STORAGE_PREFIX + key)
+        }
+      } catch {
+        // ignore
+      }
     }
 
-    // Inicialização e migração durável com IndexedDB
-    this.initFromIndexedDb(initial)
-
-    // Se contas ou categorias estiverem vazias, inicializa com o plano estrutural padrão
-    if (!this.collections.accounts || this.collections.accounts.length === 0) {
-      this.collections.accounts = [...initial.accounts]
-      this.persist('accounts')
-    }
-    if (!this.collections.categories || this.collections.categories.length === 0) {
-      this.collections.categories = [...initial.categories]
-      this.persist('categories')
+    // Se já houver uma sessão previamente autenticada neste mesmo perfil, carrega apenas o cofre correspondente
+    if (this.authStore.record?.id) {
+      this.activateUserCompartmentSync(this.authStore.record)
+      this.initFromIndexedDb(this.authStore.record.id)
     }
 
-    this.authStore = new MockAuthStore(defaultLocalUser)
+    // Reage automaticamente a mudanças de autenticação (login, troca de conta ou bloqueio)
+    this.authStore.onChange(() => {
+      const currentUser = this.authStore.record
+      if (!currentUser || !currentUser.id) {
+        this.lockCompartment()
+      } else {
+        this.activateUserCompartmentSync(currentUser)
+        this.initFromIndexedDb(currentUser.id)
+      }
+    })
 
-    // Auto-migração definitiva para sincronizar as Categorias e Subgrupos da Planilha Oficial
-    const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_planilha_oficial_v9_force_sync'
-    if (typeof window !== 'undefined' && !localStorage.getItem(CATEGORIES_MIGRATION_KEY)) {
-      this.migrateLegacyCategoriesToErpPlan(initial.categories)
-      localStorage.setItem(CATEGORIES_MIGRATION_KEY, 'true')
-    }
+    // Coordenação entre abas abertas via BroadcastChannel e evento storage
+    indexedDbStore.onSyncMessage((msg) => {
+      if (msg.type === 'VAULT_LOCKED') {
+        if (this.authStore.record) {
+          this.authStore.clear()
+        }
+      } else if (
+        msg.type === 'DATA_UPDATED' &&
+        msg.profileId &&
+        msg.profileId === this.authStore.record?.id
+      ) {
+        this.initFromIndexedDb(msg.profileId)
+      }
+    })
   }
 
-  private async initFromIndexedDb(initial: Record<string, MockRecord[]>) {
+  /**
+   * Bloqueia o cofre atual: limpa dados em memória, encerra assinaturas e fecha conexão do IndexedDB preservando a base.
+   */
+  public lockCompartment() {
+    this.collections = createEmptyCollections()
+    this.subscriptions = {}
+    indexedDbStore.setActiveProfile(null).catch(() => {})
+  }
+
+  /**
+   * Ativa sincronicamente o compartimento em memória exclusivo do perfil autenticado
+   */
+  public activateUserCompartmentSync(userRecord: MockRecord) {
+    const uid = userRecord.id
+    if (!uid) return
+
+    let comp = this.memoryCompartments.get(uid)
+    if (!comp) {
+      const initial = createInitialData(uid)
+      initial.users = [{ ...userRecord }]
+      comp = {
+        ...createEmptyCollections(),
+        ...initial,
+      }
+      this.memoryCompartments.set(uid, comp)
+    } else {
+      const existingUserIdx = comp.users.findIndex((u) => u.id === uid)
+      if (existingUserIdx >= 0) {
+        comp.users[existingUserIdx] = { ...comp.users[existingUserIdx], ...userRecord }
+      } else {
+        comp.users.push({ ...userRecord })
+      }
+    }
+
+    this.collections = comp
+  }
+
+  /**
+   * Carrega e sincroniza de forma durável o compartimento IndexedDB exclusivo do usuário ativo
+   */
+  public async initFromIndexedDb(userId: string) {
+    if (!userId) return
+    await indexedDbStore.setActiveProfile(userId)
+
     if (typeof window === 'undefined') return
+
     try {
+      const initial = createInitialData(userId)
       for (const col of STORES) {
         if (col === 'vault_meta') continue
         const records = await indexedDbStore.getAll(col)
         if (records && records.length > 0) {
           this.collections[col] = records
-        } else if (initial[col] && initial[col].length > 0) {
-          this.collections[col] = [...initial[col]]
-          for (const item of initial[col]) {
+        } else if (initial[col as keyof typeof initial] && initial[col as keyof typeof initial].length > 0) {
+          const seedItems = initial[col as keyof typeof initial].map((item: MockRecord) => ({
+            ...item,
+            user_id: userId,
+          }))
+          this.collections[col] = seedItems
+          for (const item of seedItems) {
             await indexedDbStore.put(col, item).catch(() => {})
           }
+        } else {
+          this.collections[col] = []
         }
       }
-
-      // Purga lançamentos financeiros antigos do localStorage para não manter duplicidade desprotegida
-      const sensitiveKeys = ['transactions', 'accounts', 'debts', 'dreams', 'budgets', 'depara_rules']
-      for (const key of sensitiveKeys) {
-        localStorage.removeItem(STORAGE_PREFIX + key)
-      }
+      this.memoryCompartments.set(userId, this.collections)
     } catch (err) {
       console.warn('[LocalStore] Inicialização IndexedDB fallback:', err)
     }
   }
 
-  private migrateLegacyCategoriesToErpPlan(officialCategories: MockRecord[]) {
-    // Sincroniza integralmente com a árvore oficial da planilha (11 grupos e 42 subgrupos com descrições)
-    const cats = this.collections.categories || []
-
-    // Mapeamento de grupos legados/anteriores para os grupos oficiais
-    const groupNameMapping: Record<string, string> = {
-      'Alimentação e Mercado': 'Alimentação e Despensa',
-      'Custos Fixos': 'Habitação e Moradia',
-      'Estilo de Vida': 'Lazer e Bem-Estar',
-      'Despesas Financeiras': 'Serviços Financeiros',
-      'Dívidas': 'Serviços Financeiros',
-      'Dívidas e Empréstimos': 'Serviços Financeiros',
-      'Investimentos': 'Obrigações e Investimentos',
-      'Investimentos e Sonhos': 'Obrigações e Investimentos',
-    }
-
-    const officialIdSet = new Set(officialCategories.map((c) => c.id))
-    const officialCodeMap = new Map<string, MockRecord>()
-    for (const off of officialCategories) {
-      if (off.code) officialCodeMap.set(off.code, off)
-    }
-
-    // Mantém categorias customizadas que o usuário tenha criado manualmente
-    const userCustom: MockRecord[] = []
-    for (const c of cats) {
-      // Ignora registros padrão antigos para dar lugar aos oficiais com descrição completa
-      if (
-        !officialIdSet.has(c.id) &&
-        !officialCodeMap.has(c.code) &&
-        !c.id.startsWith('cat_grp_') &&
-        !c.id.startsWith('cat_sub_') &&
-        !c.id.startsWith('cat_salario') &&
-        !c.id.startsWith('cat_mercado') &&
-        !c.id.startsWith('cat_restaurantes') &&
-        !c.id.startsWith('cat_aluguel') &&
-        !c.id.startsWith('cat_energia') &&
-        !c.id.startsWith('cat_transporte') &&
-        !c.id.startsWith('cat_saude') &&
-        !c.id.startsWith('cat_telecom') &&
-        !c.id.startsWith('cat_vestuario')
-      ) {
-        const mappedGroup = groupNameMapping[c.group_level1] || c.group_level1
-        userCustom.push({
-          ...c,
-          group_level1: mappedGroup,
-        })
-      }
-    }
-
-    // Define a coleção como todas as categorias oficiais da planilha + categorias personalizadas do usuário
-    this.collections.categories = [...officialCategories, ...userCustom]
-    this.persist('categories')
-  }
-
   clearAllTransactions() {
+    if (!this.authStore.record?.id) return
     this.collections.transactions = []
     this.collections.invoices = []
     this.collections.payments = []
-    this.persist('transactions')
-    this.persist('invoices')
-    this.persist('payments')
+    indexedDbStore.clear('transactions').catch(() => {})
+    indexedDbStore.clear('invoices').catch(() => {})
+    indexedDbStore.clear('payments').catch(() => {})
     if (this.collections.accounts) {
       for (const a of this.collections.accounts) {
         a.current_balance = a.initial_balance ?? 0
@@ -1241,33 +1283,26 @@ export class MockPocketBase {
   }
 
   private persist(col: string) {
-    if (typeof window !== 'undefined') {
-      const records = this.collections[col] || []
-      for (const r of records) {
-        if (r && r.id) {
-          indexedDbStore.put(col as any, r).catch(() => {})
-        }
+    if (!this.authStore.record?.id) return
+    const records = this.collections[col] || []
+    for (const r of records) {
+      if (r && r.id) {
+        indexedDbStore.put(col as any, r).catch(() => {})
       }
     }
   }
 
   private async persistRecord(col: string, record: MockRecord) {
-    if (typeof window !== 'undefined') {
-      try {
-        await indexedDbStore.put(col as any, record)
-      } catch (err) {
-        console.warn(`[IndexedDB] Falha ao persistir registro em ${col}:`, err)
-      }
+    if (!this.authStore.record?.id) return
+    if ((STORES as readonly string[]).includes(col)) {
+      await indexedDbStore.put(col as any, record)
     }
   }
 
   private async deleteRecord(col: string, id: string) {
-    if (typeof window !== 'undefined') {
-      try {
-        await indexedDbStore.delete(col as any, id)
-      } catch (err) {
-        console.warn(`[IndexedDB] Falha ao excluir registro de ${col}:`, err)
-      }
+    if (!this.authStore.record?.id) return
+    if ((STORES as readonly string[]).includes(col)) {
+      await indexedDbStore.delete(col as any, id)
     }
   }
 
@@ -1285,12 +1320,13 @@ export class MockPocketBase {
   }
 
   getCollectionRecords(name: string): MockRecord[] {
+    if (!this.authStore.record?.id) return []
     return this.collections[name] || []
   }
 
   collection<T = MockRecord>(name: string) {
     if (!this.collections[name]) {
-      this.collections[name] = getStored(name, [])
+      this.collections[name] = []
     }
 
     return {
@@ -1299,7 +1335,16 @@ export class MockPocketBase {
         sort?: string
         expand?: string
       }): Promise<R[]> => {
+        const activeUserId = this.authStore.record?.id
+        if (!activeUserId && name !== 'users') {
+          return []
+        }
+
         let items = [...(this.collections[name] || [])]
+        // Garante isolamento por user_id mesmo se o chamador omitir filtro
+        if (activeUserId && name !== 'users' && name !== 'families') {
+          items = items.filter((item) => !item.user_id || item.user_id === activeUserId)
+        }
         items = this.applyFilter(name, items, options?.filter)
         items = this.applySort(items, options?.sort)
         if (options?.expand) {
@@ -1323,7 +1368,15 @@ export class MockPocketBase {
         totalItems: number
         totalPages: number
       }> => {
+        const activeUserId = this.authStore.record?.id
+        if (!activeUserId && name !== 'users') {
+          return { items: [], page, perPage, totalItems: 0, totalPages: 1 }
+        }
+
         let items = [...(this.collections[name] || [])]
+        if (activeUserId && name !== 'users' && name !== 'families') {
+          items = items.filter((item) => !item.user_id || item.user_id === activeUserId)
+        }
         items = this.applyFilter(name, items, options?.filter)
         items = this.applySort(items, options?.sort)
         const totalItems = items.length
@@ -1344,7 +1397,10 @@ export class MockPocketBase {
       },
 
       getOne: async <R = T>(id: string, options?: { expand?: string }): Promise<R> => {
-        const found = this.collections[name]?.find((r) => r.id === id)
+        const activeUserId = this.authStore.record?.id
+        const found = this.collections[name]?.find(
+          (r) => r.id === id && (!activeUserId || name === 'users' || !r.user_id || r.user_id === activeUserId),
+        )
         if (!found) {
           throw new Error(`Record with id '${id}' not found in collection '${name}'.`)
         }
@@ -1356,7 +1412,11 @@ export class MockPocketBase {
         filter: string,
         options?: { expand?: string },
       ): Promise<R> => {
+        const activeUserId = this.authStore.record?.id
         let items = [...(this.collections[name] || [])]
+        if (activeUserId && name !== 'users' && name !== 'families') {
+          items = items.filter((item) => !item.user_id || item.user_id === activeUserId)
+        }
         items = this.applyFilter(name, items, filter)
         if (items.length === 0) {
           throw new Error(`No record found matching filter '${filter}' in collection '${name}'.`)
@@ -1367,16 +1427,28 @@ export class MockPocketBase {
       },
 
       create: async <R = T>(data: any, options?: { expand?: string }): Promise<R> => {
+        const activeUserId = this.authStore.record?.id
+        if (!activeUserId && name !== 'users') {
+          throw new Error('Sessão não autenticada. Faça login para gravar registros.')
+        }
+
         const id = data.id || `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
         const nowIso = new Date().toISOString()
         const newRecord: MockRecord = {
           ...data,
+          ...(name !== 'users' && name !== 'families' ? { user_id: activeUserId } : {}),
+          ...(typeof data.amount === 'number' ? { amount: roundMoney(data.amount) } : {}),
           id,
           created: nowIso,
           updated: nowIso,
         }
-        this.collections[name].unshift(newRecord)
+
+        if (!this.collections[name]) {
+          this.collections[name] = []
+        }
+
         await this.persistRecord(name, newRecord)
+        this.collections[name].unshift(newRecord)
         this.emit(name, 'create', newRecord)
         const item = options?.expand
           ? this.expandRecord(name, newRecord, options.expand)
@@ -1385,51 +1457,68 @@ export class MockPocketBase {
       },
 
       update: async <R = T>(id: string, data: any, options?: { expand?: string }): Promise<R> => {
-        const index = this.collections[name].findIndex((r) => r.id === id)
+        const activeUserId = this.authStore.record?.id
+        const index = this.collections[name].findIndex(
+          (r) => r.id === id && (!activeUserId || name === 'users' || !r.user_id || r.user_id === activeUserId),
+        )
         if (index === -1) {
           throw new Error(`Record '${id}' not found to update in '${name}'.`)
         }
-        const updated = {
+        const updated: MockRecord = {
           ...this.collections[name][index],
           ...data,
+          ...(typeof data.amount === 'number' ? { amount: roundMoney(data.amount) } : {}),
           id,
           updated: new Date().toISOString(),
         }
-        this.collections[name][index] = updated
         await this.persistRecord(name, updated)
+        this.collections[name][index] = updated
         this.emit(name, 'update', updated)
         const item = options?.expand ? this.expandRecord(name, updated, options.expand) : updated
         return item as unknown as R
       },
 
       delete: async (id: string): Promise<boolean> => {
-        const rec = this.collections[name].find((r) => r.id === id)
-        this.collections[name] = this.collections[name].filter((r) => r.id !== id)
+        const activeUserId = this.authStore.record?.id
+        const rec = this.collections[name].find(
+          (r) => r.id === id && (!activeUserId || name === 'users' || !r.user_id || r.user_id === activeUserId),
+        )
+        if (!rec) return false
         await this.deleteRecord(name, id)
-        if (rec) this.emit(name, 'delete', rec)
+        this.collections[name] = this.collections[name].filter((r) => r.id !== id)
+        this.emit(name, 'delete', rec)
         return true
       },
 
       authWithPassword: async (email: string, _password: string) => {
-        let user = this.collections.users?.find((u) => u.email === email)
+        const normEmail = email.trim().toLowerCase()
+        if (!normEmail || !normEmail.includes('@')) {
+          throw new Error('Identificação de conta inválida.')
+        }
+        const isDemo = normEmail === 'visitante@gestio.app' || normEmail === 'demo@gestio.app'
+        const deterministicEmailId = `usr_g_${Math.abs(
+          normEmail.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0),
+        )}`
+        const effectiveId = isDemo ? 'usr_convidado_demo' : deterministicEmailId
+
+        let user = this.collections.users?.find((u) => u.email === normEmail)
         if (!user) {
           user = {
-            id:
-              email === 'visitante@gestio.app' || email === 'demo@gestio.app'
-                ? 'usr_convidado_demo'
-                : 'usr_' + Date.now(),
-            email,
-            name:
-              email === 'visitante@gestio.app' || email === 'demo@gestio.app'
-                ? 'Convidado (Demonstração)'
-                : email.split('@')[0],
+            id: effectiveId,
+            email: normEmail,
+            name: isDemo ? 'Convidado (Demonstração)' : normEmail.split('@')[0],
+            verified: true,
+            verified_session: true,
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
           }
-          this.collections.users.push(user)
-          this.persist('users')
+        } else {
+          user.id = effectiveId
+          user.verified_session = true
         }
-        this.authStore.save('mock_jwt_' + user.id, user)
+
+        this.authStore.save('local_session_' + effectiveId, user)
+        await this.initFromIndexedDb(effectiveId)
         return { token: this.authStore.token, record: user }
       },
 
@@ -1462,23 +1551,31 @@ export class MockPocketBase {
     // POST /backend/v1/transfers
     if (path === '/backend/v1/transfers' && method === 'POST') {
       const { source_account_id, target_account_id, amount, date, description, notes } = body
+      const cleanAmt = roundMoney(Number(amount) || 0)
       const accounts = this.collections.accounts || []
       const srcAcc = accounts.find((a) => a.id === source_account_id)
       const tgtAcc = accounts.find((a) => a.id === target_account_id)
 
       if (srcAcc) {
-        srcAcc.current_balance = (srcAcc.current_balance ?? srcAcc.initial_balance ?? 0) - amount
+        srcAcc.current_balance = subtractMoney(
+          srcAcc.current_balance ?? srcAcc.initial_balance ?? 0,
+          cleanAmt,
+        )
+        await this.persistRecord('accounts', srcAcc)
       }
       if (tgtAcc) {
-        tgtAcc.current_balance = (tgtAcc.current_balance ?? tgtAcc.initial_balance ?? 0) + amount
+        tgtAcc.current_balance = sumMoney(
+          tgtAcc.current_balance ?? tgtAcc.initial_balance ?? 0,
+          cleanAmt,
+        )
+        await this.persistRecord('accounts', tgtAcc)
       }
-      this.persist('accounts')
 
       const txRecord = await this.collection('transactions').create({
         user_id: this.authStore.record?.id,
         account_id: source_account_id,
         transfer_account_id: target_account_id,
-        amount,
+        amount: cleanAmt,
         type: 'transfer',
         date: date || new Date().toISOString().slice(0, 10),
         competence_month: (date || new Date().toISOString()).slice(0, 7),
@@ -1487,7 +1584,7 @@ export class MockPocketBase {
         notes,
       })
 
-      return { id: txRecord.id, amount } as unknown as T
+      return { id: txRecord.id, amount: cleanAmt } as unknown as T
     }
 
     // POST /backend/v1/invoices
@@ -1501,7 +1598,7 @@ export class MockPocketBase {
           t.type === 'expense' &&
           t.cash_month === reference_month,
       )
-      const totalAmount = cardTxs.reduce((sum, t) => sum + (t.amount || 0), 0)
+      const totalAmount = sumMoney(...cardTxs.map((t) => t.amount || 0))
 
       let existing = this.collections.invoices?.find(
         (inv) => inv.card_account_id === card_account_id && inv.reference_month === reference_month,
@@ -1511,7 +1608,7 @@ export class MockPocketBase {
         existing.total_amount = totalAmount
         existing.items_count = cardTxs.length
         existing.updated = new Date().toISOString()
-        this.persist('invoices')
+        await this.persistRecord('invoices', existing)
         return this.expandRecord(
           'invoices',
           existing,
@@ -1541,19 +1638,21 @@ export class MockPocketBase {
       const invoice = this.collections.invoices?.find((i) => i.id === invoice_id)
       const paymentAcc = this.collections.accounts?.find((a) => a.id === payment_account_id)
 
-      const payAmount = amount || invoice?.total_amount || 0
+      const payAmount = roundMoney(Number(amount || invoice?.total_amount || 0))
 
       if (paymentAcc) {
-        paymentAcc.current_balance =
-          (paymentAcc.current_balance ?? paymentAcc.initial_balance ?? 0) - payAmount
-        this.persist('accounts')
+        paymentAcc.current_balance = subtractMoney(
+          paymentAcc.current_balance ?? paymentAcc.initial_balance ?? 0,
+          payAmount,
+        )
+        await this.persistRecord('accounts', paymentAcc)
       }
 
       if (invoice) {
         invoice.status = 'paid'
         invoice.paid_date = paid_date
         invoice.payment_account_id = payment_account_id
-        this.persist('invoices')
+        await this.persistRecord('invoices', invoice)
       }
 
       const txRecord = await this.collection('transactions').create({
@@ -1587,14 +1686,17 @@ export class MockPocketBase {
             inv.status = 'open'
             delete inv.paid_date
             delete inv.payment_account_id
-            this.persist('invoices')
+            await this.persistRecord('invoices', inv)
           }
         }
         if (tx.account_id) {
           const acc = this.collections.accounts?.find((a) => a.id === tx.account_id)
           if (acc) {
-            acc.current_balance = (acc.current_balance ?? acc.initial_balance ?? 0) + tx.amount
-            this.persist('accounts')
+            acc.current_balance = sumMoney(
+              acc.current_balance ?? acc.initial_balance ?? 0,
+              tx.amount,
+            )
+            await this.persistRecord('accounts', acc)
           }
         }
         await this.collection('transactions').delete(tx.id)
@@ -1615,23 +1717,27 @@ export class MockPocketBase {
         notes,
       } = body
 
+      const cleanAmt = roundMoney(Number(amount) || 0)
       const payAcc = this.collections.accounts?.find((a) => a.id === payment_account_id)
       if (payAcc) {
-        payAcc.current_balance = (payAcc.current_balance ?? payAcc.initial_balance ?? 0) - amount
-        this.persist('accounts')
+        payAcc.current_balance = subtractMoney(
+          payAcc.current_balance ?? payAcc.initial_balance ?? 0,
+          cleanAmt,
+        )
+        await this.persistRecord('accounts', payAcc)
       }
 
       const tx = this.collections.transactions?.find((t) => t.id === source_transaction_id)
       if (tx) {
         tx.installments_paid = (tx.installments_paid || 0) + 1
-        this.persist('transactions')
+        await this.persistRecord('transactions', tx)
       }
 
       const payment = await this.collection('payments').create({
         user_id: this.authStore.record?.id,
         source_transaction_id,
         installment_index,
-        amount,
+        amount: cleanAmt,
         cash_month,
         paid_date,
         payment_account_id,
@@ -1650,15 +1756,18 @@ export class MockPocketBase {
         if (pmt.payment_account_id) {
           const acc = this.collections.accounts?.find((a) => a.id === pmt.payment_account_id)
           if (acc) {
-            acc.current_balance = (acc.current_balance ?? acc.initial_balance ?? 0) + pmt.amount
-            this.persist('accounts')
+            acc.current_balance = sumMoney(
+              acc.current_balance ?? acc.initial_balance ?? 0,
+              pmt.amount,
+            )
+            await this.persistRecord('accounts', acc)
           }
         }
         if (pmt.source_transaction_id) {
           const tx = this.collections.transactions?.find((t) => t.id === pmt.source_transaction_id)
           if (tx && (tx.installments_paid || 0) > 0) {
             tx.installments_paid = Math.max(0, (tx.installments_paid || 1) - 1)
-            this.persist('transactions')
+            await this.persistRecord('transactions', tx)
           }
         }
         await this.collection('payments').delete(paymentId!)
@@ -1686,7 +1795,7 @@ export class MockPocketBase {
         transaction_id,
         installment_index: installment_index || 0,
         action: 'exclude',
-        amount: tx?.amount || 0,
+        amount: roundMoney(Number(tx?.amount || 0)),
         invoice_month: refMonth,
         defer_month: deferMonth,
         invoice_id,
@@ -1696,7 +1805,6 @@ export class MockPocketBase {
         updated: new Date().toISOString(),
       }
       this.collections.invoice_adjustments.push(adj)
-      this.persist('invoice_adjustments')
 
       return {
         invoice_id,
@@ -1713,6 +1821,7 @@ export class MockPocketBase {
       const { invoice_id, transaction_id, installment_index, value, notes } = body
       const invoice = this.collections.invoices?.find((i) => i.id === invoice_id)
       const refMonth = invoice?.reference_month || ''
+      const cleanVal = roundMoney(Number(value) || 0)
 
       if (!this.collections.invoice_adjustments) {
         this.collections.invoice_adjustments = []
@@ -1724,7 +1833,7 @@ export class MockPocketBase {
         transaction_id,
         installment_index: installment_index || 0,
         action: 'set_value',
-        amount: Number(value) || 0,
+        amount: cleanVal,
         invoice_month: refMonth,
         invoice_id,
         notes,
@@ -1733,17 +1842,16 @@ export class MockPocketBase {
         updated: new Date().toISOString(),
       }
       this.collections.invoice_adjustments.push(adj)
-      this.persist('invoice_adjustments')
 
       if (invoice) {
-        invoice.total_amount = Number(value) || 0
-        this.persist('invoices')
+        invoice.total_amount = cleanVal
+        await this.persistRecord('invoices', invoice)
       }
 
       return {
         invoice_id,
         reference_month: refMonth,
-        total_amount: Number(value) || 0,
+        total_amount: cleanVal,
         items_count: 1,
         items: [],
       } as unknown as T

@@ -175,8 +175,8 @@ export const AdminLicenseModal: React.FC<Props> = ({
           <div className="bg-slate-100 rounded-xl p-3 text-[11px] text-slate-600 flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
             <span>
-              <strong>Seu acesso (roogerio99@gmail.com)</strong> é imune a bloqueios e continuará funcionando
-              sempre, mesmo quando você ativar o modo comercial para terceiros.
+              <strong>Perfis administradores</strong> permanecem com acesso habilitado localmente
+              mesmo quando o modo comercial estiver configurado para demonstrações externas.
             </span>
           </div>
 

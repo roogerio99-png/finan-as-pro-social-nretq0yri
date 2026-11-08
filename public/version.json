@@ -1,6 +1,6 @@
 {
-  "version": "0.0.66",
-  "buildTimestamp": 1794149725000,
-  "releaseDate": "2026-11-08T14:35:25.000Z",
-  "description": "Cofre local 100% Offline-First em IndexedDB com AES-GCM/PBKDF2, sem dependencia remota, e suporte nativo a extratos OFX, Excel e CSV."
+  "version": "0.1.0",
+  "buildTimestamp": 1794153000000,
+  "releaseDate": "2026-11-08T15:50:00.000Z",
+  "description": "Gestio Financas Pro v0.1.0 - Isolamento de cofre por perfil, precisao em centavos inteiros, backup criptografado obrigatorio e CSP restritiva."
 }
