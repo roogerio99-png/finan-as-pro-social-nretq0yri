@@ -275,7 +275,56 @@ export const ReconciliationPage: React.FC = () => {
       return
     }
 
-    // 2. Arquivo PDF (Fatura ou Extrato)
+    // 2. Arquivo Excel (.xlsx, .xls)
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const buffer = event.target?.result as ArrayBuffer
+          const result = statementParserService.parseExcel(buffer)
+
+          if (result.count > 0) {
+            setDetectedBadge(result.badge || 'Planilha Excel')
+            setDetectedDocType(result.document_type || 'statement')
+            setStatementSummary({
+              badge: result.badge || 'Planilha Excel',
+              startDate: result.startDate,
+              endDate: result.endDate,
+              totalIncome: result.totalIncome,
+              totalExpense: result.totalExpense,
+              count: result.count,
+            })
+
+            const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
+            if (matchedAccId) {
+              setSelectedAccountId(matchedAccId)
+            }
+
+            processExtractedLines(result.transactions)
+            toast({
+              title: `${result.badge || 'Planilha Excel'} importada!`,
+              description: `${result.count} lançamentos identificados com sucesso.`,
+            })
+          } else {
+            toast({
+              title: 'Planilha sem lançamentos',
+              description: 'Não foram encontradas linhas válidas com data e valor na planilha.',
+              variant: 'destructive',
+            })
+          }
+        } catch (err: any) {
+          toast({
+            title: 'Erro ao ler planilha Excel',
+            description: err?.message || 'Verifique se o arquivo Excel não está protegido por senha.',
+            variant: 'destructive',
+          })
+        }
+      }
+      reader.readAsArrayBuffer(file)
+      return
+    }
+
+    // 3. Arquivo PDF (Fatura ou Extrato)
     if (fileName.endsWith('.pdf')) {
       setParsingPdf(true)
       try {
@@ -318,43 +367,50 @@ export const ReconciliationPage: React.FC = () => {
       return
     }
 
-    // 3. Arquivo CSV / TXT / TSV (Nubank, Banco do Brasil, Mercado Pago, etc.)
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
-      const result = statementParserService.parseCsv(text)
+    // 4. Arquivo CSV / TXT / TSV com auto-detecção de encoding (UTF-8 com fallback para ISO-8859-1)
+    const tryReadCsv = (encoding: string, isFallback = false) => {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const text = event.target?.result as string
+        const result = statementParserService.parseCsv(text)
 
-      if (result.count > 0) {
-        setDetectedBadge(result.badge || 'Arquivo CSV / Planilha')
-        setDetectedDocType(result.document_type || 'statement')
-        setStatementSummary({
-          badge: result.badge || 'Arquivo CSV',
-          startDate: result.startDate,
-          endDate: result.endDate,
-          totalIncome: result.totalIncome,
-          totalExpense: result.totalExpense,
-          count: result.count,
-        })
+        if (result.count > 0) {
+          setDetectedBadge(result.badge || 'Arquivo CSV')
+          setDetectedDocType(result.document_type || 'statement')
+          setStatementSummary({
+            badge: result.badge || 'Arquivo CSV',
+            startDate: result.startDate,
+            endDate: result.endDate,
+            totalIncome: result.totalIncome,
+            totalExpense: result.totalExpense,
+            count: result.count,
+          })
 
-        const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
-        if (matchedAccId) {
-          setSelectedAccountId(matchedAccId)
+          const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
+          if (matchedAccId) {
+            setSelectedAccountId(matchedAccId)
+          }
+
+          processExtractedLines(result.transactions)
+          toast({
+            title: `${result.badge || 'Arquivo CSV'} lido!`,
+            description: `${result.count} lançamentos extraídos com sucesso.`,
+          })
+        } else if (!isFallback) {
+          // Tenta novamente com ISO-8859-1 antes de disparar erro
+          tryReadCsv('iso-8859-1', true)
+        } else {
+          toast({
+            title: 'Formato não reconhecido',
+            description: 'Não foi possível identificar linhas com data e valor no arquivo enviado. Você pode exportar em formato OFX ou Excel.',
+            variant: 'destructive',
+          })
         }
-
-        processExtractedLines(result.transactions)
-        toast({
-          title: `${result.badge || 'Arquivo de Planilha'} lido!`,
-          description: `${result.count} lançamentos extraídos com sucesso.`,
-        })
-      } else {
-        toast({
-          title: 'Formato não reconhecido',
-          description: 'Não foi possível identificar linhas com data e valor no arquivo enviado.',
-          variant: 'destructive',
-        })
       }
+      reader.readAsText(file, encoding)
     }
-    reader.readAsText(file)
+
+    tryReadCsv('utf-8')
   }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

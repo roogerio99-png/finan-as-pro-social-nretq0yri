@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import * as XLSX from 'xlsx'
 
 export interface ParsedStatementTransaction {
   date: string // YYYY-MM-DD
@@ -59,18 +60,19 @@ function parseCsvLine(line: string, delimiter: string): string[] {
 
 /**
  * Converte valores em formato brasileiro ou internacional para número
- * Ex: "15.450,15", "-15.000,00", "R$ 1.400,00", "-11.11", "R$ -323,52"
+ * Ex: "15.450,15", "-15.000,00", "R$ 1.400,00", "-11.11", 15450.15, -15000
  */
-function parseFlexibleAmount(raw: string): number {
+function parseFlexibleAmount(raw: any): number {
+  if (typeof raw === 'number') return raw
   if (!raw) return 0
-  let clean = raw.replace(/R\$/g, '').replace(/\s+/g, '').replace(/[()]/g, '').trim()
+  let clean = String(raw).replace(/R\$/g, '').replace(/\s+/g, '').replace(/[()]/g, '').trim()
   const isNegative =
     clean.includes('-') ||
-    raw.includes('(-)') ||
-    raw.toLowerCase().includes('saída') ||
-    raw.toLowerCase().includes('saida') ||
-    raw.toLowerCase().includes('debito') ||
-    raw.toLowerCase().includes('débito')
+    String(raw).includes('(-)') ||
+    String(raw).toLowerCase().includes('saída') ||
+    String(raw).toLowerCase().includes('saida') ||
+    String(raw).toLowerCase().includes('debito') ||
+    String(raw).toLowerCase().includes('débito')
 
   clean = clean.replace(/-/g, '').replace(/\+/g, '').trim()
 
@@ -88,10 +90,17 @@ function parseFlexibleAmount(raw: string): number {
 }
 
 /**
- * Normaliza datas nos formatos DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD para YYYY-MM-DD
+ * Normaliza datas nos formatos DD/MM/AAAA, DD-MM-AAAA, AAAA-MM-DD ou serial do Excel para YYYY-MM-DD
  */
-function normalizeDate(raw: string): string {
-  const clean = raw.trim()
+function normalizeDate(raw: any): string {
+  if (typeof raw === 'number') {
+    // Número de data serial do Excel (ex: 45566 -> 2024-10-01)
+    const dateObj = new Date(Math.round((raw - 25569) * 86400 * 1000))
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toISOString().slice(0, 10)
+    }
+  }
+  const clean = String(raw || '').trim().replace(/['"]/g, '')
   // DD/MM/AAAA ou DD-MM-AAAA
   const dmy = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/)
   if (dmy) {
@@ -108,6 +117,18 @@ function normalizeDate(raw: string): string {
     return `${ofxDate[1]}-${ofxDate[2]}-${ofxDate[3]}`
   }
   return new Date().toISOString().slice(0, 10)
+}
+
+/**
+ * Normaliza células de cabeçalho para comparação flexível
+ */
+function normalizeHeaderCell(cell: any): string {
+  return String(cell || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
 }
 
 /**
@@ -137,13 +158,179 @@ function extractInstallments(text: string): { total?: number; index?: number } {
   return {}
 }
 
+/**
+ * Motor central de parsing de dados tabulares (compartilhado entre Excel e CSV)
+ */
+function parseTableRows(rows: any[][], formatHint: 'Excel' | 'CSV' = 'CSV'): ParseResult {
+  if (!rows || rows.length === 0) {
+    return { ok: false, totalIncome: 0, totalExpense: 0, transactions: [], count: 0 }
+  }
+
+  let headerRowIndex = -1
+  let dateIdx = -1
+  let valueIdx = -1
+  let descIdx = -1
+  let detailsIdx = -1
+  let idIdx = -1
+  let typeIdx = -1
+
+  for (let r = 0; r < Math.min(rows.length, 25); r++) {
+    const row = rows[r]
+    if (!Array.isArray(row)) continue
+    const normRow = row.map(normalizeHeaderCell)
+    const dIdx = normRow.findIndex((c) => c.includes('data') || c.includes('date'))
+    const vIdx = normRow.findIndex((c) => c.includes('valor') || c.includes('amount') || c.includes('value') || c.includes('val'))
+    const dsIdx = normRow.findIndex(
+      (c) =>
+        c.includes('lancamento') ||
+        c.includes('lanamento') ||
+        c.includes('descri') ||
+        c.includes('historico'),
+    )
+
+    if (dIdx !== -1 && (vIdx !== -1 || dsIdx !== -1)) {
+      headerRowIndex = r
+      dateIdx = dIdx
+      valueIdx = vIdx
+      descIdx = dsIdx !== -1 ? dsIdx : normRow.findIndex((c) => c.includes('detalhe'))
+      detailsIdx = normRow.findIndex((c) => c.includes('detalhe') && c !== normRow[descIdx])
+      idIdx = normRow.findIndex((c) => c.includes('identificador') || c.includes('documento') || c.includes('id'))
+      typeIdx = normRow.findIndex((c) => c.includes('tipo'))
+      break
+    }
+  }
+
+  // Fallback se não encontrar cabeçalho explícito: assume coluna 0 data, coluna 1 descrição, coluna 2 ou 4 valor
+  if (headerRowIndex === -1) {
+    headerRowIndex = 0
+    dateIdx = 0
+    descIdx = 1
+    valueIdx = rows[0] && rows[0].length >= 5 ? 4 : 2
+  }
+
+  const normHeader = (rows[headerRowIndex] || []).map(normalizeHeaderCell)
+  const isBancoDoBrasil =
+    normHeader.some((h) => h.includes('lancamento') || h.includes('lanamento') || /lan.*amento/.test(h)) ||
+    (normHeader.some((h) => h.includes('detalhe')) && normHeader.some((h) => h.includes('tipo')))
+  const isNubank =
+    normHeader.some((h) => h.includes('identificador')) &&
+    normHeader.some((h) => h.includes('valor')) &&
+    normHeader.some((h) => h.includes('data'))
+  const isMercadoPago =
+    normHeader.some((h) => h.includes('operacao') || h.includes('cofrinho') || h.includes('mercadopago'))
+
+  let bank = 'Extrato Bancário'
+  let badge = `Extrato (${formatHint})`
+  const document_type: 'invoice' | 'statement' = 'statement'
+
+  if (isBancoDoBrasil) {
+    bank = 'Banco do Brasil'
+    badge = `Extrato Banco do Brasil (${formatHint})`
+  } else if (isNubank) {
+    bank = 'Nubank'
+    badge = `Extrato Nubank (${formatHint})`
+  } else if (isMercadoPago) {
+    bank = 'Mercado Pago'
+    badge = `Extrato Mercado Pago (${formatHint})`
+  }
+
+  const transactions: ParsedStatementTransaction[] = []
+  let totalIncome = 0
+  let totalExpense = 0
+
+  for (let r = headerRowIndex + 1; r < rows.length; r++) {
+    const row = rows[r]
+    if (!Array.isArray(row) || row.length < 2) continue
+
+    const title = String(row[descIdx !== -1 ? descIdx : 1] || '').trim()
+    if (!title) continue
+
+    // Ignora linhas de saldo e fechamento
+    if (
+      /^saldo/i.test(title) ||
+      /^s\s*a\s*l\s*d\s*o/i.test(title) ||
+      title.toLowerCase() === 'saldo anterior' ||
+      title.toLowerCase() === 'saldo do dia'
+    ) {
+      continue
+    }
+
+    const date = normalizeDate(row[dateIdx !== -1 ? dateIdx : 0])
+    const details = detailsIdx !== -1 && row[detailsIdx] ? String(row[detailsIdx]).trim() : ''
+    const desc = details ? `${title} - ${details}` : title
+
+    const rawAmt = parseFlexibleAmount(row[valueIdx !== -1 ? valueIdx : 4])
+    const tipo = typeIdx !== -1 ? String(row[typeIdx]).trim().toLowerCase() : ''
+
+    // Regra estrita de Débito vs Crédito (Entrada vs Saída)
+    let isExpense = false
+    if (
+      tipo.includes('entrada') ||
+      tipo.includes('credito') ||
+      tipo.includes('crédito') ||
+      tipo === 'c' ||
+      tipo === 'deposito'
+    ) {
+      isExpense = false
+    } else if (
+      tipo.includes('saida') ||
+      tipo.includes('saída') ||
+      tipo.includes('debito') ||
+      tipo.includes('débito') ||
+      tipo === 'd'
+    ) {
+      isExpense = true
+    } else {
+      isExpense = rawAmt < 0
+    }
+
+    const amount = Math.abs(rawAmt)
+    if (amount === 0) continue
+
+    const fitId = idIdx !== -1 && row[idIdx] ? String(row[idIdx]).trim() : undefined
+    const inst = extractInstallments(desc)
+
+    if (isExpense) totalExpense += amount
+    else totalIncome += amount
+
+    transactions.push({
+      date,
+      desc,
+      amount,
+      type: isExpense ? 'expense' : 'income',
+      fitId,
+      installments_total: inst.total,
+      installment_index: inst.index,
+      raw_memo: desc,
+    })
+  }
+
+  const dates = transactions.map((t) => t.date).sort()
+  const startDate = dates[0]
+  const endDate = dates[dates.length - 1]
+
+  return {
+    ok: transactions.length > 0,
+    document_type,
+    bank,
+    badge,
+    startDate,
+    endDate,
+    totalIncome: Math.round(totalIncome * 100) / 100,
+    totalExpense: Math.round(totalExpense * 100) / 100,
+    transactions,
+    count: transactions.length,
+  }
+}
+
 export const statementParserService = {
   /**
    * Identifica a extensão do arquivo
    */
-  detectFileType(filename: string): 'ofx' | 'csv' | 'pdf' | 'unknown' {
+  detectFileType(filename: string): 'ofx' | 'csv' | 'excel' | 'pdf' | 'unknown' {
     const lower = filename.toLowerCase()
     if (lower.endsWith('.ofx')) return 'ofx'
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return 'excel'
     if (lower.endsWith('.csv') || lower.endsWith('.txt') || lower.endsWith('.tsv')) return 'csv'
     if (lower.endsWith('.pdf')) return 'pdf'
     return 'unknown'
@@ -256,6 +443,37 @@ export const statementParserService = {
   },
 
   /**
+   * Parser inteligente de planilhas Excel (.xlsx, .xls)
+   * Suporta arquivos exportados de bancos e operadoras de cartão.
+   */
+  parseExcel(data: ArrayBuffer | Uint8Array): ParseResult {
+    try {
+      const wb = XLSX.read(data, { type: 'array' })
+      if (!wb.SheetNames || wb.SheetNames.length === 0) {
+        return {
+          ok: false,
+          totalIncome: 0,
+          totalExpense: 0,
+          transactions: [],
+          count: 0,
+        }
+      }
+      const firstSheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<any[]>(firstSheet, { header: 1 })
+      return parseTableRows(rows, 'Excel')
+    } catch (err: any) {
+      console.error('[statementParser] Erro ao processar planilha Excel:', err)
+      return {
+        ok: false,
+        totalIncome: 0,
+        totalExpense: 0,
+        transactions: [],
+        count: 0,
+      }
+    }
+  },
+
+  /**
    * Parser inteligente de arquivos CSV de extratos e faturas.
    * Auto-detecta os formatos de Nubank, Banco do Brasil, Mercado Pago e outros bancos.
    */
@@ -280,201 +498,8 @@ export const statementParserService = {
     if (countSemi > countComma && countSemi > countTab) delimiter = ';'
     else if (countTab > countComma && countTab > countSemi) delimiter = '\t'
 
-    const header = parseCsvLine(rawLines[0], delimiter).map((h) =>
-      h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
-    )
-
-    let bank = 'Extrato Bancário'
-    let badge = 'Arquivo CSV'
-    let document_type: 'invoice' | 'statement' = 'statement'
-
-    // 1. Detecção do formato Nubank CSV
-    // Cabeçalho: Data, Valor, Identificador, Descrição
-    const isNubank =
-      header.includes('identificador') &&
-      header.includes('valor') &&
-      header.includes('data') &&
-      header.some((h) => h.includes('descri'))
-
-    // 2. Detecção do formato Banco do Brasil CSV
-    // Cabeçalho: Data, Lançamento, Detalhes, N° documento, Valor, Tipo Lançamento
-    const isBancoDoBrasil =
-      header.includes('lancamento') ||
-      (header.includes('detalhes') && header.includes('tipo lancamento'))
-
-    // 3. Detecção do formato Mercado Pago CSV / Extrato
-    // Cabeçalho: Data, Descrição, ID da operação, Valor, Saldo
-    const isMercadoPago =
-      header.includes('id da operacao') ||
-      header.some((h) => h.includes('operacao') || h.includes('cofrinho'))
-
-    if (isNubank) {
-      bank = 'Nubank'
-      badge = 'Extrato Nubank (CSV)'
-    } else if (isBancoDoBrasil) {
-      bank = 'Banco do Brasil'
-      badge = 'Extrato Banco do Brasil (CSV)'
-    } else if (isMercadoPago) {
-      bank = 'Mercado Pago'
-      badge = 'Extrato Mercado Pago (CSV)'
-    }
-
-    const transactions: ParsedStatementTransaction[] = []
-    let totalIncome = 0
-    let totalExpense = 0
-
-    // Mapeamento dinâmico de índices de colunas
-    const dateIdx = header.findIndex((h) => h.includes('data') || h.includes('date'))
-    const valueIdx = header.findIndex((h) => h.includes('valor') || h.includes('amount') || h.includes('value'))
-    const descIdx = header.findIndex((h) => h.includes('descri') || h.includes('historico') || h.includes('lancamento'))
-    const detailsIdx = header.findIndex((h) => h.includes('detalhes'))
-    const idIdx = header.findIndex((h) => h.includes('identificador') || h.includes('documento') || h.includes('id'))
-    const typeIdx = header.findIndex((h) => h.includes('tipo'))
-
-    for (let i = 1; i < rawLines.length; i++) {
-      const parts = parseCsvLine(rawLines[i], delimiter)
-      if (parts.length < 2) continue
-
-      if (isBancoDoBrasil) {
-        // Regra especial BB: ignora linhas de conferência de saldo
-        const title = (parts[descIdx !== -1 ? descIdx : 1] || '').trim()
-        if (
-          !title ||
-          /^saldo/i.test(title) ||
-          /^s\s*a\s*l\s*d\s*o/i.test(title) ||
-          title.toLowerCase() === 'saldo anterior'
-        ) {
-          continue
-        }
-
-        const date = normalizeDate(parts[dateIdx !== -1 ? dateIdx : 0])
-        const details = detailsIdx !== -1 && parts[detailsIdx] ? parts[detailsIdx].trim() : ''
-        const desc = details ? `${title} - ${details}` : title
-        const rawAmt = parseFlexibleAmount(parts[valueIdx !== -1 ? valueIdx : 4])
-        const tipo = typeIdx !== -1 ? parts[typeIdx].toLowerCase() : ''
-        const isExpense = tipo.includes('saida') || tipo.includes('saída') || rawAmt < 0
-        const amount = Math.abs(rawAmt)
-        const fitId = idIdx !== -1 && parts[idIdx] ? parts[idIdx].trim() : undefined
-
-        const inst = extractInstallments(desc)
-
-        if (isExpense) totalExpense += amount
-        else totalIncome += amount
-
-        transactions.push({
-          date,
-          desc,
-          amount,
-          type: isExpense ? 'expense' : 'income',
-          fitId,
-          installments_total: inst.total,
-          installment_index: inst.index,
-          raw_memo: desc,
-        })
-      } else if (isNubank) {
-        // Regra especial Nubank CSV: Data, Valor, Identificador, Descrição
-        const date = normalizeDate(parts[0])
-        const rawAmt = parseFloat(parts[1])
-        if (isNaN(rawAmt)) continue
-
-        const isExpense = rawAmt < 0
-        const amount = Math.abs(rawAmt)
-        const fitId = parts[2]?.trim()
-        const desc = parts[3]?.trim() || 'Lançamento Nubank'
-
-        const inst = extractInstallments(desc)
-
-        if (isExpense) totalExpense += amount
-        else totalIncome += amount
-
-        transactions.push({
-          date,
-          desc,
-          amount,
-          type: isExpense ? 'expense' : 'income',
-          fitId,
-          installments_total: inst.total,
-          installment_index: inst.index,
-          raw_memo: desc,
-        })
-      } else if (isMercadoPago) {
-        // Regra especial Mercado Pago: Data, Descrição, ID, Valor
-        const date = normalizeDate(parts[0])
-        const desc = parts[1]?.trim() || 'Lançamento Mercado Pago'
-        const fitId = parts[2]?.trim()
-        const rawAmt = parseFlexibleAmount(parts[3])
-        const isExpense = rawAmt < 0
-        const amount = Math.abs(rawAmt)
-
-        const inst = extractInstallments(desc)
-
-        if (isExpense) totalExpense += amount
-        else totalIncome += amount
-
-        transactions.push({
-          date,
-          desc,
-          amount,
-          type: isExpense ? 'expense' : 'income',
-          fitId,
-          installments_total: inst.total,
-          installment_index: inst.index,
-          raw_memo: desc,
-        })
-      } else {
-        // Parser Genérico inteligente
-        const rawDate = dateIdx !== -1 ? parts[dateIdx] : parts[0]
-        const date = normalizeDate(rawDate)
-
-        let desc = descIdx !== -1 ? parts[descIdx] : parts[1] || 'Lançamento Importado'
-        if (detailsIdx !== -1 && parts[detailsIdx]) {
-          desc += ` - ${parts[detailsIdx]}`
-        }
-
-        // Ignora linhas de saldo em extratos genéricos
-        if (/^saldo/i.test(desc) || /^s\s*a\s*l\s*d\s*o/i.test(desc)) continue
-
-        const valStr = valueIdx !== -1 ? parts[valueIdx] : parts[2] || '0'
-        const rawAmt = parseFlexibleAmount(valStr)
-        const isExpense = rawAmt < 0 || (typeIdx !== -1 && parts[typeIdx].toLowerCase().includes('deb'))
-        const amount = Math.abs(rawAmt)
-        if (amount === 0) continue
-
-        const fitId = idIdx !== -1 ? parts[idIdx]?.trim() : undefined
-        const inst = extractInstallments(desc)
-
-        if (isExpense) totalExpense += amount
-        else totalIncome += amount
-
-        transactions.push({
-          date,
-          desc,
-          amount,
-          type: isExpense ? 'expense' : 'income',
-          fitId,
-          installments_total: inst.total,
-          installment_index: inst.index,
-          raw_memo: desc,
-        })
-      }
-    }
-
-    const dates = transactions.map((t) => t.date).sort()
-    const startDate = dates[0]
-    const endDate = dates[dates.length - 1]
-
-    return {
-      ok: true,
-      document_type,
-      bank,
-      badge,
-      startDate,
-      endDate,
-      totalIncome: Math.round(totalIncome * 100) / 100,
-      totalExpense: Math.round(totalExpense * 100) / 100,
-      transactions,
-      count: transactions.length,
-    }
+    const rows = rawLines.map((line) => parseCsvLine(line, delimiter))
+    return parseTableRows(rows, 'CSV')
   },
 
   /**

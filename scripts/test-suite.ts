@@ -35,6 +35,7 @@ import { invoicesService } from '../src/services/invoices.ts'
 import { copilotService } from '../src/services/copilotService.ts'
 import { localDataPrivacyService } from '../src/services/localDataPrivacy.ts'
 import { statementParserService } from '../src/services/statementParser.ts'
+import * as XLSX from 'xlsx'
 
 interface TestResult {
   module: string
@@ -453,6 +454,22 @@ DATA:OFXSGML
 "10/10/2026","Compra Mercado Livre Parcela 3 de 10","","0","-120,00","D"`
   const installmentResult = statementParserService.parseCsv(sampleInstallmentCsv)
   assert('Extratos', 'Detecção de Parcelas X de Y', installmentResult.transactions[0].installments_total === 10 && installmentResult.transactions[0].installment_index === 3, 'Parcela X de Y não detectada')
+
+  // Teste 10.5: Planilha Excel (.xlsx) nativa
+  const wbTest = XLSX.utils.book_new()
+  const wsTest = XLSX.utils.aoa_to_sheet([
+    ['Data', 'Lançamento', 'Detalhes', 'N° documento', 'Valor', 'Tipo Lançamento'],
+    ['01/10/2026', 'Recebimento de Proventos', 'AGRICONNECTION', '557897', '15.450,15', 'Entrada'],
+    ['01/10/2026', 'Saldo do dia', '', '', '15.450,56', ''],
+    ['05/10/2026', 'Pix Open Finance Envio', 'Rogerio', '100501', '-15.000,00', 'Saída'],
+    ['31/10/2026', 'S A L D O', '', '', '0,56', ''],
+  ])
+  XLSX.utils.book_append_sheet(wbTest, wsTest, 'Extrato')
+  const excelBuf = XLSX.write(wbTest, { type: 'buffer', bookType: 'xlsx' })
+  const excelResult = statementParserService.parseExcel(excelBuf)
+  assert('Extratos', 'Parse Excel BB Quantidade', excelResult.transactions.length === 2, `Linhas de saldo não filtradas no Excel. Obtido: ${excelResult.transactions.length}`)
+  assert('Extratos', 'Parse Excel BB Receita Proventos', excelResult.transactions[0].amount === 15450.15 && excelResult.transactions[0].type === 'income', 'Falha ao identificar proventos como receita no Excel')
+  assert('Extratos', 'Parse Excel BB Despesa Pix', excelResult.transactions[1].amount === 15000 && excelResult.transactions[1].type === 'expense', 'Falha ao identificar Pix como despesa no Excel')
 
   // -------------------------------------------------------------
   // RESUMO FINAL
