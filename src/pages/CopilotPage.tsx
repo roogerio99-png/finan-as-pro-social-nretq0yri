@@ -39,7 +39,6 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { useToast } from '@/hooks/use-toast'
-import { CopilotLiveMode } from '@/components/copilot/CopilotLiveMode'
 import { MicrophonePermissionModal } from '@/components/copilot/MicrophonePermissionModal'
 import { MicrophoneStatusBanner } from '@/components/copilot/MicrophoneStatusBanner'
 import { useVoiceCommander } from '@/hooks/useVoiceCommander'
@@ -47,7 +46,6 @@ import { TransactionDialog } from '@/components/transactions/TransactionDialog'
 import { invoicesService } from '@/services/invoices'
 import { deparaService } from '@/services/depara'
 import { InvoiceRecord, DeparaRuleRecord, TransactionType } from '@/types/finance'
-import { Radio } from 'lucide-react'
 import {
   copilotService,
   QuickTransactionSuggestion,
@@ -65,7 +63,7 @@ export const CopilotPage: React.FC = () => {
 
   // Estados gerais
   const [activeTab, setActiveTab] = useState<'quick-tx' | 'budget' | 'insights' | 'chat'>('quick-tx')
-  const [liveModeOpen, setLiveModeOpen] = useState(false)
+
   const [voiceOptIn, setVoiceOptIn] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('gestio_voice_opt_in') === 'true'
@@ -620,34 +618,6 @@ export const CopilotPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-              <Button
-                onClick={() => {
-                  if (!voiceOptIn) {
-                    toast({
-                      title: 'Voz desabilitada por padrão no modo estritamente local',
-                      description:
-                        'Ative a opção de reconhecimento de voz abaixo caso deseje utilizar a API de voz do navegador.',
-                    })
-                    return
-                  }
-                  setLiveModeOpen(true)
-                }}
-                variant={voiceOptIn ? 'default' : 'outline'}
-                className={
-                  voiceOptIn
-                    ? 'bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl h-14 px-6 text-sm gap-2.5 shadow-xl transition-all active:scale-95 border border-white/20 w-full sm:w-auto'
-                    : 'bg-slate-900/70 hover:bg-slate-800 text-slate-300 border-slate-700 font-bold rounded-2xl h-12 px-5 text-xs gap-2 w-full sm:w-auto'
-                }
-              >
-                <Radio className="w-4 h-4 text-rose-300" />
-                <span>{voiceOptIn ? 'Iniciar Modo Live (Voz)' : 'Voz Desativada (Modo Local)'}</span>
-              </Button>
-              <span className="text-[11px] text-center text-slate-300">
-                {voiceOptIn ? 'Web Speech API habilitada pelo usuário' : 'Digitação local ativa por padrão'}
-              </span>
-            </div>
-
             <div className="flex flex-col sm:flex-row gap-3">
             <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-center min-w-[140px]">
               <p className="text-xs text-slate-300 uppercase tracking-wider font-semibold">
@@ -1600,16 +1570,6 @@ export const CopilotPage: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Modal / Tela Cheia do Modo Live com Callback de Confirmação */}
-      <CopilotLiveMode
-        isOpen={liveModeOpen}
-        onClose={() => setLiveModeOpen(false)}
-        onTransactionCreated={loadData}
-        onReviewTransaction={(data) => {
-          openTransactionDialogWithData(data)
-        }}
-      />
 
       {/* Modal Oficial de Lançamento para Validação Prévia do Usuário */}
       <TransactionDialog
