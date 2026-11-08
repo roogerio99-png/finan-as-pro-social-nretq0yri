@@ -20,9 +20,7 @@ export function useVoiceCommander({
   const [permissionModalOpen, setPermissionModalOpen] = useState(false)
 
   const recognitionRef = useRef<any>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const interimTextRef = useRef<string>('')
   const animationFrameRef = useRef<number | null>(null)
 
   // Verifica o estado inicial da permissão no mount
@@ -54,92 +52,49 @@ export function useVoiceCommander({
 
     return () => {
       isMounted = false
-      stopListening()
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort()
+        } catch {
+          // ignore
+        }
+      }
     }
   }, [])
 
-  // Limpeza de recursos de áudio e animação
+  // Limpeza de recursos de animação
   const cleanupAudio = useCallback(() => {
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
     }
-
-    if (streamRef.current) {
-      try {
-        streamRef.current.getTracks().forEach((track) => track.stop())
-      } catch {
-        // ignore
-      }
-      streamRef.current = null
-    }
-
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try {
-        audioContextRef.current.close()
-      } catch {
-        // ignore
-      }
-      audioContextRef.current = null
-    }
-
     setAudioLevel(0)
   }, [])
 
-  // Solicita permissão de forma ativa e explícita ao navegador
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    setIsRequestingPermission(true)
-    try {
-      const result = await microphoneService.requestPermission()
-      setPermissionState(result.state)
+  // Loop visual suave para onda sonora durante a escuta.
+  // 100% livre de conflito de hardware: não abre getUserMedia simultâneo ao SpeechRecognition,
+  // permitindo que o microfone opere sem travar no Android e iOS.
+  const startAudioMeter = useCallback(() => {
+    let frame = 0
+    const updateMeter = () => {
+      frame += 0.2
+      // Ondulação harmônica suave
+      const baseWave = 22 + Math.sin(frame) * 14 + Math.cos(frame * 1.6) * 10
+      // Quando há palavras sendo faladas, intensifica a amplitude
+      const speakingBoost = interimTextRef.current.length > 0 ? 45 : 0
+      const currentLevel = Math.min(100, Math.round(baseWave + speakingBoost))
+      setAudioLevel(currentLevel)
 
-      if (result.granted) {
-        setPermissionModalOpen(false)
-        return true
-      } else {
-        console.warn('[VoiceCommander] Permissão negada:', result.errorName, result.errorMessage)
-        if (result.state === 'denied') {
-          setPermissionModalOpen(true)
-        } else if (onError && result.errorMessage) {
-          onError(result.errorMessage)
-        }
-        return false
-      }
-    } finally {
-      setIsRequestingPermission(false)
+      animationFrameRef.current = requestAnimationFrame(updateMeter)
     }
-  }, [onError])
 
-  // Loop de animação do medidor de volume do microfone
-  const startAudioMeter = useCallback(async () => {
-    try {
-      const { stream, audioContext, analyser } = await microphoneService.createAudioStream()
-      streamRef.current = stream
-      audioContextRef.current = audioContext
-      analyserRef.current = analyser
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
-      const updateMeter = () => {
-        if (!analyserRef.current) return
-
-        analyserRef.current.getByteFrequencyData(dataArray)
-        let sum = 0
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i]
-        }
-        const average = sum / dataArray.length
-        // Normaliza de 0 a 100 com sensibilidade
-        const level = Math.min(100, Math.round((average / 128) * 100))
-        setAudioLevel(level)
-
-        animationFrameRef.current = requestAnimationFrame(updateMeter)
-      }
-
-      updateMeter()
-    } catch (err) {
-      console.warn('Não foi possível iniciar medidor de áudio:', err)
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
     }
+    animationFrameRef.current = requestAnimationFrame(updateMeter)
   }, [])
 
   // Interrompe a escuta
@@ -158,24 +113,14 @@ export function useVoiceCommander({
     cleanupAudio()
   }, [cleanupAudio])
 
-  // Inicia a captura e transcrição de fala
-  const startListening = useCallback(async () => {
-    // 1. Garante permissão do navegador primeiro
-    let currentPerm = permissionState
-    if (currentPerm !== 'granted') {
-      const granted = await requestPermission()
-      if (!granted) {
-        setPermissionModalOpen(true)
-        return
-      }
-      currentPerm = 'granted'
-    }
-
-    // 2. Verifica suporte a SpeechRecognition
+  // Inicia a captura e transcrição de fala de forma síncrona com o clique do usuário
+  const startListening = useCallback(() => {
     const SpeechRecognition = microphoneService.getSpeechRecognitionConstructor()
     if (!SpeechRecognition) {
       if (onError) {
-        onError('Navegador sem suporte nativo a transcrição de voz. Recomendamos Google Chrome ou Edge.')
+        onError(
+          'Seu navegador não suporta reconhecimento nativo de voz. No celular, use o Google Chrome ou Safari.',
+        )
       }
       return
     }
@@ -192,7 +137,9 @@ export function useVoiceCommander({
 
       recognition.onstart = () => {
         setIsListening(true)
+        setPermissionState('granted')
         setInterimText('')
+        interimTextRef.current = ''
         startAudioMeter()
       }
 
@@ -210,6 +157,7 @@ export function useVoiceCommander({
 
         const currentText = (final || interim).trim()
         setInterimText(currentText)
+        interimTextRef.current = currentText
 
         if (onInterimResult && currentText) {
           onInterimResult(currentText)
@@ -226,16 +174,28 @@ export function useVoiceCommander({
       recognition.onerror = (event: any) => {
         stopListening()
         const err = event.error
-        console.warn('[VoiceCommander] Erro de reconhecimento:', err)
+        console.warn('[VoiceCommander] Erro de fala:', err)
 
-        if (err === 'not-allowed' || err === 'service-not-allowed' || err === 'permission-denied') {
+        if (err === 'not-allowed' || err === 'permission-denied') {
           setPermissionState('denied')
           setPermissionModalOpen(true)
+        } else if (err === 'service-not-allowed') {
+          if (onError) {
+            onError('Serviço de voz do celular indisponível ou em modo de economia de energia.')
+          }
+        } else if (err === 'audio-capture') {
+          if (onError) {
+            onError('Microfone em uso por outro aplicativo no celular. Feche outros apps de áudio e tente de novo.')
+          }
+        } else if (err === 'network') {
+          if (onError) {
+            onError('O reconhecimento de voz do aparelho necessita de conexão com a internet.')
+          }
         } else if (err === 'no-speech') {
-          // Apenas silêncio
+          // Silêncio, não precisa exibir erro
         } else if (err !== 'aborted') {
           if (onError) {
-            onError(`Falha na captura: ${err}`)
+            onError(`Microfone: ${err}`)
           }
         }
       }
@@ -245,22 +205,39 @@ export function useVoiceCommander({
         cleanupAudio()
       }
 
+      // Disparo síncrono preservando o gesto do usuário no Android e iOS
       recognition.start()
     } catch (err: any) {
       stopListening()
-      console.error('[VoiceCommander] Falha ao instanciar SpeechRecognition:', err)
+      console.warn('[VoiceCommander] Falha ao iniciar reconhecimento:', err)
       setPermissionModalOpen(true)
     }
-  }, [
-    permissionState,
-    requestPermission,
-    stopListening,
-    startAudioMeter,
-    cleanupAudio,
-    onInterimResult,
-    onFinalResult,
-    onError,
-  ])
+  }, [stopListening, startAudioMeter, cleanupAudio, onInterimResult, onFinalResult, onError])
+
+  // Solicita permissão ativa (pode ser usado pelo botão do banner)
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    setIsRequestingPermission(true)
+    try {
+      const result = await microphoneService.requestPermission()
+      setPermissionState(result.state)
+
+      if (result.granted) {
+        setPermissionModalOpen(false)
+        // Se autorizado, já dispara a escuta imediatamente
+        startListening()
+        return true
+      } else {
+        if (result.state === 'denied') {
+          setPermissionModalOpen(true)
+        } else if (onError && result.errorMessage) {
+          onError(result.errorMessage)
+        }
+        return false
+      }
+    } finally {
+      setIsRequestingPermission(false)
+    }
+  }, [startListening, onError])
 
   // Alterna o microfone
   const toggleListening = useCallback(() => {

@@ -117,11 +117,22 @@ export const MicrophonePermissionModal: React.FC<MicrophonePermissionModalProps>
             </div>
           </div>
 
-          {/* Dica para Windows / Mobile */}
-          <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
-            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-            <div>
-              <strong>No Windows:</strong> Se continuar bloqueado, verifique no Menu Iniciar ➔ <em>Configurações do Windows ➔ Privacidade e Segurança ➔ Microfone</em> se o Google Chrome está autorizado no sistema.
+          {/* Dica para Android e iPhone */}
+          <div className="space-y-2 pt-1">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-950 flex items-start gap-2">
+              <Smartphone className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>No Celular Android (Chrome):</strong> Se você já permitiu no site mas continua sem ouvir, o próprio Android bloqueou o Chrome. Vá em:
+                <br />
+                <em>Configurações do Celular ➔ Aplicativos ➔ Chrome ➔ Permissões ➔ Microfone ➔ Permitir durante o uso do app</em>.
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>No iPhone (Safari):</strong> Toque no ícone <strong>aA</strong> ao lado da barra de endereço ➔ <em>Ajustes do Site ➔ Microfone: Permitir</em>.
+              </div>
             </div>
           </div>
         </div>
