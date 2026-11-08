@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean
   savedAccounts: SavedGoogleAccount[]
   loginWithGoogle: (payload?: GoogleAuthPayload) => Promise<UserRecord>
+  loginWithGooglePopup: (loginHint?: string) => Promise<UserRecord>
   unlockOfflineVault: (email: string, pin?: string) => Promise<UserRecord>
   loginDemo: () => Promise<UserRecord>
   setVaultPin: (email: string, pin: string) => Promise<void>
@@ -119,6 +120,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return logged
   }
 
+  const loginWithGooglePopup = async (loginHint?: string) => {
+    const logged = await authService.loginWithGooglePopup(loginHint)
+    setUser(logged)
+    refreshSavedAccounts()
+    return logged
+  }
+
   const unlockOfflineVault = async (email: string, pin?: string) => {
     const unlocked = await authService.unlockOfflineVault(email, pin)
     setUser(unlocked)
@@ -156,6 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         savedAccounts,
         loginWithGoogle,
+        loginWithGooglePopup,
         unlockOfflineVault,
         loginDemo,
         setVaultPin,

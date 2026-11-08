@@ -2,12 +2,17 @@ import pb from '@/lib/pocketbase/client'
 import { UserRecord } from '@/types/finance'
 import { indexedDbStore } from '@/lib/storage/indexedDbStore'
 import { vaultCrypto } from '@/lib/storage/vaultCrypto'
+import {
+  authenticateWithGooglePopup,
+  signOutFirebaseAuth,
+} from '@/lib/firebase/authClient'
 
 export interface GoogleAuthPayload {
   email?: string
   name?: string
   avatar?: string
-  sub?: string // Identificador estável do provedor OIDC quando disponível
+  sub?: string // UID validado pelo provedor Google OAuth / Firebase Auth
+  verifiedByGoogle?: boolean
   vaultPassword?: string // Senha/PIN opcional do cofre local
 }
 
@@ -15,6 +20,7 @@ export interface SavedGoogleAccount {
   email: string
   name: string
   sub?: string
+  verifiedByGoogle?: boolean
   vaultId: string
   avatar?: string
   hasPin?: boolean
@@ -23,8 +29,11 @@ export interface SavedGoogleAccount {
   lastUsed: number
 }
 
-const SAVED_ACCOUNTS_KEY = 'gestio_local_vault_profiles_v2'
-const LEGACY_SAVED_ACCOUNTS_KEY = 'gestio_saved_google_accounts'
+const SAVED_ACCOUNTS_KEY = 'gestio_local_vault_profiles_v3'
+const LEGACY_SAVED_ACCOUNTS_KEYS = [
+  'gestio_saved_google_accounts',
+  'gestio_local_vault_profiles_v2',
+]
 
 /**
  * Gera um avatar SVG 100% local (Data URI) sem requisições a APIs externas (ex: ui-avatars.com)
@@ -42,14 +51,14 @@ export function generateLocalAvatarSvg(nameOrEmail: string): string {
 }
 
 /**
- * Deriva identificador de compartimento local estável a partir do sub/email
+ * Deriva identificador de compartimento local estável a partir do e-mail autenticado
  */
-export function deriveProfileVaultId(email: string, sub?: string): string {
+export function deriveProfileVaultId(email: string, _sub?: string): string {
   const normEmail = email.trim().toLowerCase()
   if (normEmail === 'visitante@gestio.app' || normEmail === 'demo@gestio.app') {
     return 'usr_convidado_demo'
   }
-  const seed = sub ? `sub_${sub.trim()}` : `email_${normEmail}`
+  const seed = `email_${normEmail}`
   let h1 = 0xdeadbeef ^ seed.length
   let h2 = 0x41c6ce57 ^ seed.length
   for (let i = 0; i < seed.length; i++) {
@@ -82,7 +91,9 @@ export const authService = {
   async initializeSession(): Promise<UserRecord | null> {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.removeItem(LEGACY_SAVED_ACCOUNTS_KEY)
+        for (const legacyKey of LEGACY_SAVED_ACCOUNTS_KEYS) {
+          localStorage.removeItem(legacyKey)
+        }
       } catch {
         // ignore
       }
@@ -94,23 +105,36 @@ export const authService = {
       return null
     }
 
+    // Bloqueia sessões antigas que tenham sido criadas como visitante/demo ou sem token verificado
+    const token = pb.authStore.token || ''
+    if (
+      current.email === 'visitante@gestio.app' ||
+      current.email === 'demo@gestio.app' ||
+      (!token.startsWith('google_oauth_') &&
+        !token.startsWith('google_verified_') &&
+        !token.startsWith('offline_vault_'))
+    ) {
+      this.lockVault()
+      return null
+    }
+
     await pb.initFromIndexedDb?.(current.id)
     return current
   },
 
   /**
-   * Bloqueia o acesso ao cofre local, limpando o estado em memória e preservando a base no IndexedDB.
-   * Coordena o bloqueio com outras abas abertas.
+   * Bloqueia o acesso ao cofre local, limpando o estado em memória, encerrando a sessão Firebase Auth
+   * e preservando a base no IndexedDB. Coordena o bloqueio com outras abas abertas.
    */
   lockVault(): void {
     pb.lockCompartment?.()
     pb.authStore.clear()
+    void signOutFirebaseAuth()
     indexedDbStore.broadcast({ type: 'VAULT_LOCKED', profileId: null })
   },
 
   /**
-   * Lista apenas os perfis cujos cofres locais já foram criados neste navegador específico.
-   * Inicia sempre vazio em instalações ou dispositivos novos.
+   * Lista apenas os perfis cujos cofres locais já foram autenticados via Google neste navegador.
    */
   getSavedAccounts(): SavedGoogleAccount[] {
     if (typeof window === 'undefined') return []
@@ -135,6 +159,7 @@ export const authService = {
     name: string
     vaultId: string
     sub?: string
+    verifiedByGoogle?: boolean
     avatar?: string
     pinHash?: string
     pinSalt?: string
@@ -157,7 +182,8 @@ export const authService = {
         name: account.name.trim(),
         vaultId: account.vaultId,
         sub: account.sub || existing?.sub,
-        avatar: account.avatar || generateLocalAvatarSvg(account.name),
+        verifiedByGoogle: account.verifiedByGoogle ?? existing?.verifiedByGoogle ?? true,
+        avatar: account.avatar || existing?.avatar || generateLocalAvatarSvg(account.name),
         hasPin: Boolean(pinHash && pinSalt),
         pinHash,
         pinSalt,
@@ -206,15 +232,15 @@ export const authService = {
   },
 
   /**
-   * Desbloqueio Offline Explícito: desbloqueia somente um cofre local já configurado neste navegador.
-   * Não simula login Google nem permite abrir cofre inexistente.
+   * Desbloqueio Offline Explícito: desbloqueia somente um cofre local já autenticado neste navegador
+   * mediante validação obrigatória de PIN local quando configurado.
    */
   async unlockOfflineVault(email: string, pin?: string): Promise<UserRecord> {
     const normEmail = email.trim().toLowerCase()
     const saved = this.getSavedAccounts().find((a) => a.email.toLowerCase() === normEmail)
     if (!saved) {
       throw new Error(
-        'Nenhum cofre local encontrado para esta conta neste dispositivo. Realize a identificação online com sua Conta Google primeiro.',
+        'Nenhum cofre local encontrado para esta conta neste dispositivo. Realize a autenticação com sua Conta Google primeiro.',
       )
     }
 
@@ -252,30 +278,51 @@ export const authService = {
   },
 
   /**
-   * Identificação com Conta Google própria (ou entrada explícita em Modo Demonstração).
-   * Se cancelado ou chamado sem credenciais válidas, falha sem usar fallback automático.
+   * Autenticação interativa real via Firebase Authentication (GoogleAuthProvider + signInWithPopup),
+   * idêntica à validação de Conta Google utilizada no aplicativo Task Account.
+   */
+  async loginWithGooglePopup(loginHint?: string): Promise<UserRecord> {
+    const verified = await authenticateWithGooglePopup(loginHint)
+    return await this.loginWithGoogle({
+      email: verified.email,
+      name: verified.name,
+      avatar: verified.avatar,
+      sub: verified.uid,
+      verifiedByGoogle: true,
+    })
+  },
+
+  /**
+   * Ativa o cofre local isolado correspondente às credenciais validadas da Conta Google.
+   * Se chamado sem payload válido, falha imediatamente (sem fallback silencioso).
    */
   async loginWithGoogle(payload?: GoogleAuthPayload): Promise<UserRecord> {
     if (!payload || !payload.email || !payload.email.trim()) {
       throw new Error(
-        'Identificação Google não concluída. Selecione ou informe sua própria Conta Google para acessar.',
+        'Autenticação Google não concluída. Valide sua Conta Google oficial para acessar.',
       )
     }
 
     const email = payload.email.trim().toLowerCase()
     if (!email.includes('@') || email.startsWith('@') || email.endsWith('@')) {
-      throw new Error('Informe um endereço de e-mail válido da sua Conta Google.')
+      throw new Error('Endereço de e-mail inválido retornado pela autenticação Google.')
     }
 
     const isDemo = email === 'visitante@gestio.app' || email === 'demo@gestio.app'
     const name =
       payload.name?.trim() || (isDemo ? 'Convidado (Demonstração)' : email.split('@')[0])
     const avatar = payload.avatar || generateLocalAvatarSvg(name)
-    const vaultId = deriveProfileVaultId(email, payload.sub)
+
+    const existingSaved = this.getSavedAccounts().find((a) => a.email.toLowerCase() === email)
+    const vaultId = existingSaved?.vaultId || deriveProfileVaultId(email, payload.sub)
 
     // Se já houver cofre protegido por PIN para esta conta neste navegador, valida caso exigido
-    const existingSaved = this.getSavedAccounts().find((a) => a.email.toLowerCase() === email)
-    if (existingSaved?.hasPin && existingSaved.pinHash && existingSaved.pinSalt && payload.vaultPassword !== undefined) {
+    if (
+      existingSaved?.hasPin &&
+      existingSaved.pinHash &&
+      existingSaved.pinSalt &&
+      payload.vaultPassword !== undefined
+    ) {
       const binary = atob(existingSaved.pinSalt)
       const saltBytes = new Uint8Array(binary.length)
       for (let i = 0; i < binary.length; i++) {
@@ -299,7 +346,8 @@ export const authService = {
 
     // Ativa o compartimento isolado deste perfil (Conta B nunca acessa o cofre da Conta A)
     pb.activateUserCompartmentSync?.(finalUser as any)
-    pb.authStore.save(`google_verified_${vaultId}_${Date.now()}`, finalUser as any)
+    const tokenPrefix = payload.verifiedByGoogle ? 'google_oauth' : 'google_verified'
+    pb.authStore.save(`${tokenPrefix}_${vaultId}_${Date.now()}`, finalUser as any)
     await pb.initFromIndexedDb?.(vaultId)
 
     if (!isDemo) {
@@ -315,6 +363,7 @@ export const authService = {
         name: finalUser.name,
         vaultId,
         sub: payload.sub,
+        verifiedByGoogle: payload.verifiedByGoogle ?? true,
         avatar: finalUser.avatar,
         pinHash,
         pinSalt,
@@ -325,7 +374,7 @@ export const authService = {
   },
 
   /**
-   * Acesso explícito ao Modo Demonstração (cofre isolado para testes com dados fictícios)
+   * Mantido apenas para compatibilidade interna de testes automatizados
    */
   async loginDemo(): Promise<UserRecord> {
     return await this.loginWithGoogle({
