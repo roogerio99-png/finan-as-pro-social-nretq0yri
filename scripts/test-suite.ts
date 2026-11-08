@@ -34,6 +34,7 @@ import { deparaService } from '../src/services/depara.ts'
 import { invoicesService } from '../src/services/invoices.ts'
 import { copilotService } from '../src/services/copilotService.ts'
 import { localDataPrivacyService } from '../src/services/localDataPrivacy.ts'
+import { statementParserService } from '../src/services/statementParser.ts'
 
 interface TestResult {
   module: string
@@ -389,6 +390,69 @@ async function runFullTestSuite() {
   localDataPrivacyService.clearOnlyTransactions()
   const afterClearTxs = await transactionsService.getAll()
   assert('Privacidade', 'Limpeza Segura de Transações', afterClearTxs.length === 0, 'Lançamentos não foram zerados')
+
+  // -------------------------------------------------------------
+  // MÓDULO 10: IMPORTADOR DE EXTRATOS BANCÁRIOS & FATURAS (OFX & CSV)
+  // -------------------------------------------------------------
+  console.log('\n📄 Testando Módulo: Importador de Extratos Bancários & Faturas (OFX / CSV)...');
+
+  // Teste 10.1: OFX Nubank
+  const sampleOfx = `OFXHEADER:100
+DATA:OFXSGML
+<OFX>
+<BANKMSGSRSV1><STMTTRNRS><STMTRS>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20261014120000[-03:EST]
+<TRNAMT>-11.11
+<FITID>670cd704-517d-4ba6-86c5-2391b10a4df6
+<MEMO>Compra no débito - Exemplo Padaria
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20261015120000[-03:EST]
+<TRNAMT>5000.00
+<FITID>670cd704-517d-4ba6-86c5-salary-test
+<MEMO>Transferência recebida - Salário
+</STMTTRN>
+</BANKTRANLIST>
+</STMTRS></STMTTRNRS></BANKMSGSRSV1>
+</OFX>`
+
+  const ofxResult = statementParserService.parseOfx(sampleOfx)
+  assert('Extratos', 'Parse OFX Nubank Quantidade', ofxResult.transactions.length === 2, `Esperado 2 linhas, obtido ${ofxResult.transactions.length}`)
+  assert('Extratos', 'Parse OFX Nubank Valores', ofxResult.transactions[0].amount === 11.11 && ofxResult.transactions[0].type === 'expense', 'Valor ou tipo de despesa incorreto no OFX')
+  assert('Extratos', 'Parse OFX Nubank FITID', ofxResult.transactions[0].fitId === '670cd704-517d-4ba6-86c5-2391b10a4df6', 'FITID não capturado no OFX')
+  assert('Extratos', 'Parse OFX Nubank Totalizador', ofxResult.totalExpense === 11.11 && ofxResult.totalIncome === 5000, 'Totais de entrada e saída incorretos no OFX')
+
+  // Teste 10.2: CSV Nubank
+  const sampleNubankCsv = `Data,Valor,Identificador,Descrição
+01/10/2026,-15.50,nubank-id-1,Uber viagem
+02/10/2026,150.00,nubank-id-2,Depósito recebido`
+
+  const nubankCsvResult = statementParserService.parseCsv(sampleNubankCsv)
+  assert('Extratos', 'Parse CSV Nubank Quantidade', nubankCsvResult.transactions.length === 2, 'Falha ao processar CSV Nubank')
+  assert('Extratos', 'Parse CSV Nubank FITID', nubankCsvResult.transactions[0].fitId === 'nubank-id-1', 'Identificador único Nubank não mapeado como fitId')
+  assert('Extratos', 'Parse CSV Nubank Valores', nubankCsvResult.transactions[0].amount === 15.50 && nubankCsvResult.transactions[1].amount === 150.00, 'Valores do CSV Nubank incorretos')
+
+  // Teste 10.3: CSV Banco do Brasil (com descarte de saldos e formato monetário PT-BR)
+  const sampleBbCsv = `"Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"
+"14/10/2026","Pix Recebido","Fulano de Tal","987654","15.450,15","C"
+"14/10/2026","Saldo Anterior","","0","100,00",""
+"15/10/2026","Pagamento Boleto","CEMIG","123456","-250,50","D"
+"15/10/2026","Saldo do dia","","0","15.299,65",""`
+
+  const bbCsvResult = statementParserService.parseCsv(sampleBbCsv)
+  assert('Extratos', 'Parse CSV BB Filtro de Saldos', bbCsvResult.transactions.length === 2, `Linhas de saldo não foram filtradas no CSV BB. Obtido: ${bbCsvResult.transactions.length}`)
+  assert('Extratos', 'Parse CSV BB Valor Decimal PT-BR', bbCsvResult.transactions[0].amount === 15450.15 && bbCsvResult.transactions[0].type === 'income', 'Falha na conversão de moeda PT-BR (15.450,15)')
+  assert('Extratos', 'Parse CSV BB Despesa Negativa PT-BR', bbCsvResult.transactions[1].amount === 250.50 && bbCsvResult.transactions[1].type === 'expense', 'Falha na conversão de despesa PT-BR (-250,50)')
+
+  // Teste 10.4: Detecção de parcelas em descrições
+  const sampleInstallmentCsv = `"Data","Lançamento","Detalhes","N° documento","Valor","Tipo Lançamento"
+"10/10/2026","Compra Mercado Livre Parcela 3 de 10","","0","-120,00","D"`
+  const installmentResult = statementParserService.parseCsv(sampleInstallmentCsv)
+  assert('Extratos', 'Detecção de Parcelas X de Y', installmentResult.transactions[0].installments_total === 10 && installmentResult.transactions[0].installment_index === 3, 'Parcela X de Y não detectada')
 
   // -------------------------------------------------------------
   // RESUMO FINAL

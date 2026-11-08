@@ -55,6 +55,14 @@ export const ReconciliationPage: React.FC = () => {
   const [parsingPdf, setParsingPdf] = useState<boolean>(false)
   const [detectedBadge, setDetectedBadge] = useState<string | null>(null)
   const [detectedDocType, setDetectedDocType] = useState<'invoice' | 'statement' | null>(null)
+  const [statementSummary, setStatementSummary] = useState<{
+    badge: string
+    startDate?: string
+    endDate?: string
+    totalIncome: number
+    totalExpense: number
+    count: number
+  } | null>(null)
   const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
 
@@ -155,12 +163,119 @@ export const ReconciliationPage: React.FC = () => {
     processExtractedLines(sampleRaw)
   }
 
-  // Processamento genérico de arquivo (PDF, CSV, XLSX, TXT)
+  // Localiza automaticamente a conta bancária ou cartão que melhor corresponde ao extrato
+  const findMatchingAccountId = (
+    bankName: string | undefined,
+    docType: 'invoice' | 'statement' | undefined,
+    acctId: string | undefined,
+  ): string | undefined => {
+    const active = accounts.filter((a) => a.status !== 'archived')
+    if (active.length === 0) return undefined
+
+    // 1. Se for fatura de cartão de crédito
+    if (docType === 'invoice') {
+      if (bankName) {
+        const match = active.find(
+          (a) => a.type === 'credit_card' && a.name.toLowerCase().includes(bankName.toLowerCase()),
+        )
+        if (match) return match.id
+      }
+      const anyCard = active.find((a) => a.type === 'credit_card')
+      if (anyCard) return anyCard.id
+    }
+
+    // 2. Por número da conta bancária
+    if (acctId) {
+      const cleanId = acctId.replace(/[-]/g, '').trim()
+      if (cleanId) {
+        const match = active.find((a) => a.name.replace(/[-]/g, '').includes(cleanId))
+        if (match) return match.id
+      }
+    }
+
+    // 3. Por nome do banco
+    if (bankName) {
+      const bankLower = bankName.toLowerCase()
+      const match = active.find((a) => {
+        const nameLower = a.name.toLowerCase()
+        if (bankLower.includes('nubank') || bankLower.includes('nu pagamentos')) {
+          return nameLower.includes('nubank') || nameLower.includes('nu')
+        }
+        if (bankLower.includes('banco do brasil') || bankLower.includes('bco do brasil')) {
+          return nameLower.includes('brasil') || nameLower.includes('bb')
+        }
+        if (bankLower.includes('mercado pago')) {
+          return nameLower.includes('mercado pago') || nameLower.includes('mp')
+        }
+        if (bankLower.includes('santander')) return nameLower.includes('santander')
+        if (bankLower.includes('itaú') || bankLower.includes('itau')) return nameLower.includes('itau')
+        if (bankLower.includes('bradesco')) return nameLower.includes('bradesco')
+        if (bankLower.includes('inter')) return nameLower.includes('inter')
+        if (bankLower.includes('c6')) return nameLower.includes('c6')
+        return nameLower.includes(bankLower)
+      })
+      if (match) return match.id
+    }
+
+    return undefined
+  }
+
+  // Processamento genérico e multi-formato de arquivo (OFX, CSV, PDF, TXT)
   const processIncomingFile = async (file: File) => {
     const fileName = file.name.toLowerCase()
     setDetectedBadge(null)
     setDetectedDocType(null)
+    setStatementSummary(null)
 
+    // 1. Arquivo OFX (Open Financial Exchange - Nubank, BB, Itaú, Santander, etc.)
+    if (fileName.endsWith('.ofx')) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const text = event.target?.result as string
+        try {
+          const result = statementParserService.parseOfx(text)
+          if (result.count > 0) {
+            setDetectedBadge(result.badge || 'Extrato OFX')
+            setDetectedDocType(result.document_type || 'statement')
+            setStatementSummary({
+              badge: result.badge || 'Extrato OFX',
+              startDate: result.startDate,
+              endDate: result.endDate,
+              totalIncome: result.totalIncome,
+              totalExpense: result.totalExpense,
+              count: result.count,
+            })
+
+            const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
+            if (matchedAccId) {
+              setSelectedAccountId(matchedAccId)
+            }
+
+            processExtractedLines(result.transactions)
+            toast({
+              title: `${result.badge || 'Arquivo OFX'} importado!`,
+              description: `${result.count} lançamentos identificados com sucesso.`,
+            })
+          } else {
+            toast({
+              title: 'Nenhum lançamento no arquivo OFX',
+              description: 'O arquivo foi lido, mas não contém transações válidas.',
+              variant: 'destructive',
+            })
+          }
+        } catch (err: any) {
+          toast({
+            title: 'Erro ao processar OFX',
+            description: err.message || 'Verifique se o arquivo está no padrão OFX válido.',
+            variant: 'destructive',
+          })
+        }
+      }
+      reader.readAsText(file)
+      return
+    }
+
+    // 2. Arquivo PDF (Fatura ou Extrato)
     if (fileName.endsWith('.pdf')) {
       setParsingPdf(true)
       try {
@@ -172,13 +287,18 @@ export const ReconciliationPage: React.FC = () => {
             : 'Documento PDF')
         setDetectedBadge(badge)
         setDetectedDocType(result.document_type || 'statement')
+        setStatementSummary({
+          badge,
+          startDate: result.startDate,
+          endDate: result.endDate,
+          totalIncome: result.totalIncome,
+          totalExpense: result.totalExpense,
+          count: result.count,
+        })
 
-        // Se detectou fatura de cartão, tenta pré-selecionar a primeira conta do tipo cartão de crédito
-        if (result.document_type === 'invoice') {
-          const cardAcc = accounts.find((a) => a.type === 'credit_card' && a.status !== 'archived')
-          if (cardAcc) {
-            setSelectedAccountId(cardAcc.id)
-          }
+        const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
+        if (matchedAccId) {
+          setSelectedAccountId(matchedAccId)
         }
 
         processExtractedLines(result.transactions)
@@ -198,19 +318,33 @@ export const ReconciliationPage: React.FC = () => {
       return
     }
 
-    // Leitura CSV / Texto
+    // 3. Arquivo CSV / TXT / TSV (Nubank, Banco do Brasil, Mercado Pago, etc.)
     const reader = new FileReader()
     reader.onload = (event) => {
       const text = event.target?.result as string
-      const parsed = statementParserService.parseCsv(text)
+      const result = statementParserService.parseCsv(text)
 
-      if (parsed.length > 0) {
-        setDetectedBadge('Arquivo CSV / Planilha')
-        setDetectedDocType('statement')
-        processExtractedLines(parsed)
+      if (result.count > 0) {
+        setDetectedBadge(result.badge || 'Arquivo CSV / Planilha')
+        setDetectedDocType(result.document_type || 'statement')
+        setStatementSummary({
+          badge: result.badge || 'Arquivo CSV',
+          startDate: result.startDate,
+          endDate: result.endDate,
+          totalIncome: result.totalIncome,
+          totalExpense: result.totalExpense,
+          count: result.count,
+        })
+
+        const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
+        if (matchedAccId) {
+          setSelectedAccountId(matchedAccId)
+        }
+
+        processExtractedLines(result.transactions)
         toast({
-          title: 'Arquivo de planilha lido!',
-          description: `${parsed.length} linhas extraídas com sucesso.`,
+          title: `${result.badge || 'Arquivo de Planilha'} lido!`,
+          description: `${result.count} lançamentos extraídos com sucesso.`,
         })
       } else {
         toast({
@@ -255,7 +389,8 @@ export const ReconciliationPage: React.FC = () => {
     const processed: StatementImportLine[] = raw.map((item, idx) => {
       // Normaliza descrição removendo múltiplos espaços para chave única de deduplicação
       const normDesc = item.desc.trim().toUpperCase().replace(/\s+/g, ' ')
-      const key = `${item.date}_${normDesc}_${item.amount}`
+      // Se houver fitId (identificador único bancário OFX/Nubank), usa ele com prioridade
+      const key = item.fitId ? `fitid_${item.fitId}` : `${item.date}_${normDesc}_${item.amount}`
       const isDuplicate = seen.has(key)
       seen.add(key)
 
@@ -454,10 +589,10 @@ export const ReconciliationPage: React.FC = () => {
             )}
           </div>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Importe <strong>Faturas de Cartão de Crédito</strong> ou{' '}
-            <strong>Extratos Bancários</strong> em PDF (Nubank, Banco do Brasil, Itaú, Bradesco,
-            Santander, Mercado Pago...) ou arquivos CSV/planilha. Detecção automática do tipo de
-            documento, parcelas e compras.
+            Importe <strong>Extratos Bancários</strong> ou <strong>Faturas de Cartão</strong> nos
+            formatos <strong>OFX</strong>, <strong>CSV</strong> ou <strong>PDF</strong> (Nubank, Banco
+            do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.). Detecção automática do banco,
+            parcelas, identificadores e bloqueio de duplicatas.
           </p>
         </div>
 
@@ -475,7 +610,7 @@ export const ReconciliationPage: React.FC = () => {
           <label className={`cursor-pointer ${parsingPdf ? 'pointer-events-none opacity-60' : ''}`}>
             <input
               type="file"
-              accept=".pdf,.csv,.xlsx,.xls,.txt"
+              accept=".ofx,.csv,.tsv,.txt,.pdf,.xlsx,.xls"
               onChange={handleFileUpload}
               className="hidden"
               disabled={parsingPdf}
@@ -487,13 +622,41 @@ export const ReconciliationPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <FileText className="w-4 h-4" /> Importar Fatura / Extrato
+                  <FileText className="w-4 h-4" /> Importar OFX / CSV / PDF
                 </>
               )}
             </div>
           </label>
         </div>
       </div>
+
+      {/* Resumo Consolidado do Arquivo Importado */}
+      {statementSummary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-emerald-950 text-white shadow-md border border-slate-800">
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Origem Identificada</span>
+            <p className="text-sm font-black text-emerald-400 truncate">{statementSummary.badge}</p>
+            {statementSummary.startDate && statementSummary.endDate && (
+              <p className="text-[10px] text-slate-300">
+                {statementSummary.startDate.split('-').reverse().join('/')} até {statementSummary.endDate.split('-').reverse().join('/')}
+              </p>
+            )}
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lançamentos</span>
+            <p className="text-lg font-black">{statementSummary.count}</p>
+            <p className="text-[10px] text-slate-300">identificados no arquivo</p>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-emerald-300 uppercase font-bold tracking-wider">Total Entradas (+)</span>
+            <p className="text-lg font-black text-emerald-400">{formatCurrency(statementSummary.totalIncome)}</p>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[10px] text-rose-300 uppercase font-bold tracking-wider">Total Saídas (-)</span>
+            <p className="text-lg font-black text-rose-400">{formatCurrency(statementSummary.totalExpense)}</p>
+          </div>
+        </div>
+      )}
 
       {/* Tabela de Classificação De-Para e Lote */}
       {importLines.length > 0 && (
@@ -535,6 +698,22 @@ export const ReconciliationPage: React.FC = () => {
               >
                 <Sparkles className="w-4 h-4 text-purple-600" />
                 Sugerir categorias
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setImportLines([])
+                  setStatementSummary(null)
+                  setDetectedBadge(null)
+                  setDetectedDocType(null)
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 gap-1 rounded-xl"
+                title="Descartar este lote e carregar outro extrato"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-rose-600" />
+                Limpar Lote
               </Button>
 
               <Button

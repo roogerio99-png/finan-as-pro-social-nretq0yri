@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Mic,
   MicOff,
@@ -56,93 +56,31 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
   const isComponentMounted = useRef(false)
   const isSpeakingRef = useRef(false)
 
-  // Carrega contas e categorias ao abrir
-  useEffect(() => {
-    isComponentMounted.current = true
-    if (isOpen) {
-      Promise.all([accountsService.getAll(), categoriesService.getAll()]).then(([accs, cats]) => {
-        if (isComponentMounted.current) {
-          setAccounts(accs)
-          setCategories(cats)
-        }
-      })
-      speakText(
-        'Modo Live ativado. Pode falar comigo normalmente que estou te ouvindo.',
-      )
-    }
+  // Referência para o processador de inteligência ao vivo (evita dependência circular e TDZ)
+  const handleUserLiveQueryRef = useRef<(userSaid: string) => Promise<void>>(() => Promise.resolve())
 
-    return () => {
-      isComponentMounted.current = false
-      stopListening()
-      stopSpeaking()
-    }
-  }, [isOpen])
-
-  // Função para fazer o Copiloto falar
-  const speakText = (text: string) => {
-    if (isSpeakerMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setLiveState('idle')
-      startListening()
-      return
-    }
-
-    stopListening()
-    window.speechSynthesis.cancel()
-
-    // Limpa marcações markdown para leitura limpa em áudio
-    const cleanSpeech = text
-      .replace(/\*\*/g, '')
-      .replace(/•/g, '')
-      .replace(/💡|🎯|📊|📈|✍️|👉/g, '')
-      .trim()
-
-    const utterance = new SpeechSynthesisUtterance(cleanSpeech)
-    utterance.lang = 'pt-BR'
-    utterance.rate = 1.05
-    utterance.pitch = 1.0
-
-    // Busca voz nativa em português se disponível
-    const voices = window.speechSynthesis.getVoices()
-    const ptVoice = voices.find((v) => v.lang.startsWith('pt') || v.lang.includes('BR'))
-    if (ptVoice) {
-      utterance.voice = ptVoice
-    }
-
-    utterance.onstart = () => {
-      isSpeakingRef.current = true
-      setLiveState('speaking')
-    }
-
-    utterance.onend = () => {
-      isSpeakingRef.current = false
-      if (isComponentMounted.current && isOpen && !isMuted) {
-        setLiveState('listening')
-        startListening()
-      } else {
-        setLiveState('idle')
+  // Interrompe a escuta do microfone
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort()
+      } catch {
+        // ignore
       }
+      recognitionRef.current = null
     }
+  }, [])
 
-    utterance.onerror = () => {
-      isSpeakingRef.current = false
-      if (isComponentMounted.current && isOpen && !isMuted) {
-        setLiveState('listening')
-        startListening()
-      }
-    }
-
-    window.speechSynthesis.speak(utterance)
-  }
-
-  const stopSpeaking = () => {
+  // Interrompe a fala sintética
+  const stopSpeaking = useCallback(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel()
     }
     isSpeakingRef.current = false
-  }
+  }, [])
 
   // Inicializa o reconhecimento contínuo de voz
-  const startListening = () => {
+  const startListening = useCallback(() => {
     if (isSpeakingRef.current || isMuted || !isOpen) return
 
     const SpeechRecognition =
@@ -178,14 +116,16 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
         setTranscript(currentSaid)
 
         if (finalText.trim().length > 0) {
-          handleUserLiveQuery(finalText.trim())
+          handleUserLiveQueryRef.current(finalText.trim())
         }
       }
 
       recognition.onerror = (e: any) => {
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
           setLiveState('idle')
-          setLastBotReply('Acesso ao microfone negado. Por favor, clique no cadeado da barra de endereço do seu navegador e autorize o microfone.')
+          setLastBotReply(
+            'Acesso ao microfone negado. Por favor, clique no cadeado da barra de endereço do seu navegador e autorize o microfone.',
+          )
         } else if (e.error !== 'no-speech') {
           console.warn('Erro de fala no modo live:', e.error)
         }
@@ -207,18 +147,86 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
     } catch {
       // ignore
     }
-  }
+  }, [isOpen, isMuted, stopListening])
 
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort()
-      } catch {
-        // ignore
+  // Função para fazer o Copiloto falar
+  const speakText = useCallback(
+    (text: string) => {
+      if (isSpeakerMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        setLiveState('idle')
+        startListening()
+        return
       }
-      recognitionRef.current = null
+
+      stopListening()
+      window.speechSynthesis.cancel()
+
+      // Limpa marcações markdown para leitura limpa em áudio
+      const cleanSpeech = text
+        .replace(/\*\*/g, '')
+        .replace(/•/g, '')
+        .replace(/💡|🎯|📊|📈|✍️|👉/g, '')
+        .trim()
+
+      const utterance = new SpeechSynthesisUtterance(cleanSpeech)
+      utterance.lang = 'pt-BR'
+      utterance.rate = 1.05
+      utterance.pitch = 1.0
+
+      // Busca voz nativa em português se disponível
+      const voices = window.speechSynthesis.getVoices()
+      const ptVoice = voices.find((v) => v.lang.startsWith('pt') || v.lang.includes('BR'))
+      if (ptVoice) {
+        utterance.voice = ptVoice
+      }
+
+      utterance.onstart = () => {
+        isSpeakingRef.current = true
+        setLiveState('speaking')
+      }
+
+      utterance.onend = () => {
+        isSpeakingRef.current = false
+        if (isComponentMounted.current && isOpen && !isMuted) {
+          setLiveState('listening')
+          startListening()
+        } else {
+          setLiveState('idle')
+        }
+      }
+
+      utterance.onerror = () => {
+        isSpeakingRef.current = false
+        if (isComponentMounted.current && isOpen && !isMuted) {
+          setLiveState('listening')
+          startListening()
+        }
+      }
+
+      window.speechSynthesis.speak(utterance)
+    },
+    [isOpen, isMuted, isSpeakerMuted, startListening, stopListening],
+  )
+
+  // Carrega contas e categorias ao abrir
+  useEffect(() => {
+    isComponentMounted.current = true
+    if (isOpen) {
+      Promise.all([accountsService.getAll(), categoriesService.getAll()]).then(([accs, cats]) => {
+        if (isComponentMounted.current) {
+          setAccounts(accs)
+          setCategories(cats)
+        }
+      })
+      speakText('Modo Live ativado. Pode falar comigo normalmente que estou te ouvindo.')
     }
-  }
+
+    return () => {
+      isComponentMounted.current = false
+      stopListening()
+      stopSpeaking()
+    }
+  }, [isOpen, speakText, stopListening, stopSpeaking])
 
   // Processador de inteligência ao vivo
   const handleUserLiveQuery = async (userSaid: string) => {
@@ -342,6 +350,8 @@ export const CopilotLiveMode: React.FC<CopilotLiveModeProps> = ({
       speakText(fallbackReply)
     }
   }
+
+  handleUserLiveQueryRef.current = handleUserLiveQuery
 
   // Alterna mute do microfone
   const toggleMute = () => {
