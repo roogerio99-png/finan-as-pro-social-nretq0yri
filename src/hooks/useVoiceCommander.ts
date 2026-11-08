@@ -97,15 +97,18 @@ export function useVoiceCommander({
         setPermissionModalOpen(false)
         return true
       } else {
+        console.warn('[VoiceCommander] Permissão negada:', result.errorName, result.errorMessage)
         if (result.state === 'denied') {
           setPermissionModalOpen(true)
+        } else if (onError && result.errorMessage) {
+          onError(result.errorMessage)
         }
         return false
       }
     } finally {
       setIsRequestingPermission(false)
     }
-  }, [])
+  }, [onError])
 
   // Loop de animação do medidor de volume do microfone
   const startAudioMeter = useCallback(async () => {

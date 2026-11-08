@@ -67,6 +67,20 @@ const checkDomCollisions = () => {
 };
 checkDomCollisions();
 
+// 2b. Garante que o servidor (Firebase Hosting) não bloqueie o microfone via Permissions-Policy
+const checkHostingPolicy = () => {
+  const cfgPath = path.resolve('firebase.json');
+  if (!fs.existsSync(cfgPath)) return;
+  const cfg = fs.readFileSync(cfgPath, 'utf8');
+  if (/microphone=\(\s*\)/.test(cfg)) {
+    console.error(`\n❌ [FALHA CRÍTICA] firebase.json contém 'microphone=()' no Permissions-Policy.`);
+    console.error(`Isso bloqueia o microfone silenciosamente (o navegador nunca pede permissão). Use 'microphone=(self)'.`);
+    process.exit(1);
+  }
+  console.log(`${colors.green}✅ [APROVADO] Permissions-Policy permite microfone no próprio domínio${colors.reset}`);
+};
+checkHostingPolicy();
+
 // 3. Análise Estática de Código (Linter)
 logStep(3, 5, 'Análise de Sintaxe e Linter de Código');
 runCheck('npm run lint', 'Análise de Sintaxe & Boas Práticas');

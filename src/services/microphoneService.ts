@@ -42,10 +42,39 @@ export const microphoneService = {
   },
 
   /**
+   * Detecta se o microfone está bloqueado pelo cabeçalho HTTP Permissions-Policy
+   * do servidor. Nesse caso o navegador NUNCA exibe o balão de permissão.
+   */
+  isBlockedByPermissionsPolicy(): boolean {
+    if (typeof document === 'undefined') return false
+    try {
+      const policy = (document as any).permissionsPolicy || (document as any).featurePolicy
+      if (policy && typeof policy.allowsFeature === 'function') {
+        return !policy.allowsFeature('microphone')
+      }
+    } catch {
+      // API não disponível neste navegador
+    }
+    return false
+  },
+
+  /**
+   * Indica se a página está em contexto seguro (HTTPS/localhost), exigido para o microfone
+   */
+  isSecureContext(): boolean {
+    return typeof window === 'undefined' ? true : window.isSecureContext !== false
+  },
+
+  /**
    * Consulta o estado atual da permissão de microfone sem abrir janelas
    */
   async getPermissionStatus(): Promise<MicPermissionState> {
     if (!this.isAudioCaptureSupported()) return 'unsupported'
+    if (this.isBlockedByPermissionsPolicy()) {
+      console.error(
+        '[Microfone] Bloqueado pelo cabeçalho Permissions-Policy do servidor. Verifique firebase.json (microphone=(self)).',
+      )
+    }
 
     try {
       if (navigator.permissions && typeof navigator.permissions.query === 'function') {
@@ -70,6 +99,25 @@ export const microphoneService = {
         state: 'unsupported',
         errorName: 'NotSupportedError',
         errorMessage: 'Seu navegador não suporta captura de microfone pela web.',
+      }
+    }
+
+    if (!this.isSecureContext()) {
+      return {
+        granted: false,
+        state: 'unsupported',
+        errorName: 'InsecureContextError',
+        errorMessage: 'O microfone só funciona em conexão segura (https://).',
+      }
+    }
+
+    if (this.isBlockedByPermissionsPolicy()) {
+      return {
+        granted: false,
+        state: 'denied',
+        errorName: 'PermissionsPolicyError',
+        errorMessage:
+          'O microfone está bloqueado pela política de segurança do servidor. Atualize o aplicativo (Ctrl + F5).',
       }
     }
 
