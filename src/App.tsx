@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -15,7 +15,6 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { ReconciliationPage } from './pages/ReconciliationPage'
 import { AutomateDeparaPage } from './pages/AutomateDeparaPage'
 import { BudgetPage } from './pages/BudgetPage'
-import { DebtsPage } from './pages/DebtsPage'
 import { DreamsPage } from './pages/DreamsPage'
 import { FamilyPage } from './pages/FamilyPage'
 import { CadastrosPage } from './pages/CadastrosPage'
@@ -55,7 +54,7 @@ const App = () => (
                 <Route path="/automatizar-de-para" element={<AutomateDeparaPage />} />
                 <Route path="/de-para" element={<AutomateDeparaPage />} />
                 <Route path="/orcamento" element={<BudgetPage />} />
-                <Route path="/dividas" element={<DebtsPage />} />
+                <Route path="/dividas" element={<Navigate to="/painel" replace />} />
                 <Route path="/sonhos" element={<DreamsPage />} />
                 <Route path="/familia" element={<FamilyPage />} />
                 <Route path="/cadastros" element={<CadastrosPage />} />

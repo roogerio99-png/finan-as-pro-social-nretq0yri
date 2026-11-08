@@ -8,7 +8,6 @@ import {
   Receipt,
   FileSpreadsheet,
   Target,
-  BadgeAlert,
   Sparkles,
   Users,
   Compass,
@@ -84,12 +83,6 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
 
   // Grupos secundários com dropdown limpo
   const planningRoutes = [
-    {
-      to: '/dividas',
-      label: 'Dívidas & Quitação',
-      desc: 'Bola de neve vs. avalanche',
-      icon: BadgeAlert,
-    },
     {
       to: '/sonhos',
       label: 'Sonhos & Metas',

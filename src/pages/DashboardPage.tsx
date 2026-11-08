@@ -731,7 +731,7 @@ export const DashboardPage: React.FC = () => {
       )}
 
       {/* Atalhos Rápidos para Outras Ferramentas */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           onClick={() => navigate('/orcamento')}
           className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-500 hover:shadow-xs transition-all text-left flex items-center justify-between group"
@@ -743,17 +743,6 @@ export const DashboardPage: React.FC = () => {
             </span>
           </div>
           <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-        </button>
-
-        <button
-          onClick={() => navigate('/dividas')}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-500 hover:shadow-xs transition-all text-left flex items-center justify-between group"
-        >
-          <div>
-            <span className="text-xs font-bold text-rose-700 block">Quitação de Dívidas</span>
-            <span className="text-sm font-bold text-slate-900">Bola de Neve vs. Avalanche</span>
-          </div>
-          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-rose-600 transition-colors" />
         </button>
 
         <button

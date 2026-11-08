@@ -9,7 +9,6 @@ import {
   Sparkles,
   CreditCard,
   Menu,
-  BadgeAlert,
   Users,
   Database,
   Compass,
@@ -102,13 +101,6 @@ export const MobileBottomNav: React.FC = () => {
     {
       title: 'Planejamento & Estratégia',
       items: [
-        {
-          to: '/dividas',
-          label: 'Quitação de Dívidas',
-          desc: 'Bola de neve vs. avalanche com taxas',
-          icon: BadgeAlert,
-          color: 'text-rose-600 bg-rose-50',
-        },
         {
           to: '/sonhos',
           label: 'Sonhos & Metas',

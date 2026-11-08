@@ -1,6 +1,6 @@
 {
-  "version": "0.2.2",
-  "buildTimestamp": 1794163200000,
-  "releaseDate": "2026-11-08T18:41:00.000Z",
-  "description": "SimplaFin v0.2.2 - Segregação dos menus 'Importador de Extratos' e 'Automatizar De-Para' com simulador de regras em tempo real."
+  "version": "0.2.3",
+  "buildTimestamp": 1794164000000,
+  "releaseDate": "2026-11-08T18:54:00.000Z",
+  "description": "SimplaFin v0.2.3 - Remoção do módulo e atalhos de Quitação de Dívidas."
 }
