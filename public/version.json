@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0",
-  "buildTimestamp": 1794157800000,
-  "releaseDate": "2026-11-08T17:10:00.000Z",
-  "description": "SimplaFin Pro v0.2.0 - Novo nome do aplicativo (SimplaFin), novo endereco simplafin.web.app e autenticacao Google OAuth oficial."
+  "version": "0.2.1",
+  "buildTimestamp": 1794161200000,
+  "releaseDate": "2026-11-08T18:06:00.000Z",
+  "description": "SimplaFin v0.2.1 - Correção nos campos numéricos/orçamento no mobile (sem zero residual), garantia de soma 100% nos percentuais e cabeçalho compacto."
 }

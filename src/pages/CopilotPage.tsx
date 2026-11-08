@@ -528,12 +528,17 @@ export const CopilotPage: React.FC = () => {
     )
   }
 
-  // Molda percentuais macro (ex: 50/30/20 ou 60/25/15)
+  // Molda percentuais macro (garantindo que a soma seja sempre exatamente 100%)
   const handleUpdateMacroPercents = (needs: number, wants: number, savings: number) => {
+    // Normaliza para valores inteiros e garante limites seguros
+    const clampedNeeds = Math.max(0, Math.min(100, Math.round(needs)))
+    const clampedWants = Math.max(0, Math.min(100 - clampedNeeds, Math.round(wants)))
+    const clampedSavings = Math.max(0, 100 - clampedNeeds - clampedWants)
+
     handleRecalculateTailoredBudget({
-      macroNeedsPercent: needs,
-      macroWantsPercent: wants,
-      macroSavingsPercent: savings,
+      macroNeedsPercent: clampedNeeds,
+      macroWantsPercent: clampedWants,
+      macroSavingsPercent: clampedSavings,
     })
   }
 
@@ -989,10 +994,13 @@ export const CopilotPage: React.FC = () => {
                   <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
                     <span className="text-xs font-bold text-slate-600 pl-1">Renda Líquida Mensal: R$</span>
                     <Input
-                      type="number"
-                      value={budgetProfile.monthlyIncome}
+                      type="text"
+                      inputMode="decimal"
+                      value={budgetProfile.monthlyIncome === 0 ? '' : budgetProfile.monthlyIncome}
+                      placeholder="0,00"
                       onChange={(e) => {
-                        const val = Number(e.target.value) || 0
+                        const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+                        const val = raw === '' ? 0 : Number(raw) || 0
                         setBudgetProfile((prev) => ({ ...prev, monthlyIncome: val }))
                       }}
                       onBlur={() => handleRecalculateTailoredBudget({ monthlyIncome: budgetProfile.monthlyIncome })}
@@ -1050,14 +1058,16 @@ export const CopilotPage: React.FC = () => {
                       <div className="pt-1 flex items-center gap-1.5">
                         <span className="text-[11px] text-slate-500 font-medium">Valor R$:</span>
                         <Input
-                          type="number"
-                          value={budgetProfile.rentAmount}
+                          type="text"
+                          inputMode="decimal"
+                          value={budgetProfile.rentAmount === 0 ? '' : budgetProfile.rentAmount}
                           onChange={(e) => {
-                            const val = Number(e.target.value) || 0
+                            const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
+                            const val = raw === '' ? 0 : Number(raw) || 0
                             setBudgetProfile((prev) => ({ ...prev, rentAmount: val }))
                           }}
                           onBlur={() => handleRecalculateTailoredBudget({ rentAmount: budgetProfile.rentAmount })}
-                          placeholder="Valor do aluguel/parcela"
+                          placeholder="0,00"
                           className="h-7 text-xs font-bold w-28 bg-white rounded-lg"
                         />
                       </div>
@@ -1191,15 +1201,28 @@ export const CopilotPage: React.FC = () => {
                       </Badge>
                       <div className="flex items-center gap-1">
                         <Input
-                          type="number"
-                          value={macroDistribution.needsPercent}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={macroDistribution.needsPercent === 0 ? '' : macroDistribution.needsPercent}
+                          placeholder="0"
                           onChange={(e) => {
-                            const val = Math.min(90, Math.max(10, Number(e.target.value) || 0))
-                            const diff = val - macroDistribution.needsPercent
-                            const newWants = Math.max(0, macroDistribution.wantsPercent - diff)
-                            handleUpdateMacroPercents(val, newWants, macroDistribution.savingsPercent)
+                            const raw = e.target.value.replace(/\D/g, '')
+                            const val = raw === '' ? 0 : Math.min(100, parseInt(raw, 10))
+                            const remaining = 100 - val
+                            const currentOtherSum = macroDistribution.wantsPercent + macroDistribution.savingsPercent
+                            let newWants: number
+                            let newSavings: number
+                            if (currentOtherSum > 0) {
+                              newWants = Math.round((macroDistribution.wantsPercent / currentOtherSum) * remaining)
+                              newSavings = remaining - newWants
+                            } else {
+                              newWants = Math.round(remaining * 0.6)
+                              newSavings = remaining - newWants
+                            }
+                            handleUpdateMacroPercents(val, newWants, newSavings)
                           }}
-                          className="w-16 h-7 text-xs font-black text-blue-900 bg-white border-blue-300"
+                          className="w-16 h-7 text-xs font-black text-center text-blue-900 bg-white border-blue-300"
                         />
                         <span className="text-xs font-bold text-blue-700">%</span>
                       </div>
@@ -1220,15 +1243,18 @@ export const CopilotPage: React.FC = () => {
                       </Badge>
                       <div className="flex items-center gap-1">
                         <Input
-                          type="number"
-                          value={macroDistribution.wantsPercent}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={macroDistribution.wantsPercent === 0 ? '' : macroDistribution.wantsPercent}
+                          placeholder="0"
                           onChange={(e) => {
-                            const val = Math.min(90, Math.max(0, Number(e.target.value) || 0))
-                            const diff = val - macroDistribution.wantsPercent
-                            const newSavings = Math.max(0, macroDistribution.savingsPercent - diff)
+                            const raw = e.target.value.replace(/\D/g, '')
+                            const val = raw === '' ? 0 : Math.min(100 - macroDistribution.needsPercent, parseInt(raw, 10))
+                            const newSavings = Math.max(0, 100 - macroDistribution.needsPercent - val)
                             handleUpdateMacroPercents(macroDistribution.needsPercent, val, newSavings)
                           }}
-                          className="w-16 h-7 text-xs font-black text-purple-900 bg-white border-purple-300"
+                          className="w-16 h-7 text-xs font-black text-center text-purple-900 bg-white border-purple-300"
                         />
                         <span className="text-xs font-bold text-purple-700">%</span>
                       </div>
@@ -1249,15 +1275,18 @@ export const CopilotPage: React.FC = () => {
                       </Badge>
                       <div className="flex items-center gap-1">
                         <Input
-                          type="number"
-                          value={macroDistribution.savingsPercent}
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={macroDistribution.savingsPercent === 0 ? '' : macroDistribution.savingsPercent}
+                          placeholder="0"
                           onChange={(e) => {
-                            const val = Math.min(90, Math.max(0, Number(e.target.value) || 0))
-                            const diff = val - macroDistribution.savingsPercent
-                            const newWants = Math.max(0, macroDistribution.wantsPercent - diff)
+                            const raw = e.target.value.replace(/\D/g, '')
+                            const val = raw === '' ? 0 : Math.min(100 - macroDistribution.needsPercent, parseInt(raw, 10))
+                            const newWants = Math.max(0, 100 - macroDistribution.needsPercent - val)
                             handleUpdateMacroPercents(macroDistribution.needsPercent, newWants, val)
                           }}
-                          className="w-16 h-7 text-xs font-black text-emerald-900 bg-white border-emerald-300"
+                          className="w-16 h-7 text-xs font-black text-center text-emerald-900 bg-white border-emerald-300"
                         />
                         <span className="text-xs font-bold text-emerald-700">%</span>
                       </div>
@@ -1359,16 +1388,19 @@ export const CopilotPage: React.FC = () => {
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="text-xs font-bold text-slate-400">R$</span>
                                 <Input
-                                  type="number"
+                                  type="text"
+                                  inputMode="decimal"
                                   disabled={!isEnabled}
-                                  value={currentAmount}
-                                  onChange={(e) =>
+                                  value={currentAmount === 0 ? '' : currentAmount}
+                                  placeholder="0,00"
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/[^\d.,]/g, '').replace(',', '.')
                                     handleUpdateRecAmount(
                                       rec.id,
                                       rec.groupName,
-                                      Number(e.target.value) || 0,
+                                      raw === '' ? 0 : Number(raw) || 0,
                                     )
-                                  }
+                                  }}
                                   className="w-28 h-8 text-xs font-black text-slate-900 bg-white border-slate-300 rounded-xl"
                                 />
                               </div>
