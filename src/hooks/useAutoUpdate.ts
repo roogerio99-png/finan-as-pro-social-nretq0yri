@@ -28,25 +28,27 @@ export const useAutoUpdate = () => {
       if (!remote || !remote.buildTimestamp) return
 
       const localBuildStr = localStorage.getItem(STORAGE_KEY)
-
-      // Na primeira visita ou primeira inicialização deste dispositivo, apenas memoriza a versão atual
-      if (!localBuildStr) {
-        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
-        return
-      }
-
       const localBuild = Number(localBuildStr) || 0
 
-      // Se a versão remota for idêntica ou menor, o app já está atualizado
-      if (remote.buildTimestamp <= localBuild) {
+      // Se a versão já for conhecida e igual ou superior, o app já está atualizado
+      if (localBuild && remote.buildTimestamp <= localBuild) {
         return
       }
 
-      // Trava contra loop infinito: se já recarregou nos últimos 60 segundos, não recarrega de novo
+      // Trava contra loop infinito: se já recarregou nos últimos 30 segundos, não recarrega de novo
       const lastReload = Number(sessionStorage.getItem(LAST_RELOAD_TIME_KEY) || 0)
-      if (Date.now() - lastReload < 60000) {
+      if (Date.now() - lastReload < 30000) {
         localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
         return
+      }
+
+      // Se for primeira leitura deste dispositivo mas houver um service worker ativo gerenciando a página,
+      // força a sincronização para não ficar preso em bundles defasados de versões anteriores.
+      if (!localBuild) {
+        localStorage.setItem(STORAGE_KEY, String(remote.buildTimestamp))
+        if (!navigator.serviceWorker?.controller) {
+          return
+        }
       }
 
       // Nova versão detectada!
@@ -57,7 +59,7 @@ export const useAutoUpdate = () => {
       toast({
         title: 'Atualização do Sistema',
         description:
-          'Nova melhoria de tela publicada. Sincronizando parâmetros locais...',
+          'Nova melhoria de conciliação e segurança publicada. Sincronizando...',
       })
 
       // Limpa os caches locais do navegador para garantir que o bundle novo seja carregado imediatamente
@@ -70,11 +72,12 @@ export const useAutoUpdate = () => {
         }
       }
 
-      // Atualiza caches do Service Worker caso disponível
+      // Atualiza caches do Service Worker caso disponível e envia comando de ativação imediata
       if ('serviceWorker' in navigator) {
         try {
           const registrations = await navigator.serviceWorker.getRegistrations()
           for (const reg of registrations) {
+            reg.waiting?.postMessage({ type: 'SKIP_WAITING' })
             await reg.update()
           }
         } catch {
@@ -82,10 +85,10 @@ export const useAutoUpdate = () => {
         }
       }
 
-      // Recarrega uma única vez de forma suave após 1.5s
+      // Recarrega uma única vez de forma suave após 1s
       setTimeout(() => {
         window.location.reload()
-      }, 1500)
+      }, 1000)
     } catch {
       // Ignora erro em modo offline
     }

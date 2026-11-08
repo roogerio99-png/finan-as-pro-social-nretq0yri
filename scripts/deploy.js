@@ -17,10 +17,10 @@ console.log('🚀 Iniciando pipeline de automação (Versão ➔ Validação ➔
 // 1. Atualiza timestamp de versão para acionar auto-update seguro nos navegadores dos usuários
 const now = new Date();
 const versionPayload = {
-  version: "0.0.60",
+  version: "0.0.65",
   buildTimestamp: now.getTime(),
   releaseDate: now.toISOString(),
-  description: "Atualização com suporte nativo a extratos e faturas em PDF, Excel XLSX, OFX e CSV multi-banco."
+  description: "Blindagem de sessao e login restrito para terceiros com isolamento estrito de conta e limpeza forcada de cache SW v19."
 };
 fs.writeFileSync('public/version.json', JSON.stringify(versionPayload, null, 2), 'utf8');
 console.log(`📦 [Versão do App] Novo buildTimestamp gerado: ${versionPayload.buildTimestamp} (${versionPayload.releaseDate})`);

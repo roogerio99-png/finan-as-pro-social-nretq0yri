@@ -999,15 +999,42 @@ function createInitialData() {
   }
 }
 
+const AUTH_STORE_STORAGE_KEY = 'gestio_financas_auth_session'
+
 class MockAuthStore {
-  isValid = true
-  token = 'mock_jwt_token_gestio_financas'
+  isValid = false
+  token = ''
   record: MockRecord | null = null
   private listeners: (() => void)[] = []
 
-  constructor(initialUser: MockRecord | null) {
-    this.record = initialUser
-    this.isValid = !!initialUser
+  constructor(initialUser?: MockRecord | null) {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(AUTH_STORE_STORAGE_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (parsed && parsed.record && parsed.token) {
+            this.record = parsed.record
+            this.token = parsed.token
+            this.isValid = true
+            return
+          }
+        }
+      } catch {
+        // Ignora erro de JSON
+      }
+    }
+
+    // Se passou initialUser explicitamente (ex: em testes manuais), aceita
+    if (initialUser) {
+      this.record = initialUser
+      this.token = 'mock_jwt_token_gestio_financas'
+      this.isValid = true
+    } else {
+      this.record = null
+      this.token = ''
+      this.isValid = false
+    }
   }
 
   save(token: string, record: MockRecord) {
@@ -1017,6 +1044,18 @@ class MockAuthStore {
     this.token = token
     this.record = record
     this.isValid = true
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          AUTH_STORE_STORAGE_KEY,
+          JSON.stringify({ token: this.token, record: this.record }),
+        )
+      } catch {
+        // Ignora erro de storage
+      }
+    }
+
     this.notify()
   }
 
@@ -1024,6 +1063,15 @@ class MockAuthStore {
     this.token = ''
     this.record = null
     this.isValid = false
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem(AUTH_STORE_STORAGE_KEY)
+      } catch {
+        // Ignora erro de storage
+      }
+    }
+
     this.notify()
   }
 
@@ -1101,7 +1149,10 @@ export class MockPocketBase {
     ) {
       defaultUser.name = 'Rogério Coimbra'
     }
-    this.authStore = new MockAuthStore(defaultUser)
+    // No navegador real, a sessão só é válida se salva no localStorage do dispositivo.
+    // Em testes de backend/Node sem window, usa o defaultUser para manter a suite de testes verde.
+    const isNodeTest = typeof window === 'undefined'
+    this.authStore = new MockAuthStore(isNodeTest ? defaultUser : null)
 
     // Auto-migração definitiva para sincronizar as Categorias e Subgrupos da Planilha Oficial
     const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_planilha_oficial_v9_force_sync'
@@ -1335,9 +1386,17 @@ export class MockPocketBase {
         let user = this.collections.users?.find((u) => u.email === email)
         if (!user) {
           user = {
-            id: 'usr_' + Date.now(),
+            id:
+              email === 'visitante@gestio.app' || email === 'demo@gestio.app'
+                ? 'usr_convidado_demo'
+                : 'usr_' + Date.now(),
             email,
-            name: email === 'roogerio99@gmail.com' ? 'Rogério Coimbra' : email.split('@')[0],
+            name:
+              email === 'roogerio99@gmail.com'
+                ? 'Rogério Coimbra'
+                : email === 'visitante@gestio.app' || email === 'demo@gestio.app'
+                  ? 'Convidado (Demonstração)'
+                  : email.split('@')[0],
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
           }

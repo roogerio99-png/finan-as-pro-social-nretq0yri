@@ -1,6 +1,6 @@
 {
-  "version": "0.0.64",
-  "buildTimestamp": 1794116838958,
-  "releaseDate": "2026-11-08T05:47:18.958Z",
-  "description": "Orcamento Interativo no Copiloto baseado na realidade do usuario (aluguel, filhos, renda) com moldagem livre e selecao de categorias."
+  "version": "0.0.65",
+  "buildTimestamp": 1794143471039,
+  "releaseDate": "2026-11-08T13:11:11.039Z",
+  "description": "Blindagem de sessao e login restrito para terceiros com isolamento estrito de conta e limpeza forcada de cache SW v19."
 }

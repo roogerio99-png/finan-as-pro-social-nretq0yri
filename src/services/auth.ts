@@ -179,9 +179,15 @@ export const authService = {
     // 3. Fallback resiliente caso o PocketBase esteja indisponível ou em modo mock sem conexão
     if (!authRecord) {
       const nowIso = new Date().toISOString()
-      // Se for modo demonstração ou visitante, mapeia para os dados ricos de demonstração ('usr_rogerio')
+      // Isolamento estrito de conta: somente o titular tem acesso aos dados pessoais de usr_rogerio.
+      // Novos visitantes ou e-mails diferentes recebem IDs próprios para não expor finanças pessoais.
+      const deterministicEmailId = `usr_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`
       const effectiveId =
-        isDemo || email === 'roogerio99@gmail.com' ? 'usr_rogerio' : `usr_google_${Date.now()}`
+        email === 'roogerio99@gmail.com'
+          ? 'usr_rogerio'
+          : isDemo
+            ? 'usr_convidado_demo'
+            : deterministicEmailId
       const fallbackUser: UserRecord = {
         id: effectiveId,
         email,
@@ -206,13 +212,18 @@ export const authService = {
         : avatar
 
     const finalUser: UserRecord = {
-      id: authRecord.id || (isDemo ? 'usr_rogerio' : `usr_${Date.now()}`),
-      email: authRecord.email || email,
+      id:
+        email === 'roogerio99@gmail.com'
+          ? 'usr_rogerio'
+          : isDemo
+            ? 'usr_convidado_demo'
+            : authRecord?.id || `usr_${Date.now()}`,
+      email: authRecord?.email || email,
       name: resolvedName,
       avatar: resolvedAvatar,
-      family_role: authRecord.family_role,
-      created: authRecord.created || new Date().toISOString(),
-      updated: authRecord.updated || new Date().toISOString(),
+      family_role: authRecord?.family_role,
+      created: authRecord?.created || new Date().toISOString(),
+      updated: authRecord?.updated || new Date().toISOString(),
     }
 
     // Atualiza authStore em memória

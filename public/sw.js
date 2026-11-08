@@ -3,7 +3,7 @@
 // NUNCA cachear requisições para a API do PocketBase (/api/* ou requisições dinâmicas de backend),
 // garantindo que os dados financeiros estejam SEMPRE frescos e em tempo real.
 
-const CACHE_NAME = 'gestio-financas-shell-v17'
+const CACHE_NAME = 'gestio-financas-shell-v19'
 
 const PRECACHE_ASSETS = [
   '/',
@@ -43,6 +43,12 @@ self.addEventListener('activate', (event) => {
       )
       .then(() => self.clients.claim()),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('fetch', (event) => {

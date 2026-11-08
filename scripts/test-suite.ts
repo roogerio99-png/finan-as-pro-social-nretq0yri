@@ -35,6 +35,7 @@ import { invoicesService } from '../src/services/invoices.ts'
 import { copilotService } from '../src/services/copilotService.ts'
 import { localDataPrivacyService } from '../src/services/localDataPrivacy.ts'
 import { statementParserService } from '../src/services/statementParser.ts'
+import { authService } from '../src/services/auth.ts'
 import * as XLSX from 'xlsx'
 
 interface TestResult {
@@ -596,6 +597,28 @@ DATA:OFXSGML
     description: 'Transferência enviada para a carteira',
   })
   assert('Extratos', 'Transferência Saída Conta Destino', outgoingTransferRes.amount === 150, 'Falha ao processar transferência de saída com conta de destino')
+
+  // -------------------------------------------------------------
+  // Teste 11: Segurança de Acesso & Isolamento Rigoroso de Usuários
+  // -------------------------------------------------------------
+  console.log('\n🔒 Testando Módulo: Segurança de Acesso & Isolamento...')
+  const thirdPartyLogin = await authService.loginWithGoogle({
+    email: 'amigo@teste.com',
+    name: 'Amigo Convidado',
+  })
+  assert('Segurança', 'Isolamento de Conta Terceiros', thirdPartyLogin.id !== 'usr_rogerio' && thirdPartyLogin.email === 'amigo@teste.com', 'Conta de terceiro acessou ID do titular rogerio')
+
+  const guestLogin = await authService.loginWithGoogle({
+    email: 'visitante@gestio.app',
+    name: 'Visitante Demo',
+  })
+  assert('Segurança', 'Isolamento de Conta Visitante', guestLogin.id !== 'usr_rogerio' && guestLogin.id === 'usr_convidado_demo', 'Conta de visitante acessou ID do titular rogerio')
+
+  const ownerLogin = await authService.loginWithGoogle({
+    email: 'roogerio99@gmail.com',
+    name: 'Rogério Coimbra',
+  })
+  assert('Segurança', 'Acesso Titular Autorizado', ownerLogin.id === 'usr_rogerio' && ownerLogin.name === 'Rogério Coimbra', 'Falha ao autenticar titular oficial')
 
   // -------------------------------------------------------------
   // RESUMO FINAL
