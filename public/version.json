@@ -1,6 +1,6 @@
 {
-  "version": "0.0.61",
-  "buildTimestamp": 1794114301161,
-  "releaseDate": "2026-11-08T05:05:01.161Z",
-  "description": "Suporte a transferencias entre contas e pagamento de fatura no extrato com novo cache busting v14."
+  "version": "0.0.62",
+  "buildTimestamp": 1794114720439,
+  "releaseDate": "2026-11-08T05:12:00.439Z",
+  "description": "Opcao de salvar lancamento individual na frente de cada linha e salvar tudo apos reclassificacao com cache v15."
 }

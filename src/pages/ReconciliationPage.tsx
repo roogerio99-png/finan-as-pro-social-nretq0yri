@@ -31,6 +31,8 @@ import {
 import {
   FileSpreadsheet,
   CheckCircle,
+  Check,
+  CheckCheck,
   AlertTriangle,
   Trash2,
   Sparkles,
@@ -73,6 +75,7 @@ export const ReconciliationPage: React.FC = () => {
   } | null>(null)
   const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
+  const [savingLineId, setSavingLineId] = useState<string | null>(null)
 
   // Modal/Form de Nova Regra De-Para
   const [newPattern, setNewPattern] = useState<string>('')
@@ -584,6 +587,143 @@ export const ReconciliationPage: React.FC = () => {
     }
   }
 
+  const handleSaveSingleLine = async (line: StatementImportLine) => {
+    if (line.is_duplicate) {
+      toast({
+        title: 'Lançamento duplicado',
+        description: 'Este lançamento já foi identificado no sistema e foi bloqueado como duplicata.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (line.type === 'transfer' && !line.transfer_account_id) {
+      toast({
+        title: 'Selecione a Conta Destino',
+        description: 'Para transferências, escolha para qual conta o saldo foi transferido.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (line.type === 'invoice_payment' && !line.transfer_account_id) {
+      toast({
+        title: 'Selecione o Cartão Quitado',
+        description: 'Para pagamento de fatura, selecione qual cartão foi pago.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSavingLineId(line.id)
+    try {
+      const batchId = `single-${Date.now()}`
+
+      if (line.type === 'transfer') {
+        if (line.transfer_account_id) {
+          try {
+            await transactionsService.transfer({
+              sourceAccountId: selectedAccountId,
+              targetAccountId: line.transfer_account_id,
+              amount: line.amount,
+              date: line.date,
+              description: line.description || 'Transferência entre contas',
+            })
+          } catch {
+            await transactionsService.create({
+              account_id: selectedAccountId,
+              transfer_account_id: line.transfer_account_id,
+              description: line.description,
+              amount: line.amount,
+              type: 'transfer',
+              date: line.date,
+              competence_month: line.competence_month,
+              cash_month: line.cash_month,
+              is_reconciled: true,
+              import_batch_id: batchId,
+            })
+          }
+        } else {
+          await transactionsService.create({
+            account_id: selectedAccountId,
+            description: line.description,
+            amount: line.amount,
+            type: 'transfer',
+            date: line.date,
+            competence_month: line.competence_month,
+            cash_month: line.cash_month,
+            is_reconciled: true,
+            import_batch_id: batchId,
+          })
+        }
+      } else if (line.type === 'invoice_payment') {
+        await transactionsService.create({
+          account_id: selectedAccountId,
+          transfer_account_id: line.transfer_account_id || undefined,
+          description: line.description,
+          amount: line.amount,
+          type: 'invoice_payment',
+          date: line.date,
+          competence_month: line.competence_month,
+          cash_month: line.cash_month,
+          is_reconciled: true,
+          import_batch_id: batchId,
+        })
+      } else {
+        await transactionsService.create({
+          account_id: selectedAccountId,
+          description: line.description,
+          amount: line.amount,
+          type: line.type,
+          date: line.date,
+          competence_month: line.competence_month,
+          cash_month: line.cash_month,
+          installments_total: line.installments_total,
+          installments_paid: line.installment_index ?? (line.installments_total ? 1 : undefined),
+          category_id: line.selected_category_id || undefined,
+          is_reconciled: true,
+          import_batch_id: batchId,
+        })
+
+        if (line.selected_category_id) {
+          try {
+            const learned = await deparaService.applyConfirmed(
+              line.description,
+              line.selected_category_id,
+              rules,
+            )
+            if (learned) {
+              setRules((prev) =>
+                prev.some((r) => r.id === learned.id)
+                  ? prev.map((r) => (r.id === learned.id ? learned : r))
+                  : [learned, ...prev],
+              )
+            }
+          } catch {
+            // Ignora falha isolada de aprendizado
+          }
+        }
+      }
+
+      toast({
+        title: 'Lançamento salvo!',
+        description: `"${line.description}" foi registrado com sucesso.`,
+      })
+
+      // Remove a linha salva da visualização do lote
+      setImportLines((prev) => prev.filter((item) => item.id !== line.id))
+      loadData()
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao salvar lançamento',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingLineId(null)
+    }
+  }
+
   const handleSaveBatch = async () => {
     const validLines = importLines.filter((l) => l.status === 'ready')
     if (validLines.length === 0) {
@@ -955,12 +1095,24 @@ export const ReconciliationPage: React.FC = () => {
               <Button
                 onClick={handleSaveBatch}
                 disabled={
-                  savingBatch || importLines.filter((l) => l.status === 'ready').length === 0
+                  savingBatch ||
+                  !!savingLineId ||
+                  importLines.filter((l) => l.status === 'ready').length === 0
                 }
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 gap-1.5 rounded-xl"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 gap-1.5 rounded-xl shadow-xs"
+                title="Salvar todos os lançamentos prontos no aplicativo"
               >
-                {savingBatch ? 'Salvando...' : 'Salvar Lote no App'}
-                <CheckCircle className="w-4 h-4" />
+                {savingBatch ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck className="w-4 h-4" />
+                    Salvar Tudo ({importLines.filter((l) => l.status === 'ready').length})
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -1159,6 +1311,35 @@ export const ReconciliationPage: React.FC = () => {
                       </>
                     )}
                   </div>
+                </div>
+
+                {/* Ações da Linha (Mobile): Salvar Individual ou Descartar */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() =>
+                      setImportLines((prev) => prev.filter((item) => item.id !== line.id))
+                    }
+                    className="text-xs text-slate-500 hover:text-rose-600 flex items-center gap-1 py-1.5 px-2 rounded-lg hover:bg-rose-50 font-medium transition-colors"
+                    title="Descartar este lançamento"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Descartar
+                  </button>
+
+                  <Button
+                    size="sm"
+                    disabled={savingLineId === line.id || savingBatch || line.is_duplicate}
+                    onClick={() => handleSaveSingleLine(line)}
+                    className="h-8 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1.5 shadow-xs"
+                    title="Salvar este lançamento individualmente"
+                  >
+                    {savingLineId === line.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    Salvar Lançamento
+                  </Button>
                 </div>
               </div>
             ))}
@@ -1369,20 +1550,92 @@ export const ReconciliationPage: React.FC = () => {
                     </td>
 
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <button
-                        onClick={() =>
-                          setImportLines((prev) => prev.filter((item) => item.id !== line.id))
-                        }
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                        title="Descartar linha"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Button
+                          size="sm"
+                          disabled={savingLineId === line.id || savingBatch || line.is_duplicate}
+                          onClick={() => handleSaveSingleLine(line)}
+                          className="h-7 px-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1 shadow-xs transition-all"
+                          title="Salvar este lançamento individualmente no aplicativo"
+                        >
+                          {savingLineId === line.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          Salvar
+                        </Button>
+                        <button
+                          onClick={() =>
+                            setImportLines((prev) => prev.filter((item) => item.id !== line.id))
+                          }
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                          title="Descartar este lançamento"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Rodapé do Lote com Salvar Tudo e Resumo de Status */}
+          <div className="p-4 bg-slate-50/90 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-b-2xl">
+            <div className="text-xs text-slate-600 flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-slate-900">
+                {importLines.filter((l) => l.status === 'ready').length}
+              </span>{' '}
+              lançamento(s) pronto(s) para salvar no aplicativo
+              {importLines.filter((l) => l.is_duplicate).length > 0 && (
+                <span className="text-rose-600 font-medium">
+                  • {importLines.filter((l) => l.is_duplicate).length} duplicata(s) bloqueada(s)
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+              <Button
+                onClick={() => {
+                  setImportLines([])
+                  setStatementSummary(null)
+                  setDetectedBadge(null)
+                  setDetectedDocType(null)
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 gap-1 rounded-xl"
+                title="Descartar este lote"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-slate-400 hover:text-rose-600" />
+                Limpar Lote
+              </Button>
+
+              <Button
+                onClick={handleSaveBatch}
+                disabled={
+                  savingBatch ||
+                  !!savingLineId ||
+                  importLines.filter((l) => l.status === 'ready').length === 0
+                }
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-2 gap-1.5 rounded-xl shadow-xs"
+                title="Salvar todos os lançamentos prontos no aplicativo"
+              >
+                {savingBatch ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Salvando Tudo...
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck className="w-4 h-4" />
+                    Salvar Tudo ({importLines.filter((l) => l.status === 'ready').length})
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </Card>
       )}

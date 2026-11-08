@@ -487,6 +487,76 @@ DATA:OFXSGML
   assert('Extratos', 'Natureza Transferência Entre Contas', sampleTransferTx.type === 'transfer' && sampleTransferTx.amount === 1500, 'Tipo de transferência não validado')
   assert('Extratos', 'Natureza Pagamento de Fatura', sampleInvoicePaymentTx.type === 'invoice_payment' && sampleInvoicePaymentTx.amount === 850, 'Tipo de pagamento de fatura não validado')
 
+  // Teste 10.8: Salvar lançamento individual (Ação por Linha)
+  const lineItemToSave = {
+    id: 'line-test-single-1',
+    date: '2026-10-15',
+    description: 'POSTO IPIRANGA',
+    amount: 150.0,
+    type: 'expense' as const,
+    selected_category_id: 'cat-transporte-combustivel',
+    status: 'ready' as const,
+    is_duplicate: false,
+    competence_month: '2026-10',
+    cash_month: '2026-10',
+  }
+  const singleCreated = await transactionsService.create({
+    account_id: 'acc-cc-1',
+    description: lineItemToSave.description,
+    amount: lineItemToSave.amount,
+    type: lineItemToSave.type,
+    date: lineItemToSave.date,
+    competence_month: lineItemToSave.competence_month,
+    cash_month: lineItemToSave.cash_month,
+    category_id: lineItemToSave.selected_category_id,
+    is_reconciled: true,
+  })
+  assert('Extratos', 'Salvar Lançamento Individual', singleCreated.id.length > 0 && singleCreated.amount === 150, 'Falha ao salvar lançamento individual do extrato')
+
+  // Teste 10.9: Salvar Tudo Após Reclassificação
+  const batchItemsToSave = [
+    {
+      id: 'batch-reclass-1',
+      date: '2026-10-19',
+      description: 'MERCADO EXTRA',
+      amount: 88.5,
+      type: 'expense' as const,
+      selected_category_id: 'cat-alimentacao',
+      status: 'ready' as const,
+      is_duplicate: false,
+      competence_month: '2026-10',
+      cash_month: '2026-10',
+    },
+    {
+      id: 'batch-reclass-2',
+      date: '2026-10-20',
+      description: 'PIX RECEBIDO CLIENTE',
+      amount: 500.0,
+      type: 'income' as const,
+      selected_category_id: 'cat-receita-servicos',
+      status: 'ready' as const,
+      is_duplicate: false,
+      competence_month: '2026-10',
+      cash_month: '2026-10',
+    },
+  ]
+  const savedBatch = await Promise.all(
+    batchItemsToSave.map((item) =>
+      transactionsService.create({
+        account_id: 'acc-cc-1',
+        description: item.description,
+        amount: item.amount,
+        type: item.type,
+        date: item.date,
+        competence_month: item.competence_month,
+        cash_month: item.cash_month,
+        category_id: item.selected_category_id,
+        is_reconciled: true,
+      }),
+    ),
+  )
+  assert('Extratos', 'Salvar Tudo Após Reclassificação', savedBatch.length === 2 && savedBatch[1].amount === 500, 'Falha ao salvar lote reclassificado completo')
+
   // -------------------------------------------------------------
   // RESUMO FINAL
   // -------------------------------------------------------------
