@@ -15,13 +15,13 @@ export interface AppLicenseConfig {
 const DEFAULT_CONFIG: AppLicenseConfig = {
   status: 'TRIAL',
   version: '0.1.0',
-  appName: 'Gestio Finanças',
+  appName: 'SimplaFin',
   trialNotice: 'Versão de Testes Locais — Cofres Isolados por Perfil',
   blockedMessage:
-    'O período de avaliação foi encerrado. Para continuar utilizando o Gestio Finanças, entre em contato com o suporte.',
+    'O período de avaliação foi encerrado. Para continuar utilizando o SimplaFin, entre em contato com o suporte.',
   checkoutUrl:
-    'https://wa.me/5599999999999?text=Ol%C3%A1!%20Gostaria%20de%20informacoes%20sobre%20o%20Gestio%20Financas',
-  supportContact: 'suporte@gestiofinancas.com.br',
+    'https://wa.me/5599999999999?text=Ol%C3%A1!%20Gostaria%20de%20informacoes%20sobre%20o%20SimplaFin',
+  supportContact: 'suporte@simplafin.com.br',
   allowedAdmins: [],
   updatedAt: new Date().toISOString(),
 }

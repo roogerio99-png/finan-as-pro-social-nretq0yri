@@ -1,5 +1,5 @@
 /**
- * Serviço de Backup e Restauração Criptografada do Gestio Finanças
+ * Serviço de Backup e Restauração Criptografada do SimplaFin
  * Opera 100% no dispositivo (client-side) gerando e importando arquivos .gestiobackup
  * protegidos obrigatoriamente por AES-GCM 256 bits com derivação PBKDF2 (100.000 iterações).
  */
@@ -111,7 +111,7 @@ export const backupService = {
     }
 
     if (!parsed || parsed.metadata?.app !== 'GestioFinancasPro') {
-      throw new Error('O arquivo selecionado não é um backup oficial do Gestio Finanças.')
+      throw new Error('O arquivo selecionado não é um backup oficial do SimplaFin.')
     }
 
     const metadata = parsed.metadata as BackupMetadata

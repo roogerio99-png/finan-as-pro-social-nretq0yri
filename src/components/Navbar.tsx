@@ -159,14 +159,14 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
               <div className="flex flex-col">
                 <div className="flex items-center">
                   <span className="text-base font-extrabold text-slate-900 tracking-tight leading-none">
-                    Gestio
+                    Simpla
                   </span>
-                  <span className="text-emerald-600 font-black text-lg leading-none -ml-0.5">
-                    .
+                  <span className="text-base font-extrabold text-emerald-600 tracking-tight leading-none">
+                    Fin
                   </span>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mt-0.5">
-                  Finanças
+                  Finanças Simples
                 </span>
               </div>
             </button>
@@ -301,7 +301,7 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
               size="sm"
               onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
               className="hidden md:inline-flex text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-xs font-bold gap-1.5 h-8 px-2.5 rounded-lg transition-colors cursor-pointer"
-              title="Instalar Gestio Finanças como Aplicativo"
+              title="Instalar SimplaFin como Aplicativo"
             >
               <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
               <span>Instalar App</span>

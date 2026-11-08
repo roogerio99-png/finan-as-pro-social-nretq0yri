@@ -43,4 +43,4 @@ run('npx -y firebase-tools deploy --only hosting', 'Publicando no Firebase Hosti
 
 console.log('\n🎉 Pipeline 100% concluído!');
 console.log('🔗 GitHub: https://github.com/roogerio99-png/finan-as-pro-social-nretq0yri');
-console.log('🌐 App Online: https://gestio-financas-app.web.app\n');
+console.log('🌐 App Online: https://simplafin.web.app\n');

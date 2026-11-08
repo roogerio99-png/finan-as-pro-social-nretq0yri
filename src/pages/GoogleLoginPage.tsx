@@ -161,7 +161,7 @@ export const GoogleLoginPage: React.FC = () => {
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <span className="text-lg sm:text-xl font-black text-white tracking-tight leading-none">
-                Gestio Finanças
+                SimplaFin
               </span>
               <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                 PRO
@@ -199,7 +199,7 @@ export const GoogleLoginPage: React.FC = () => {
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('open-pwa-install'))}
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/60 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-xs font-medium transition-colors cursor-pointer"
-            title="Instalar Gestio Finanças no seu Celular ou PC"
+            title="Instalar SimplaFin no seu Celular ou PC"
           >
             <Smartphone className="w-3.5 h-3.5 text-slate-400" />
             <span>Instalar App</span>
@@ -552,7 +552,7 @@ export const GoogleLoginPage: React.FC = () => {
       </Dialog>
 
       <footer className="relative z-10 max-w-6xl w-full mx-auto text-center py-2 text-xs text-slate-500">
-        Gestio Finanças &copy; {new Date().getFullYear()} — Autenticação Google Oficial &amp; Cofre
+        SimplaFin &copy; {new Date().getFullYear()} — Autenticação Google Oficial &amp; Cofre
         Isolado por Perfil
       </footer>
     </div>

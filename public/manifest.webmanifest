@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Gestio Finanças",
-  "short_name": "Gestio",
+  "name": "SimplaFin",
+  "short_name": "SimplaFin",
   "description": "Gestão financeira pessoal e familiar com inteligência comportamental, regime de competência e caixa.",
   "start_url": "/",
   "scope": "/",

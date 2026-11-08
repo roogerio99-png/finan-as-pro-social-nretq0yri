@@ -255,7 +255,7 @@ export const MobileBottomNav: React.FC = () => {
           <SheetHeader className="text-left pb-2">
             <SheetTitle className="text-base font-bold text-slate-900">Menu Completo</SheetTitle>
             <SheetDescription className="text-xs text-slate-500">
-              Todas as ferramentas e configurações de Gestio Finanças
+              Todas as ferramentas e configurações de SimplaFin
             </SheetDescription>
           </SheetHeader>
 

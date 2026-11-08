@@ -87,7 +87,7 @@ export const WelcomePage: React.FC = () => {
             Gestão Financeira Pessoal
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            {step === 1 && 'Bem-vindo ao Gestio Finanças'}
+            {step === 1 && 'Bem-vindo ao SimplaFin'}
             {step === 2 && 'Competência vs. Caixa: O Segredo da Clareza'}
             {step === 3 && 'Configure sua Primeira Conta'}
           </CardTitle>
@@ -111,7 +111,7 @@ export const WelcomePage: React.FC = () => {
                 </h3>
                 <p className="text-sm leading-relaxed text-slate-700">
                   A maioria das pessoas se perde nas contas porque os aplicativos tradicionais são
-                  frios ou complexos demais. O Gestio Finanças combina:
+                  frios ou complexos demais. O SimplaFin combina:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                   <div className="p-3 bg-white rounded-xl border border-emerald-100 shadow-2xs">
@@ -144,7 +144,7 @@ export const WelcomePage: React.FC = () => {
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">Aplicativo no seu Celular</h4>
                     <p className="text-[11px] text-slate-500">
-                      Você pode instalar o Gestio direto no seu Android ou iPhone para acesso com 1
+                      Você pode instalar o SimplaFin direto no seu Android ou iPhone para acesso com 1
                       toque.
                     </p>
                   </div>
@@ -226,7 +226,7 @@ export const WelcomePage: React.FC = () => {
               <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
                 <Scale className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>A mágica do Gestio Finanças:</strong> Ao lançar uma compra no cartão de
+                  <strong>A mágica do SimplaFin:</strong> Ao lançar uma compra no cartão de
                   crédito, calculamos automaticamente a data de desembolso com base no dia de
                   fechamento e vencimento.
                 </span>

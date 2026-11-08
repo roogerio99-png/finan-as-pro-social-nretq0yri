@@ -1,6 +1,6 @@
 {
-  "version": "0.1.1",
-  "buildTimestamp": 1794154250000,
-  "releaseDate": "2026-11-08T16:10:50.000Z",
-  "description": "Gestio Financas Pro v0.1.1 - Correcao de sincronizacao BroadcastChannel no AuthContext e isolamento de cofre por perfil."
+  "version": "0.2.0",
+  "buildTimestamp": 1794157800000,
+  "releaseDate": "2026-11-08T17:10:00.000Z",
+  "description": "SimplaFin Pro v0.2.0 - Novo nome do aplicativo (SimplaFin), novo endereco simplafin.web.app e autenticacao Google OAuth oficial."
 }

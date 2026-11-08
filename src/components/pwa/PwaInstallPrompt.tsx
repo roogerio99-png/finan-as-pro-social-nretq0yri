@@ -142,7 +142,7 @@ export const PwaInstallPrompt: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-white tracking-tight flex items-center gap-1.5 truncate">
-                  Instalar Gestio Finanças no Celular
+                  Instalar SimplaFin no Celular
                   <span className="hidden sm:inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                     App PWA Oficial
                   </span>
@@ -187,7 +187,7 @@ export const PwaInstallPrompt: React.FC = () => {
               Instalar Aplicativo no Celular
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 leading-relaxed">
-              O Gestio Finanças é um aplicativo progressivo (PWA). Você não precisa baixar pela Play
+              O SimplaFin é um aplicativo progressivo (PWA). Você não precisa baixar pela Play
               Store ou App Store — instale diretamente pelo navegador em segundos.
             </DialogDescription>
           </DialogHeader>
@@ -263,7 +263,7 @@ export const PwaInstallPrompt: React.FC = () => {
                     3
                   </span>
                   <span>
-                    Confirme em <strong>"Instalar"</strong>. O ícone oficial do Gestio Finanças
+                    Confirme em <strong>"Instalar"</strong>. O ícone oficial do SimplaFin
                     aparecerá na grade de aplicativos do seu celular.
                   </span>
                 </div>
@@ -330,7 +330,7 @@ export const PwaInstallPrompt: React.FC = () => {
                     2
                   </span>
                   <span>
-                    Clique em <strong>"Instalar"</strong>. O Gestio Finanças abrirá em uma janela
+                    Clique em <strong>"Instalar"</strong>. O SimplaFin abrirá em uma janela
                     independente como um software nativo no seu computador!
                   </span>
                 </div>

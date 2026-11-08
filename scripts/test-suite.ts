@@ -1,4 +1,4 @@
-// Suíte de Testes de Integração e Regressão de Segurança - Gestio Finanças Pro v0.1.0
+// Suíte de Testes de Integração e Regressão de Segurança - SimplaFin Pro v0.1.0
 // Cobre:
 // - Seção 0: Início desautenticado, ausência de fallback silencioso, isolamento Conta A vs Conta B, bloqueio e PIN
 // - Seção 4: Aritmética monetária exata em centavos inteiros

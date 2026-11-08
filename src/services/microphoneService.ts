@@ -1,6 +1,6 @@
 /**
  * Serviço de Gerenciamento de Microfone e Permissões do Navegador
- * Gestio Finanças - Comunicação Segura e Local
+ * SimplaFin - Comunicação Segura e Local
  */
 
 export type MicPermissionState = 'granted' | 'denied' | 'prompt' | 'unsupported'
@@ -90,7 +90,7 @@ export const microphoneService = {
 
   /**
    * Dispara a solicitação NATIVA do navegador para autorizar o microfone.
-   * Abre o balão do Chrome/Edge/Safari: "gestio-financas quer usar seu microfone [Permitir] [Bloquear]"
+   * Abre o balão do Chrome/Edge/Safari: "simplafin quer usar seu microfone [Permitir] [Bloquear]"
    */
   async requestPermission(): Promise<MicPermissionResult> {
     if (!this.isAudioCaptureSupported()) {

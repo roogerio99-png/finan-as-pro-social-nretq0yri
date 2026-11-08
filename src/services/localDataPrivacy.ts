@@ -121,7 +121,7 @@ export const localDataPrivacyService = {
   },
 
   /**
-   * Exporta todos os dados do Gestio Finanças do aparelho para um arquivo JSON baixável
+   * Exporta todos os dados do SimplaFin do aparelho para um arquivo JSON baixável
    */
   exportLocalData(): void {
     const dump: Record<string, any> = {}
@@ -142,7 +142,7 @@ export const localDataPrivacyService = {
     const a = document.createElement('a')
     const dateStr = new Date().toISOString().split('T')[0]
     a.href = url
-    a.download = `gestio-financas-backup-local-${dateStr}.json`
+    a.download = `simplafin-backup-local-${dateStr}.json`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

@@ -30,7 +30,7 @@ export default function Layout() {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
         <Loader2 className="w-8 h-8 animate-spin text-emerald-400 mb-3" />
-        <p className="text-xs font-semibold text-slate-300">Carregando Gestio Finanças...</p>
+        <p className="text-xs font-semibold text-slate-300">Carregando SimplaFin...</p>
       </div>
     )
   }
@@ -53,7 +53,7 @@ export default function Layout() {
       <footer className="border-t border-slate-200/80 bg-white py-6 text-center text-xs text-slate-500 hidden lg:block">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="font-semibold text-slate-700">
-            Gestio Finanças &copy; {new Date().getFullYear()} — Gestão Financeira Pessoal com Rigor
+            SimplaFin &copy; {new Date().getFullYear()} — Gestão Financeira Pessoal com Rigor
             Profissional
           </div>
           <div className="text-slate-400">

@@ -949,6 +949,6 @@ export const copilotService = {
     }
 
     // Resposta padrão inteligente
-    return `Olá! Sou seu **Copiloto Financeiro Inteligente** do Gestio Finanças.\n\nPosso te ajudar em três áreas essenciais:\n1. ✍️ **Lançamento Rápido:** Digite coisas como *"Gastei 45 no almoço hoje"* e eu crio o registro pronto.\n2. 🎯 **Orçamento Automático:** Calculo o teto ideal para cada área da sua vida usando a regra 50/30/20.\n3. 💡 **Consultoria de Gastos & Dívidas:** Analiso seus números reais para indicar onde economizar e acelerar seus sonhos.\n\nComo posso te ajudar hoje?`
+    return `Olá! Sou seu **Copiloto Financeiro Inteligente** do SimplaFin.\n\nPosso te ajudar em três áreas essenciais:\n1. ✍️ **Lançamento Rápido:** Digite coisas como *"Gastei 45 no almoço hoje"* e eu crio o registro pronto.\n2. 🎯 **Orçamento Automático:** Calculo o teto ideal para cada área da sua vida usando a regra 50/30/20.\n3. 💡 **Consultoria de Gastos & Dívidas:** Analiso seus números reais para indicar onde economizar e acelerar seus sonhos.\n\nComo posso te ajudar hoje?`
   },
 }

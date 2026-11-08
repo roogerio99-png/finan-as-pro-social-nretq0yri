@@ -89,7 +89,7 @@ export const AdminLicenseModal: React.FC<Props> = ({
             Gestão de Licenciamento &amp; Acesso
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            Controle se o Gestio Finanças está liberado gratuitamente para testes ou restrito apenas para
+            Controle se o SimplaFin está liberado gratuitamente para testes ou restrito apenas para
             assinantes pagantes.
           </DialogDescription>
         </DialogHeader>
@@ -167,7 +167,7 @@ export const AdminLicenseModal: React.FC<Props> = ({
               value={supportContact}
               onChange={(e) => setSupportContact(e.target.value)}
               className="mt-1 text-xs"
-              placeholder="suporte@gestiofinancas.com.br"
+              placeholder="suporte@simplafin.com.br"
             />
           </div>
 

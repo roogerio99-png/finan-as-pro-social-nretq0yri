@@ -82,7 +82,7 @@ export const MicrophonePermissionModal: React.FC<MicrophonePermissionModalProps>
                 <Lock className="w-3.5 h-3.5 text-indigo-600" /> Clique no ícone ao lado do endereço
               </p>
               <p className="text-slate-600 mt-0.5 text-[11px]">
-                No topo da tela do navegador, clique no ícone de <strong>controles deslizantes ou cadeado</strong> que fica à esquerda de <em>https://gestio-financas-app.web.app</em>.
+                No topo da tela do navegador, clique no ícone de <strong>controles deslizantes ou cadeado</strong> que fica à esquerda de <em>https://simplafin.web.app</em>.
               </p>
             </div>
           </div>

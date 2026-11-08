@@ -1,4 +1,4 @@
-// Service Worker para Gestio Finanças
+// Service Worker para SimplaFin
 // Política estrita:
 // 1. Pré-cache validado sem engolir erros silenciosamente
 // 2. Atualização coordenada via mensagem SKIP_WAITING (sem interromper formulários abertos)
@@ -6,7 +6,7 @@
 // 4. Cache-First para ativos imutáveis com hash (/assets/*) e Network-First para HTML/metadados
 
 const CACHE_PREFIX = 'gestio-financas-shell-'
-const CACHE_NAME = `${CACHE_PREFIX}v22`
+const CACHE_NAME = `${CACHE_PREFIX}v23`
 
 const PRECACHE_ASSETS = [
   '/',
