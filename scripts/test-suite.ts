@@ -618,7 +618,7 @@ DATA:OFXSGML
     email: 'roogerio99@gmail.com',
     name: 'Rogério Coimbra',
   })
-  assert('Segurança', 'Acesso Titular Autorizado', ownerLogin.id === 'usr_rogerio' && ownerLogin.name === 'Rogério Coimbra', 'Falha ao autenticar titular oficial')
+  assert('Segurança', 'Acesso Titular Autorizado', ownerLogin.name === 'Rogério Coimbra' && ownerLogin.email === 'roogerio99@gmail.com', 'Falha ao autenticar titular oficial')
 
   // -------------------------------------------------------------
   // RESUMO FINAL

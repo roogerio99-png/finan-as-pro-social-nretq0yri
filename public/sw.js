@@ -3,7 +3,7 @@
 // NUNCA cachear requisições para a API do PocketBase (/api/* ou requisições dinâmicas de backend),
 // garantindo que os dados financeiros estejam SEMPRE frescos e em tempo real.
 
-const CACHE_NAME = 'gestio-financas-shell-v19'
+const CACHE_NAME = 'gestio-financas-shell-v20'
 
 const PRECACHE_ASSETS = [
   '/',

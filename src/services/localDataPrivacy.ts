@@ -93,6 +93,20 @@ export const localDataPrivacyService = {
       // fallback
     }
 
+    if (catCount === 0) {
+      try {
+        const storeCats = typeof pb.getCollectionRecords === 'function' ? pb.getCollectionRecords('categories') : []
+        if (storeCats && storeCats.length > 0) catCount = storeCats.length
+        if (txCount === 0) txCount = (pb.getCollectionRecords?.('transactions') || []).length
+        if (accCount === 0) accCount = (pb.getCollectionRecords?.('accounts') || []).length
+        if (budgCount === 0) budgCount = (pb.getCollectionRecords?.('budgets') || []).length
+        if (debtsCount === 0) debtsCount = (pb.getCollectionRecords?.('debts') || []).length
+        if (dreamsCount === 0) dreamsCount = (pb.getCollectionRecords?.('dreams') || []).length
+      } catch {
+        // ignore
+      }
+    }
+
     return {
       transactionsCount: txCount,
       accountsCount: accCount,

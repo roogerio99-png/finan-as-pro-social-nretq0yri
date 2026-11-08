@@ -25,18 +25,36 @@ export const authService = {
       return null
     }
     const user = pb.authStore.record as unknown as UserRecord
-    if (user.email?.toLowerCase() === 'roogerio99@gmail.com' || user.name === 'Rogério Silva') {
-      user.name = 'Rogério Coimbra'
-      if (!user.avatar || user.avatar.includes('Rog%C3%A9rio+Silva')) {
-        user.avatar =
-          'https://ui-avatars.com/api/?name=Rog%C3%A9rio+Coimbra&background=059669&color=fff&bold=true'
-      }
-    }
     return user
   },
 
   isAuthenticated(): boolean {
     return pb.authStore.isValid && !!pb.authStore.record
+  },
+
+  /**
+   * Bloqueia o acesso ao cofre local, preservando os dados intactos no IndexedDB
+   */
+  lockVault(): void {
+    pb.authStore.clear()
+  },
+
+  /**
+   * Desbloqueia o cofre local sem requisições remotas
+   */
+  loginLocal(customName?: string): UserRecord {
+    const name = customName?.trim() || 'Minhas Finanças'
+    const nowIso = new Date().toISOString()
+    const localUser: UserRecord = {
+      id: 'usr_local',
+      email: 'usuario@local.app',
+      name,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`,
+      created: nowIso,
+      updated: nowIso,
+    }
+    pb.authStore.save('jwt_local_vault_token', localUser as any)
+    return localUser
   },
 
   getSavedAccounts(): SavedGoogleAccount[] {
@@ -108,11 +126,7 @@ export const authService = {
     const email = (payload?.email || 'visitante@gestio.app').trim().toLowerCase()
     const name =
       payload?.name?.trim() ||
-      (isDemo
-        ? 'Convidado (Demonstração)'
-        : email === 'roogerio99@gmail.com'
-          ? 'Rogério Coimbra'
-          : email.split('@')[0])
+      (isDemo ? 'Convidado (Demonstração)' : email.split('@')[0])
     const avatar =
       payload?.avatar ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=059669&color=fff&bold=true`
@@ -179,15 +193,8 @@ export const authService = {
     // 3. Fallback resiliente caso o PocketBase esteja indisponível ou em modo mock sem conexão
     if (!authRecord) {
       const nowIso = new Date().toISOString()
-      // Isolamento estrito de conta: somente o titular tem acesso aos dados pessoais de usr_rogerio.
-      // Novos visitantes ou e-mails diferentes recebem IDs próprios para não expor finanças pessoais.
       const deterministicEmailId = `usr_${Math.abs(email.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0))}`
-      const effectiveId =
-        email === 'roogerio99@gmail.com'
-          ? 'usr_rogerio'
-          : isDemo
-            ? 'usr_convidado_demo'
-            : deterministicEmailId
+      const effectiveId = isDemo ? 'usr_convidado_demo' : deterministicEmailId
       const fallbackUser: UserRecord = {
         id: effectiveId,
         email,
@@ -200,24 +207,12 @@ export const authService = {
       authRecord = fallbackUser
     }
 
-    // Monta o objeto UserRecord final enriquecido com nome e avatar Google
-    const resolvedName =
-      email === 'roogerio99@gmail.com' || authRecord.name === 'Rogério Silva'
-        ? 'Rogério Coimbra'
-        : authRecord.name || name
-
-    const resolvedAvatar =
-      resolvedName === 'Rogério Coimbra' && (!avatar || avatar.includes('Rog%C3%A9rio+Silva'))
-        ? 'https://ui-avatars.com/api/?name=Rog%C3%A9rio+Coimbra&background=059669&color=fff&bold=true'
-        : avatar
+    // Monta o objeto UserRecord final enriquecido com nome e avatar
+    const resolvedName = (payload?.name && payload.name.trim()) || authRecord.name || name
+    const resolvedAvatar = payload?.avatar || authRecord.avatar || avatar
 
     const finalUser: UserRecord = {
-      id:
-        email === 'roogerio99@gmail.com'
-          ? 'usr_rogerio'
-          : isDemo
-            ? 'usr_convidado_demo'
-            : authRecord?.id || `usr_${Date.now()}`,
+      id: isDemo ? 'usr_convidado_demo' : authRecord?.id || `usr_${Date.now()}`,
       email: authRecord?.email || email,
       name: resolvedName,
       avatar: resolvedAvatar,

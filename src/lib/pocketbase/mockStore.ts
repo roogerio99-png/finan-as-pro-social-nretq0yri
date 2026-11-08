@@ -1,5 +1,7 @@
-// In-memory and localStorage persistence mock for PocketBase
-// Enables full offline and standalone execution in AI Studio
+// Repositório Local Durável baseado em IndexedDB com execução 100% autônoma (PWA Offline-First)
+// Dados sensíveis residem exclusivamente no armazenamento persistente do dispositivo do usuário.
+
+import { indexedDbStore, StoreName, STORES } from '@/lib/storage/indexedDbStore'
 
 export interface MockRecord {
   id: string
@@ -35,17 +37,17 @@ function createInitialData() {
   const currentYearMonth = nowIso.slice(0, 7)
 
   const defaultUser: MockRecord = {
-    id: 'usr_rogerio',
-    email: 'roogerio99@gmail.com',
-    name: 'Rogério Coimbra',
+    id: 'usr_local',
+    email: 'usuario@local.app',
+    name: 'Minhas Finanças',
     verified: true,
     created: nowIso,
     updated: nowIso,
   }
 
   const defaultFamily: MockRecord = {
-    id: 'fam_silva',
-    name: 'Família Coimbra',
+    id: 'fam_local',
+    name: 'Meu Cofre Financeiro',
     created_by: defaultUser.id,
     members: [defaultUser.id],
     created: nowIso,
@@ -1000,15 +1002,32 @@ function createInitialData() {
 }
 
 const AUTH_STORE_STORAGE_KEY = 'gestio_financas_auth_session'
+const VAULT_LOCKED_KEY = 'gestio_vault_locked'
+
+const defaultLocalUser: MockRecord = {
+  id: 'usr_local',
+  email: 'usuario@local.app',
+  name: 'Minhas Finanças',
+  created: new Date().toISOString(),
+  updated: new Date().toISOString(),
+}
 
 class MockAuthStore {
-  isValid = false
-  token = ''
-  record: MockRecord | null = null
+  isValid = true
+  token = 'mock_jwt_local_vault'
+  record: MockRecord | null = defaultLocalUser
   private listeners: (() => void)[] = []
 
   constructor(initialUser?: MockRecord | null) {
     if (typeof window !== 'undefined') {
+      const isLocked = localStorage.getItem(VAULT_LOCKED_KEY) === 'true'
+      if (isLocked) {
+        this.record = null
+        this.token = ''
+        this.isValid = false
+        return
+      }
+
       try {
         const stored = localStorage.getItem(AUTH_STORE_STORAGE_KEY)
         if (stored) {
@@ -1025,28 +1044,20 @@ class MockAuthStore {
       }
     }
 
-    // Se passou initialUser explicitamente (ex: em testes manuais), aceita
-    if (initialUser) {
-      this.record = initialUser
-      this.token = 'mock_jwt_token_gestio_financas'
-      this.isValid = true
-    } else {
-      this.record = null
-      this.token = ''
-      this.isValid = false
-    }
+    // Primeiro acesso local: entra diretamente no cofre local privado
+    this.record = initialUser !== undefined ? initialUser : defaultLocalUser
+    this.token = this.record ? 'mock_jwt_local_vault' : ''
+    this.isValid = !!this.record
   }
 
   save(token: string, record: MockRecord) {
-    if (record && (record.email === 'roogerio99@gmail.com' || record.name === 'Rogério Silva')) {
-      record.name = 'Rogério Coimbra'
-    }
     this.token = token
     this.record = record
     this.isValid = true
 
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem(VAULT_LOCKED_KEY)
         localStorage.setItem(
           AUTH_STORE_STORAGE_KEY,
           JSON.stringify({ token: this.token, record: this.record }),
@@ -1066,6 +1077,7 @@ class MockAuthStore {
 
     if (typeof window !== 'undefined') {
       try {
+        localStorage.setItem(VAULT_LOCKED_KEY, 'true')
         localStorage.removeItem(AUTH_STORE_STORAGE_KEY)
       } catch {
         // Ignora erro de storage
@@ -1105,7 +1117,10 @@ export class MockPocketBase {
       this.collections[col] = getStored(col, defaultRecords)
     }
 
-    // Auto-recuperação: se contas ou categorias estiverem vazias no localStorage deste navegador, restaura as contas e categorias padrão imediatamente
+    // Inicialização e migração durável com IndexedDB
+    this.initFromIndexedDb(initial)
+
+    // Se contas ou categorias estiverem vazias, inicializa com o plano estrutural padrão
     if (!this.collections.accounts || this.collections.accounts.length === 0) {
       this.collections.accounts = [...initial.accounts]
       this.persist('accounts')
@@ -1115,44 +1130,7 @@ export class MockPocketBase {
       this.persist('categories')
     }
 
-    // Auto-migração para sincronizar o nome correto de Rogério Coimbra
-    if (this.collections.users) {
-      let usersMigrated = false
-      for (const u of this.collections.users) {
-        if (u.email === 'roogerio99@gmail.com' || u.name === 'Rogério Silva') {
-          u.name = 'Rogério Coimbra'
-          usersMigrated = true
-        }
-      }
-      if (usersMigrated) {
-        this.persist('users')
-      }
-    }
-
-    if (this.collections.families) {
-      let famMigrated = false
-      for (const f of this.collections.families) {
-        if (f.name === 'Família Silva') {
-          f.name = 'Família Coimbra'
-          famMigrated = true
-        }
-      }
-      if (famMigrated) {
-        this.persist('families')
-      }
-    }
-
-    const defaultUser = this.collections.users?.[0] || null
-    if (
-      defaultUser &&
-      (defaultUser.email === 'roogerio99@gmail.com' || defaultUser.name === 'Rogério Silva')
-    ) {
-      defaultUser.name = 'Rogério Coimbra'
-    }
-    // No navegador real, a sessão só é válida se salva no localStorage do dispositivo.
-    // Em testes de backend/Node sem window, usa o defaultUser para manter a suite de testes verde.
-    const isNodeTest = typeof window === 'undefined'
-    this.authStore = new MockAuthStore(isNodeTest ? defaultUser : null)
+    this.authStore = new MockAuthStore(defaultLocalUser)
 
     // Auto-migração definitiva para sincronizar as Categorias e Subgrupos da Planilha Oficial
     const CATEGORIES_MIGRATION_KEY = 'gestio_financas_categories_planilha_oficial_v9_force_sync'
@@ -1160,12 +1138,31 @@ export class MockPocketBase {
       this.migrateLegacyCategoriesToErpPlan(initial.categories)
       localStorage.setItem(CATEGORIES_MIGRATION_KEY, 'true')
     }
+  }
 
-    // Limpeza da base de lançamentos de teste para permitir ingresso com dados reais
-    const PURGE_TX_KEY = 'pocketbase_mock_transactions_cleared_for_real_data_v2'
-    if (typeof window !== 'undefined' && !localStorage.getItem(PURGE_TX_KEY)) {
-      this.clearAllTransactions()
-      localStorage.setItem(PURGE_TX_KEY, 'true')
+  private async initFromIndexedDb(initial: Record<string, MockRecord[]>) {
+    if (typeof window === 'undefined') return
+    try {
+      for (const col of STORES) {
+        if (col === 'vault_meta') continue
+        const records = await indexedDbStore.getAll(col)
+        if (records && records.length > 0) {
+          this.collections[col] = records
+        } else if (initial[col] && initial[col].length > 0) {
+          this.collections[col] = [...initial[col]]
+          for (const item of initial[col]) {
+            await indexedDbStore.put(col, item).catch(() => {})
+          }
+        }
+      }
+
+      // Purga lançamentos financeiros antigos do localStorage para não manter duplicidade desprotegida
+      const sensitiveKeys = ['transactions', 'accounts', 'debts', 'dreams', 'budgets', 'depara_rules']
+      for (const key of sensitiveKeys) {
+        localStorage.removeItem(STORAGE_PREFIX + key)
+      }
+    } catch (err) {
+      console.warn('[LocalStore] Inicialização IndexedDB fallback:', err)
     }
   }
 
@@ -1244,7 +1241,34 @@ export class MockPocketBase {
   }
 
   private persist(col: string) {
-    setStored(col, this.collections[col] || [])
+    if (typeof window !== 'undefined') {
+      const records = this.collections[col] || []
+      for (const r of records) {
+        if (r && r.id) {
+          indexedDbStore.put(col as any, r).catch(() => {})
+        }
+      }
+    }
+  }
+
+  private async persistRecord(col: string, record: MockRecord) {
+    if (typeof window !== 'undefined') {
+      try {
+        await indexedDbStore.put(col as any, record)
+      } catch (err) {
+        console.warn(`[IndexedDB] Falha ao persistir registro em ${col}:`, err)
+      }
+    }
+  }
+
+  private async deleteRecord(col: string, id: string) {
+    if (typeof window !== 'undefined') {
+      try {
+        await indexedDbStore.delete(col as any, id)
+      } catch (err) {
+        console.warn(`[IndexedDB] Falha ao excluir registro de ${col}:`, err)
+      }
+    }
   }
 
   private emit(col: string, action: 'create' | 'update' | 'delete', record: MockRecord) {
@@ -1258,6 +1282,10 @@ export class MockPocketBase {
         console.warn('Realtime event error:', e)
       }
     }
+  }
+
+  getCollectionRecords(name: string): MockRecord[] {
+    return this.collections[name] || []
   }
 
   collection<T = MockRecord>(name: string) {
@@ -1348,7 +1376,7 @@ export class MockPocketBase {
           updated: nowIso,
         }
         this.collections[name].unshift(newRecord)
-        this.persist(name)
+        await this.persistRecord(name, newRecord)
         this.emit(name, 'create', newRecord)
         const item = options?.expand
           ? this.expandRecord(name, newRecord, options.expand)
@@ -1368,7 +1396,7 @@ export class MockPocketBase {
           updated: new Date().toISOString(),
         }
         this.collections[name][index] = updated
-        this.persist(name)
+        await this.persistRecord(name, updated)
         this.emit(name, 'update', updated)
         const item = options?.expand ? this.expandRecord(name, updated, options.expand) : updated
         return item as unknown as R
@@ -1377,7 +1405,7 @@ export class MockPocketBase {
       delete: async (id: string): Promise<boolean> => {
         const rec = this.collections[name].find((r) => r.id === id)
         this.collections[name] = this.collections[name].filter((r) => r.id !== id)
-        this.persist(name)
+        await this.deleteRecord(name, id)
         if (rec) this.emit(name, 'delete', rec)
         return true
       },
@@ -1392,18 +1420,13 @@ export class MockPocketBase {
                 : 'usr_' + Date.now(),
             email,
             name:
-              email === 'roogerio99@gmail.com'
-                ? 'Rogério Coimbra'
-                : email === 'visitante@gestio.app' || email === 'demo@gestio.app'
-                  ? 'Convidado (Demonstração)'
-                  : email.split('@')[0],
+              email === 'visitante@gestio.app' || email === 'demo@gestio.app'
+                ? 'Convidado (Demonstração)'
+                : email.split('@')[0],
             created: new Date().toISOString(),
             updated: new Date().toISOString(),
           }
           this.collections.users.push(user)
-          this.persist('users')
-        } else if (user.email === 'roogerio99@gmail.com' || user.name === 'Rogério Silva') {
-          user.name = 'Rogério Coimbra'
           this.persist('users')
         }
         this.authStore.save('mock_jwt_' + user.id, user)

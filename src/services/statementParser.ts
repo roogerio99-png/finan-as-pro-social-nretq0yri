@@ -747,53 +747,13 @@ export const statementParserService = {
         return clientResult
       }
     } catch (clientErr) {
-      console.warn('[statementParser] Client PDF parser falhou ou fallback necessário:', clientErr)
+      console.warn('[statementParser] Client PDF parser falhou:', clientErr)
     }
 
-    // Se for objeto File e houver URL de backend PocketBase, tenta rota remota
-    if (file instanceof File && pb.baseUrl) {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      let response: Response | null = null
-      try {
-        response = await fetch(`${pb.baseUrl}/backend/v1/statements/parse-pdf`, {
-          method: 'POST',
-          headers: {
-            ...(pb.authStore.token ? { Authorization: pb.authStore.token } : {}),
-          },
-          body: formData,
-        })
-      } catch {
-        throw new Error(
-          'Serviço de extração de PDF indisponível offline. Você pode exportar seu extrato em formato OFX ou CSV no banco para importar instantaneamente.',
-        )
-      }
-
-      const data = await response.json().catch(() => null)
-
-      if (response.ok && data?.transactions && Array.isArray(data.transactions)) {
-        const rawTxs: ParsedStatementTransaction[] = data.transactions
-        let totalIncome = 0
-        let totalExpense = 0
-        for (const t of rawTxs) {
-          if (t.type === 'expense') totalExpense += t.amount
-          else totalIncome += t.amount
-        }
-
-        return {
-          ok: true,
-          document_type: data.document_type || 'statement',
-          bank: data.bank,
-          badge: data.badge || (data.bank ? `${data.document_type === 'invoice' ? 'Fatura' : 'Extrato'} ${data.bank}` : 'Documento PDF'),
-          totalIncome: Math.round(totalIncome * 100) / 100,
-          totalExpense: Math.round(totalExpense * 100) / 100,
-          transactions: rawTxs,
-          count: rawTxs.length,
-        }
-      }
-    }
-
-    throw new Error('Não foi possível extrair lançamentos do arquivo PDF. Verifique se o arquivo possui texto selecionável ou exporte em OFX/CSV no seu banco.')
+    // Modo 100% Local: nenhum arquivo financeiro é transmitido para servidores remotos.
+    // Se o PDF for uma imagem digitalizada sem camada de texto selecionável, instrui o usuário com clareza.
+    throw new Error(
+      'Não foi possível extrair texto selecionável deste PDF. Se for um arquivo digitalizado (foto/scanner), exporte seu extrato no internet banking nos formatos OFX, Excel (.xlsx) ou CSV para importação instantânea e privada no seu dispositivo.',
+    )
   },
 }
