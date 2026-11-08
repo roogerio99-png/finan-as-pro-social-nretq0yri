@@ -379,6 +379,26 @@ async function runFullTestSuite() {
   const chatReply = await copilotService.askCopilot('Como posso economizar este mês?')
   assert('Copiloto IA', 'Chatbot Conversacional', chatReply.length > 30, 'Resposta do chatbot vazia ou muito curta')
 
+  // 8.6 Orçamento Sob Medida com Aluguel e Filhos
+  const familyBudget = await copilotService.generateSmartBudget(6000, {
+    monthlyIncome: 6000,
+    housingType: 'rent',
+    rentAmount: 1800,
+    hasChildren: true,
+    childrenCount: 2,
+    transportType: 'car',
+  })
+  assert('Copiloto IA', 'Orçamento Sob Medida Aluguel e Filhos', familyBudget.macroDistribution.needsPercent === 60 && familyBudget.macroDistribution.wantsPercent === 25, 'Falha ao adaptar modelo para 60/25/15 com aluguel e filhos')
+
+  // 8.7 Aplicação Seletiva de Orçamento Customizado
+  const modifiedRecs = familyBudget.recommendations.map((r, idx) => ({
+    ...r,
+    enabled: idx !== 0, // Desativa a primeira para testar seletividade
+    customAmount: r.recommendedAmount + 50,
+  }))
+  const selectiveAppliedCount = await copilotService.applyBudgetRecommendations(modifiedRecs, '2026-11')
+  assert('Copiloto IA', 'Aplicação Seletiva de Orçamento Customizado', selectiveAppliedCount === familyBudget.recommendations.length - 1, 'Falha ao respeitar categorias desmarcadas')
+
   // -------------------------------------------------------------
   // MÓDULO 9: PRIVACIDADE LOCAL & BACKUP
   // -------------------------------------------------------------

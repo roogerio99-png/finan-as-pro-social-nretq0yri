@@ -1,6 +1,6 @@
 {
-  "version": "0.0.63",
-  "buildTimestamp": 1794115620488,
-  "releaseDate": "2026-11-08T05:27:00.488Z",
-  "description": "Passo 1 de escolha de conta previa com sugestao automatica e transferencia entrada origem vs saida destino com cache v16."
+  "version": "0.0.64",
+  "buildTimestamp": 1794116838958,
+  "releaseDate": "2026-11-08T05:47:18.958Z",
+  "description": "Orcamento Interativo no Copiloto baseado na realidade do usuario (aluguel, filhos, renda) com moldagem livre e selecao de categorias."
 }
