@@ -597,61 +597,54 @@ export const CopilotPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* Banner Principal com Apelo Visual Moderno */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-slate-900 to-emerald-950 border border-indigo-500/30 p-6 sm:p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold">
-              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span>Copiloto Financeiro • Motor Heurístico &amp; Regras Locais</span>
+      {/* Cabeçalho Compacto do Copiloto */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-950 via-slate-900 to-emerald-950 border border-indigo-500/20 px-5 py-4 text-white shadow-md">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Assistente Local para Lançamentos, Orçamento &amp; Diagnóstico
-            </h1>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              Interprete gastos por texto com regras determinísticas locais, personalize tetos
-              orçamentários 50/30/20 e revise todos os campos antes de confirmar a gravação.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-            <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-center min-w-[140px]">
-              <p className="text-xs text-slate-300 uppercase tracking-wider font-semibold">
-                Saúde Financeira
-              </p>
-              <div className="text-2xl font-black text-emerald-400 mt-1 flex items-center justify-center gap-1">
-                {diagnostic?.score || 50}
-                <span className="text-xs text-slate-400">/100</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+                  Copiloto Financeiro
+                </h1>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  100% Local
+                </span>
               </div>
-              <Badge
-                className={`mt-2 text-[10px] font-bold ${
-                  diagnostic?.status === 'excellent' || diagnostic?.status === 'good'
-                    ? 'bg-emerald-500/30 text-emerald-300'
-                    : 'bg-amber-500/30 text-amber-300'
-                }`}
-              >
-                {diagnostic?.status === 'excellent'
-                  ? 'Excelente'
-                  : diagnostic?.status === 'good'
-                    ? 'Saudável'
-                    : 'Atenção Necessária'}
-              </Badge>
+              <p className="text-xs text-slate-300">
+                Assistente para lançamentos rápidos, elaboração de orçamento e diagnóstico financeiro.
+              </p>
             </div>
           </div>
-          </div>
-        </div>
 
-        {/* Garantia de Privacidade Local */}
-        <div className="mt-6 pt-4 border-t border-white/10 flex items-center gap-2 text-xs text-slate-400">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>
-            100% dos dados financeiros e análises permanecem salvos no seu aparelho celular ou
-            computador.
-          </span>
+          <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/10">
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wider text-slate-300 font-semibold leading-tight">
+                  Saúde
+                </p>
+                <Badge
+                  className={`text-[9px] px-1.5 py-0 font-bold leading-tight ${
+                    diagnostic?.status === 'excellent' || diagnostic?.status === 'good'
+                      ? 'bg-emerald-500/30 text-emerald-300'
+                      : 'bg-amber-500/30 text-amber-300'
+                  }`}
+                >
+                  {diagnostic?.status === 'excellent'
+                    ? 'Excelente'
+                    : diagnostic?.status === 'good'
+                      ? 'Saudável'
+                      : 'Atenção'}
+                </Badge>
+              </div>
+              <div className="text-lg font-black text-emerald-400 flex items-baseline">
+                {diagnostic?.score || 50}
+                <span className="text-[10px] text-slate-400 font-normal">/100</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
