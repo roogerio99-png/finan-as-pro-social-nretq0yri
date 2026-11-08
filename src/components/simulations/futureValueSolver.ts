@@ -1,3 +1,5 @@
+import { parseFinancialInput } from './simulationMath'
+
 // Calculadora do Cidadão (Banco Central, CALFW05): valor futuro de um capital.
 // Fórmula dos juros compostos M = C · (1 + i)^t. Preenche-se três campos e o quarto é calculado.
 
@@ -22,10 +24,10 @@ const fail = (message: string): SolveOutcome => ({ ok: false, message })
 
 // null = campo vazio; NaN = texto que não é número
 export const parseInput = (raw: string): number | null => {
-  const s = raw.trim().replace(/\s/g, '')
+  const s = raw.trim().replace(/\s/g, '').replace(/R\$/g, '')
   if (s === '') return null
-  const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
-  return Number(normalized)
+  const n = parseFinancialInput(s)
+  return Number.isFinite(n) ? n : NaN
 }
 
 export function solveFutureValue(form: FutureValueForm): SolveOutcome {

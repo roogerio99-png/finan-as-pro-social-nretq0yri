@@ -1,3 +1,5 @@
+import { parseFinancialInput } from './simulationMath'
+
 // Calculadora do Cidadão (Banco Central, CALFW02): aplicação com depósitos regulares.
 // Convenção do BC: o depósito é realizado no INÍCIO do mês (anuidade antecipada), então
 // o saldo cresce mês a mês como saldo = (saldo + D) · (1 + i), o que dá
@@ -24,10 +26,10 @@ const fail = (message: string): FixedDepositOutcome => ({ ok: false, message })
 
 // null = campo vazio; NaN = texto que não é número
 export const parseInput = (raw: string): number | null => {
-  const s = raw.trim().replace(/\s/g, '')
+  const s = raw.trim().replace(/\s/g, '').replace(/R\$/g, '')
   if (s === '') return null
-  const normalized = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
-  return Number(normalized)
+  const n = parseFinancialInput(s)
+  return Number.isFinite(n) ? n : NaN
 }
 
 // Fator da anuidade antecipada: [((1 + i)^t − 1) / i] · (1 + i)

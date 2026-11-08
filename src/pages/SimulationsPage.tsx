@@ -9,11 +9,20 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, Legend } from 'recharts'
-import { Calculator, TrendingUp, Percent, Coins, Info } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
+import { Calculator, TrendingUp, Percent, Coins, Info, Calendar, ArrowRight } from 'lucide-react'
 import { FormulaBlock } from '@/components/simulations/FormulaBlock'
 import { FutureValueCalculator } from '@/components/simulations/FutureValueCalculator'
 import { FixedDepositCalculator } from '@/components/simulations/FixedDepositCalculator'
+import {
+  parseFinancialInput,
+  monthlyCompoundRate,
+  monthlySimpleRate,
+  calculateRuleOf72,
+  RatePeriod,
+  TimePeriod,
+  DepositTiming,
+} from '@/components/simulations/simulationMath'
 
 const brl = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -23,34 +32,20 @@ const compact = new Intl.NumberFormat('pt-BR', {
   notation: 'compact',
   maximumFractionDigits: 1,
 })
-
-type RatePeriod = 'mensal' | 'anual'
-
-// Converte a taxa informada para taxa mensal equivalente (juros compostos)
-const monthlyCompoundRate = (rate: number, period: RatePeriod) => {
-  if (rate <= 0) return 0
-  return period === 'mensal' ? rate / 100 : Math.pow(1 + rate / 100, 1 / 12) - 1
-}
-
-// Converte a taxa informada para taxa mensal linear (juros simples)
-const monthlySimpleRate = (rate: number, period: RatePeriod) => {
-  if (rate <= 0) return 0
-  return period === 'mensal' ? rate / 100 : rate / 12 / 100
-}
-
-const parseNum = (v: string) => {
-  const n = parseFloat(v.replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : 0
-}
+const num2 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 
 const compoundChartConfig = {
-  montante: { label: 'Montante', color: '#10b981' },
-  investido: { label: 'Total investido', color: '#94a3b8' },
+  montante: { label: 'Montante Final', color: '#10b981' },
+  investido: { label: 'Total Investido', color: '#64748b' },
 } satisfies ChartConfig
 
 const simpleChartConfig = {
-  simples: { label: 'Juros simples', color: '#f59e0b' },
-  compostos: { label: 'Juros compostos', color: '#10b981' },
+  simples: { label: 'Juros Simples (Linear)', color: '#f59e0b' },
+  compostos: { label: 'Juros Compostos (Exponencial)', color: '#10b981' },
+  capital: { label: 'Capital Inicial', color: '#94a3b8' },
 } satisfies ChartConfig
 
 type CompoundPoint = { mes: number; montante: number; investido: number }
@@ -59,112 +54,141 @@ const CompoundCalculator: React.FC = () => {
   const [initial, setInitial] = useState('1000')
   const [monthly, setMonthly] = useState('100')
   const [rate, setRate] = useState('1')
-  const [period, setPeriod] = useState<RatePeriod>('mensal')
-  const [months, setMonths] = useState('12')
+  const [ratePeriod, setRatePeriod] = useState<RatePeriod>('mensal')
+  const [timeValue, setTimeValue] = useState('12')
+  const [timeUnit, setTimeUnit] = useState<TimePeriod>('meses')
+  const [depositTiming, setDepositTiming] = useState<DepositTiming>('fim')
 
   const result = useMemo(() => {
-    const p0 = parseNum(initial)
-    const pM = parseNum(monthly)
-    const m = Math.min(Math.max(Math.round(parseNum(months)), 0), 600)
-    const i = monthlyCompoundRate(parseNum(rate), period)
+    const p0 = parseFinancialInput(initial)
+    const pM = parseFinancialInput(monthly)
+    const rawTime = parseFinancialInput(timeValue)
+    // Converte anos para meses se selecionado
+    const totalMonths = Math.min(
+      Math.max(timeUnit === 'anos' ? Math.round(rawTime * 12) : Math.round(rawTime), 0),
+      600,
+    )
+    const i = monthlyCompoundRate(parseFinancialInput(rate), ratePeriod)
 
     const series: CompoundPoint[] = [{ mes: 0, montante: p0, investido: p0 }]
     let bal = p0
-    for (let k = 1; k <= m; k++) {
-      bal = bal * (1 + i) + pM
+
+    for (let k = 1; k <= totalMonths; k++) {
+      if (depositTiming === 'inicio') {
+        // Antecipado: aporte entra no início do mês e já rende juros no mês corrente
+        bal = (bal + pM) * (1 + i)
+      } else {
+        // Postecipado: rendimento sobre o saldo anterior + aporte no fim do mês
+        bal = bal * (1 + i) + pM
+      }
       series.push({ mes: k, montante: bal, investido: p0 + pM * k })
     }
 
-    const invested = p0 + pM * m
-    const final = series[series.length - 1].montante
-    const interest = final - invested
+    const invested = p0 + pM * totalMonths
+    const final = series[series.length - 1]?.montante ?? p0
+    const interest = Math.max(0, final - invested)
 
-    // Regra dos 72: tempo aproximado para dobrar com a taxa anual efetiva
-    const annualRate = Math.pow(1 + i, 12) - 1
-    const doubleMonths = annualRate > 0 ? 72 / (annualRate * 100) : 0
+    // Regra dos 72 com base na taxa mensal efetiva
+    const rule72 = calculateRuleOf72(i)
 
-    return { series, invested, final, interest, doubleMonths }
-  }, [initial, monthly, rate, period, months])
+    return {
+      series,
+      invested,
+      final,
+      interest,
+      totalMonths,
+      effectiveMonthlyRate: i * 100,
+      effectiveAnnualRate: (Math.pow(1 + i, 12) - 1) * 100,
+      rule72,
+    }
+  }, [initial, monthly, rate, ratePeriod, timeValue, timeUnit, depositTiming])
 
   return (
     <div className="space-y-4">
       <FormulaBlock
         intro={
           <span>
-            Os juros são calculados sobre o valor do mês anterior (o famoso{' '}
-            <span className="font-semibold">“juros sobre juros”</span>): o saldo cresce de forma
-            exponencial. Com aporte mensal, o cálculo é iterativo mês a mês — juros sobre o saldo
-            anterior + o aporte —, então o resultado de t meses é a soma dessa repetição.
+            Os juros são calculados sobre o saldo acumulado do mês anterior (o chamado{' '}
+            <span className="font-semibold text-emerald-800">“juros sobre juros”</span>),
+            garantindo crescimento exponencial. Você pode escolher aportes no início do mês
+            (antecipado) ou no fim do mês (postecipado).
           </span>
         }
         formulas={[
-          { text: 'M = C · (1 + i)^t', desc: 'Montante final, sem aporte mensal' },
-          { text: 'J = M − C', desc: 'Total de juros ganhos' },
+          { text: 'M = C · (1 + i)^t', desc: 'Montante acumulado sem aportes regulares' },
           {
-            text: 'bal = bal · (1 + i) + aporte',
-            desc: 'Com aporte mensal: mês a mês (aporte no fim do mês)',
+            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i]',
+            desc: 'Aportes no FIM do mês (Postecipado)',
           },
+          {
+            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i] · (1 + i)',
+            desc: 'Aportes no INÍCIO do mês (Antecipado)',
+          },
+          { text: 'J = M − Total Investido', desc: 'Total de juros gerados' },
         ]}
         legend={[
-          { symbol: 'M (Montante)', meaning: 'valor total final' },
-          { symbol: 'C (Capital)', meaning: 'valor inicial' },
+          { symbol: 'M (Montante)', meaning: 'valor total acumulado ao final do período' },
+          { symbol: 'C (Capital)', meaning: 'depósito inicial' },
+          { symbol: 'Aporte', meaning: 'valor depositado periodicamente a cada mês' },
           {
             symbol: 'i (Taxa)',
-            meaning: 'percentual convertido para decimal na fórmula (ex.: 1% = 0,01)',
+            meaning: 'taxa decimal ao mês (ex.: 1% a.m. = 0,01). Taxas anuais são convertidas por equivalência: (1 + i_a)^(1/12) − 1',
           },
           {
-            symbol: 't (Tempo)',
-            meaning: 'deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses)',
+            symbol: 't (Prazo)',
+            meaning: 'tempo total em meses (se informado em anos, é multiplicado por 12)',
           },
         ]}
         notes={[
-          'Ex.: 1% a.m. = 0,01. Taxa anual (a.a.) é convertida para a taxa mensal equivalente: (1 + i_a)^(1/12) − 1.',
-          'Com aporte mensal, o resultado final também vale J = M − C − total aportado.',
+          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
+          'Taxa anual é convertida rigorosamente para a taxa mensal equivalente pela fórmula de juros compostos.',
         ]}
       />
-      <Card className="p-4 sm:p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Valor Inicial */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Valor inicial (R$)</Label>
+            <Label className="text-xs font-bold text-slate-700">Valor Inicial (R$)</Label>
             <Input
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={initial}
               onChange={(e) => setInitial(e.target.value)}
               placeholder="0,00"
-              inputMode="decimal"
+              className="text-xs font-semibold rounded-xl"
             />
           </div>
+
+          {/* Aporte Mensal */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Aporte mensal (R$)</Label>
+            <Label className="text-xs font-bold text-slate-700">Aporte Mensal (R$)</Label>
             <Input
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={monthly}
               onChange={(e) => setMonthly(e.target.value)}
               placeholder="0,00"
-              inputMode="decimal"
+              className="text-xs font-semibold rounded-xl"
             />
           </div>
+
+          {/* Taxa de Juros */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Taxa de juros (%)</Label>
-            <div className="flex gap-2">
+            <Label className="text-xs font-bold text-slate-700">Taxa de Juros (%)</Label>
+            <div className="flex gap-1.5">
               <Input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={rate}
                 onChange={(e) => setRate(e.target.value)}
                 placeholder="0,00"
-                inputMode="decimal"
-                className="flex-1"
+                className="flex-1 text-xs font-semibold rounded-xl"
               />
               <select
-                value={period}
-                onChange={(e) => setPeriod(e.target.value as RatePeriod)}
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-xs font-semibold text-slate-700 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
+                value={ratePeriod}
+                onChange={(e) => setRatePeriod(e.target.value as RatePeriod)}
+                className="h-10 rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 cursor-pointer"
                 aria-label="Período da taxa"
               >
                 <option value="mensal">a.m.</option>
@@ -172,54 +196,109 @@ const CompoundCalculator: React.FC = () => {
               </select>
             </div>
           </div>
+
+          {/* Prazo */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Prazo (meses)</Label>
-            <Input
-              type="number"
-              min="0"
-              max="600"
-              step="1"
-              value={months}
-              onChange={(e) => setMonths(e.target.value)}
-              placeholder="12"
-              inputMode="numeric"
-            />
+            <Label className="text-xs font-bold text-slate-700">Prazo</Label>
+            <div className="flex gap-1.5">
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={timeValue}
+                onChange={(e) => setTimeValue(e.target.value)}
+                placeholder="12"
+                className="flex-1 text-xs font-semibold rounded-xl"
+              />
+              <select
+                value={timeUnit}
+                onChange={(e) => setTimeUnit(e.target.value as TimePeriod)}
+                className="h-10 rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 cursor-pointer"
+                aria-label="Unidade do prazo"
+              >
+                <option value="meses">meses</option>
+                <option value="anos">anos</option>
+              </select>
+            </div>
+            {timeUnit === 'anos' && (
+              <p className="text-[11px] text-slate-500 font-medium">
+                = {result.totalMonths} meses
+              </p>
+            )}
+          </div>
+
+          {/* Momento do Aporte */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-bold text-slate-700">Momento do Aporte</Label>
+            <select
+              value={depositTiming}
+              onChange={(e) => setDepositTiming(e.target.value as DepositTiming)}
+              className="h-10 w-full rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 cursor-pointer"
+            >
+              <option value="fim">Fim do mês (Postecipado)</option>
+              <option value="inicio">Início do mês (Antecipado)</option>
+            </select>
           </div>
         </div>
       </Card>
 
+      {/* Cards de Resultados */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Card className="p-4 bg-emerald-50/70 border-emerald-100">
-          <div className="flex items-center gap-2 text-emerald-700">
+        <Card className="p-4 bg-emerald-50/80 border-emerald-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-emerald-800">
             <Coins className="w-4 h-4" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">Montante final</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Montante Final</span>
           </div>
-          <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1.5 tabular-nums">
+          <p className="text-xl sm:text-2xl font-black text-emerald-900 mt-1.5 tabular-nums">
             {brl.format(result.final)}
           </p>
+          <span className="text-[11px] text-emerald-700 font-medium">
+            Após {result.totalMonths} meses
+          </span>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-slate-500">
+
+        <Card className="p-4 bg-white border-slate-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-slate-600">
             <Calculator className="w-4 h-4" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total investido</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total Investido</span>
           </div>
-          <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1.5 tabular-nums">
+          <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5 tabular-nums">
             {brl.format(result.invested)}
           </p>
+          <span className="text-[11px] text-slate-500 font-medium">
+            Capital inicial + aportes
+          </span>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total de juros</span>
+
+        <Card className="p-4 bg-white border-slate-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-slate-600">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total em Juros</span>
           </div>
-          <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1.5 tabular-nums">
+          <p className="text-xl sm:text-2xl font-black text-emerald-600 mt-1.5 tabular-nums">
             {brl.format(result.interest)}
           </p>
+          <span className="text-[11px] text-emerald-700 font-medium">
+            {result.invested > 0
+              ? `+${num2.format((result.interest / result.invested) * 100)}% de ganho real`
+              : 'Rendimento'}
+          </span>
         </Card>
       </div>
 
-      <Card className="p-4 sm:p-5">
-        <h3 className="text-sm font-bold text-slate-900">Evolução mês a mês</h3>
+      {/* Gráfico de Evolução */}
+      <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Evolução do Patrimônio Mês a Mês</h3>
+            <p className="text-xs text-slate-500">
+              A curva verde mostra o efeito dos juros sobre juros em relação ao total aportado.
+            </p>
+          </div>
+          <div className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg">
+            Taxa Efetiva: {num2.format(result.effectiveMonthlyRate)}% a.m. ({num2.format(result.effectiveAnnualRate)}% a.a.)
+          </div>
+        </div>
+
         <ChartContainer config={compoundChartConfig} className="mt-3 h-64 w-full sm:h-72">
           <LineChart data={result.series} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -229,12 +308,12 @@ const CompoundCalculator: React.FC = () => {
               axisLine={false}
               tickMargin={8}
               interval="preserveStartEnd"
-              tickFormatter={(v: number) => `${v}`}
+              tickFormatter={(v: number) => `Mês ${v}`}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
-              width={52}
+              width={65}
               tickFormatter={(v: number) => compact.format(v)}
             />
             <ChartTooltip
@@ -249,9 +328,11 @@ const CompoundCalculator: React.FC = () => {
                 />
               }
             />
+            <Legend />
             <Line
               type="monotone"
               dataKey="montante"
+              name="Montante Final"
               stroke="var(--color-montante)"
               strokeWidth={2.5}
               dot={false}
@@ -259,27 +340,30 @@ const CompoundCalculator: React.FC = () => {
             <Line
               type="monotone"
               dataKey="investido"
+              name="Total Investido"
               stroke="var(--color-investido)"
               strokeWidth={2}
-              strokeDasharray="6 4"
+              strokeDasharray="5 5"
               dot={false}
             />
           </LineChart>
         </ChartContainer>
       </Card>
 
-      {result.doubleMonths > 0 && (
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-emerald-900">
-          <Info className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-          <p>
-            <span className="font-bold">Regra dos 72:</span> com essa taxa, o valor dobraria em
-            aproximadamente{' '}
-            <span className="font-bold">
-              {Math.round(result.doubleMonths)} mes
-              {Math.round(result.doubleMonths) === 1 ? '' : 'es'}
+      {/* Regra dos 72 com precisão */}
+      {result.rule72 && result.rule72.years > 0 && (
+        <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 shadow-2xs">
+          <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            <span className="font-bold">Regra dos 72 (Cálculo Rigoroso):</span> Com a taxa informada de{' '}
+            <strong>{num2.format(result.effectiveAnnualRate)}% ao ano</strong> ({num2.format(result.effectiveMonthlyRate)}% a.m.), seu
+            investimento inicial dobraria de valor em aproximadamente{' '}
+            <span className="font-extrabold text-emerald-950 underline">
+              {result.rule72.years < 1
+                ? `${Math.round(result.rule72.months)} meses`
+                : `${result.rule72.years.toFixed(1)} anos (~${Math.round(result.rule72.months)} meses)`}
             </span>{' '}
-            ({compact.format(result.doubleMonths)} meses). Divida 72 pela taxa anual para estimar o
-            tempo de dobrar um investimento.
+            sem necessidade de novos aportes.
           </p>
         </div>
       )}
@@ -290,93 +374,122 @@ const CompoundCalculator: React.FC = () => {
 const SimpleCalculator: React.FC = () => {
   const [capital, setCapital] = useState('1000')
   const [rate, setRate] = useState('1')
-  const [period, setPeriod] = useState<RatePeriod>('mensal')
-  const [months, setMonths] = useState('12')
+  const [ratePeriod, setRatePeriod] = useState<RatePeriod>('mensal')
+  const [timeValue, setTimeValue] = useState('12')
+  const [timeUnit, setTimeUnit] = useState<TimePeriod>('meses')
 
   const result = useMemo(() => {
-    const c = parseNum(capital)
-    const m = Math.min(Math.max(Math.round(parseNum(months)), 0), 600)
-    const i = monthlySimpleRate(parseNum(rate), period)
+    const c = parseFinancialInput(capital)
+    const rawTime = parseFinancialInput(timeValue)
+    const m = Math.min(
+      Math.max(timeUnit === 'anos' ? Math.round(rawTime * 12) : Math.round(rawTime), 0),
+      600,
+    )
+    const i = monthlySimpleRate(parseFinancialInput(rate), ratePeriod)
+    const iComp = monthlyCompoundRate(parseFinancialInput(rate), ratePeriod)
 
-    // Juros simples: juros = capital × taxa × tempo (linear)
+    // Juros simples: juros = capital × taxa × tempo (linear estrito)
     const interest = c * i * m
     const final = c + interest
 
-    // Comparativo: mesmo capital e taxa, mas com juros compostos
-    const compoundInterest = c * (Math.pow(1 + i, m) - 1)
+    // Comparativo: mesmo capital e taxa no regime composto
+    const compoundInterest = c * (Math.pow(1 + iComp, m) - 1)
+    const compoundFinal = c + compoundInterest
+
+    // Evolução temporal comparativa mês a mês
+    const series = []
+    const step = Math.max(1, Math.floor(m / 24))
+    for (let k = 0; k <= m; k += (k + step > m && k !== m ? m - k : step)) {
+      const simVal = c + c * i * k
+      const compVal = c * Math.pow(1 + iComp, k)
+      series.push({
+        mes: k,
+        simples: simVal,
+        compostos: compVal,
+        capital: c,
+      })
+      if (k === m) break
+    }
 
     return {
       final,
       interest,
+      compoundFinal,
       compoundInterest,
-      series: [
-        { tipo: 'Simples', simples: interest },
-        { tipo: 'Compostos', compostos: compoundInterest },
-      ],
+      totalMonths: m,
+      series,
+      difference: Math.max(0, compoundInterest - interest),
     }
-  }, [capital, rate, period, months])
+  }, [capital, rate, ratePeriod, timeValue, timeUnit])
 
   return (
     <div className="space-y-4">
       <FormulaBlock
         intro={
           <span>
-            Os juros são calculados apenas sobre o valor inicial (capital) e{' '}
-            <span className="font-semibold">não mudam ao longo do tempo</span>: os juros de cada
-            período incidem sempre sobre o mesmo capital.
+            No regime de juros simples, o rendimento é calculado exclusivamente sobre o capital
+            inicial e{' '}
+            <span className="font-semibold text-amber-800">
+              não rende juros sobre juros acumulados
+            </span>
+            . O crescimento do montante é estritamente linear ao longo do tempo.
           </span>
         }
         formulas={[
-          { text: 'J = C · i · t', desc: 'Total de juros ganhos' },
-          { text: 'M = C + J', desc: 'Montante final (equivale a M = C · (1 + i · t))' },
+          { text: 'J = C · i · t', desc: 'Total de juros gerados no regime simples' },
+          { text: 'M = C + J = C · (1 + i · t)', desc: 'Montante final acumulado' },
+          {
+            text: 'M_composto = C · (1 + i)^t',
+            desc: 'Comparativo: o que renderia em juros compostos',
+          },
         ]}
         legend={[
-          { symbol: 'M (Montante)', meaning: 'valor total final' },
-          { symbol: 'C (Capital)', meaning: 'valor inicial' },
+          { symbol: 'M (Montante)', meaning: 'valor final acumulado' },
+          { symbol: 'C (Capital)', meaning: 'capital inicial aplicado' },
           {
             symbol: 'i (Taxa)',
-            meaning: 'percentual convertido para decimal na fórmula (ex.: 1% = 0,01)',
+            meaning: 'taxa de juros mensal em formato decimal (ex.: 1% = 0,01). Taxas anuais dividem-se linearmente por 12.',
           },
           {
-            symbol: 't (Tempo)',
-            meaning: 'deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses)',
+            symbol: 't (Prazo)',
+            meaning: 'tempo em meses (se informado em anos, é multiplicado por 12)',
           },
         ]}
         notes={[
-          'Ex.: 1% a.m. = 0,01. No regime simples, a taxa anual (a.a.) vira mensal dividindo por 12 (linear), mantendo a mesma unidade de tempo.',
+          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
+          'No regime simples, taxa anual é dividida proporcionalmente por 12 (linear).',
         ]}
       />
-      <Card className="p-4 sm:p-5">
+
+      <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Capital (R$)</Label>
+            <Label className="text-xs font-bold text-slate-700">Capital Inicial (R$)</Label>
             <Input
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={capital}
               onChange={(e) => setCapital(e.target.value)}
               placeholder="0,00"
-              inputMode="decimal"
+              className="text-xs font-semibold rounded-xl"
             />
           </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Taxa de juros (%)</Label>
-            <div className="flex gap-2">
+            <Label className="text-xs font-bold text-slate-700">Taxa de Juros (%)</Label>
+            <div className="flex gap-1.5">
               <Input
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={rate}
                 onChange={(e) => setRate(e.target.value)}
                 placeholder="0,00"
-                inputMode="decimal"
-                className="flex-1"
+                className="flex-1 text-xs font-semibold rounded-xl"
               />
               <select
-                value={period}
-                onChange={(e) => setPeriod(e.target.value as RatePeriod)}
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-xs font-semibold text-slate-700 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-500"
+                value={ratePeriod}
+                onChange={(e) => setRatePeriod(e.target.value as RatePeriod)}
+                className="h-10 rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 cursor-pointer"
                 aria-label="Período da taxa"
               >
                 <option value="mensal">a.m.</option>
@@ -384,59 +497,107 @@ const SimpleCalculator: React.FC = () => {
               </select>
             </div>
           </div>
+
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700">Prazo (meses)</Label>
-            <Input
-              type="number"
-              min="0"
-              max="600"
-              step="1"
-              value={months}
-              onChange={(e) => setMonths(e.target.value)}
-              placeholder="12"
-              inputMode="numeric"
-            />
+            <Label className="text-xs font-bold text-slate-700">Prazo</Label>
+            <div className="flex gap-1.5">
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={timeValue}
+                onChange={(e) => setTimeValue(e.target.value)}
+                placeholder="12"
+                className="flex-1 text-xs font-semibold rounded-xl"
+              />
+              <select
+                value={timeUnit}
+                onChange={(e) => setTimeUnit(e.target.value as TimePeriod)}
+                className="h-10 rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 cursor-pointer"
+                aria-label="Unidade do prazo"
+              >
+                <option value="meses">meses</option>
+                <option value="anos">anos</option>
+              </select>
+            </div>
+            {timeUnit === 'anos' && (
+              <p className="text-[11px] text-slate-500 font-medium">
+                = {result.totalMonths} meses
+              </p>
+            )}
           </div>
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Card className="p-4 bg-emerald-50/70 border-emerald-100">
-          <div className="flex items-center gap-2 text-emerald-700">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Card className="p-4 bg-amber-50/80 border-amber-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-amber-800">
             <Coins className="w-4 h-4" />
-            <span className="text-[11px] font-bold uppercase tracking-wider">Montante final</span>
-          </div>
-          <p className="text-xl sm:text-2xl font-extrabold text-emerald-800 mt-1.5 tabular-nums">
-            {brl.format(result.final)}
-          </p>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-slate-500">
-            <TrendingUp className="w-4 h-4" />
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              Juros totais (capital × taxa × tempo)
+              Montante Simples
             </span>
           </div>
-          <p className="text-xl sm:text-2xl font-extrabold text-emerald-600 mt-1.5 tabular-nums">
-            {brl.format(result.interest)}
+          <p className="text-xl sm:text-2xl font-black text-amber-950 mt-1.5 tabular-nums">
+            {brl.format(result.final)}
           </p>
+          <span className="text-[11px] text-amber-700 font-medium">
+            Juros: {brl.format(result.interest)}
+          </span>
+        </Card>
+
+        <Card className="p-4 bg-emerald-50/80 border-emerald-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-emerald-800">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              Em Juros Compostos
+            </span>
+          </div>
+          <p className="text-xl sm:text-2xl font-black text-emerald-950 mt-1.5 tabular-nums">
+            {brl.format(result.compoundFinal)}
+          </p>
+          <span className="text-[11px] text-emerald-700 font-medium">
+            Juros: {brl.format(result.compoundInterest)}
+          </span>
+        </Card>
+
+        <Card className="p-4 bg-white border-slate-200 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2 text-indigo-700">
+            <Percent className="w-4 h-4" />
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              Diferença Exponencial
+            </span>
+          </div>
+          <p className="text-xl sm:text-2xl font-black text-indigo-900 mt-1.5 tabular-nums">
+            +{brl.format(result.difference)}
+          </p>
+          <span className="text-[11px] text-slate-500 font-medium">
+            A mais nos juros compostos
+          </span>
         </Card>
       </div>
 
-      <Card className="p-4 sm:p-5">
-        <h3 className="text-sm font-bold text-slate-900">Simples vs. Compostos no mesmo cenário</h3>
+      <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
+        <h3 className="text-sm font-bold text-slate-900">
+          Comparativo Visual: Juros Simples vs. Juros Compostos
+        </h3>
         <p className="text-xs text-slate-500 mt-0.5">
-          Juros ganhos no mesmo capital, taxa e prazo — no regime simples os juros não rendem sobre
-          juros.
+          Veja como a reta amarela (linear) fica para trás da curva verde (exponencial) com o passar
+          do tempo.
         </p>
-        <ChartContainer config={simpleChartConfig} className="mt-3 h-56 w-full sm:h-64">
-          <BarChart data={result.series} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
+        <ChartContainer config={simpleChartConfig} className="mt-3 h-64 w-full sm:h-72">
+          <LineChart data={result.series} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="tipo" tickLine={false} axisLine={false} tickMargin={8} />
+            <XAxis
+              dataKey="mes"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              interval="preserveStartEnd"
+              tickFormatter={(v: number) => `Mês ${v}`}
+            />
             <YAxis
               tickLine={false}
               axisLine={false}
-              width={52}
+              width={65}
               tickFormatter={(v: number) => compact.format(v)}
             />
             <ChartTooltip
@@ -447,13 +608,37 @@ const SimpleCalculator: React.FC = () => {
                       {name}: {brl.format(Number(value))}
                     </span>
                   )}
+                  labelFormatter={(label) => `Mês ${label}`}
                 />
               }
             />
             <Legend />
-            <Bar dataKey="simples" fill="var(--color-simples)" radius={6} />
-            <Bar dataKey="compostos" fill="var(--color-compostos)" radius={6} />
-          </BarChart>
+            <Line
+              type="monotone"
+              dataKey="compostos"
+              name="Juros Compostos"
+              stroke="var(--color-compostos)"
+              strokeWidth={2.5}
+              dot={false}
+            />
+            <Line
+              type="linear"
+              dataKey="simples"
+              name="Juros Simples"
+              stroke="var(--color-simples)"
+              strokeWidth={2.5}
+              dot={false}
+            />
+            <Line
+              type="linear"
+              dataKey="capital"
+              name="Capital Inicial"
+              stroke="var(--color-capital)"
+              strokeWidth={1.5}
+              strokeDasharray="4 4"
+              dot={false}
+            />
+          </LineChart>
         </ChartContainer>
       </Card>
     </div>
@@ -471,11 +656,11 @@ export const SimulationsPage: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                Simulações
+                Simulações Financeiras
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 leading-tight">
-                Calculadoras de juros compostos e simples para planejar seu dinheiro — nada é salvo,
-                é só simulação.
+                Calculadoras matemáticas de juros compostos, juros simples e Banco Central (CALFW)
+                para projeção patrimonial.
               </p>
             </div>
           </div>

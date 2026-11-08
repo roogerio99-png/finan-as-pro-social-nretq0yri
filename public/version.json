@@ -1,6 +1,6 @@
 {
-  "version": "0.2.3",
-  "buildTimestamp": 1794164000000,
-  "releaseDate": "2026-11-08T18:54:00.000Z",
-  "description": "SimplaFin v0.2.3 - Remoção do módulo e atalhos de Quitação de Dívidas."
+  "version": "0.2.4",
+  "buildTimestamp": 1794164900000,
+  "releaseDate": "2026-11-08T19:08:00.000Z",
+  "description": "SimplaFin v0.2.4 - Correção das fórmulas de simulação: suporte robusto a formatos numéricos brasileiros, seletor de prazo em meses/anos, momento do aporte (início/fim do mês) e precisão na Regra dos 72."
 }
