@@ -7,6 +7,7 @@ export interface ParsedStatementTransaction {
   desc: string
   amount: number
   type: TransactionType
+  direction?: 'in' | 'out'
   fitId?: string
   installments_total?: number
   installment_index?: number

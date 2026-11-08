@@ -557,6 +557,26 @@ DATA:OFXSGML
   )
   assert('Extratos', 'Salvar Tudo Após Reclassificação', savedBatch.length === 2 && savedBatch[1].amount === 500, 'Falha ao salvar lote reclassificado completo')
 
+  // Teste 10.10: Transferência Entrada (Origem escolhida, Destino é a conta do extrato)
+  const incomingTransferRes = await transactionsService.transfer({
+    sourceAccountId: 'acc-carteira-1', // De onde veio
+    targetAccountId: 'acc-cc-1',       // Conta do extrato onde entrou o dinheiro
+    amount: 320.0,
+    date: '2026-10-21',
+    description: 'Transferência recebida da carteira',
+  })
+  assert('Extratos', 'Transferência Entrada Conta Origem', incomingTransferRes.amount === 320, 'Falha ao processar transferência de entrada com conta de origem')
+
+  // Teste 10.11: Transferência Saída (Conta do extrato é a Origem, Destino é escolhido)
+  const outgoingTransferRes = await transactionsService.transfer({
+    sourceAccountId: 'acc-cc-1',       // Conta do extrato de onde saiu o dinheiro
+    targetAccountId: 'acc-carteira-1', // Para onde foi
+    amount: 150.0,
+    date: '2026-10-22',
+    description: 'Transferência enviada para a carteira',
+  })
+  assert('Extratos', 'Transferência Saída Conta Destino', outgoingTransferRes.amount === 150, 'Falha ao processar transferência de saída com conta de destino')
+
   // -------------------------------------------------------------
   // RESUMO FINAL
   // -------------------------------------------------------------

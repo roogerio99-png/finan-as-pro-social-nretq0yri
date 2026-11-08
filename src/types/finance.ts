@@ -234,6 +234,7 @@ export interface StatementImportLine {
   description: string
   amount: number
   type: TransactionType
+  direction?: 'in' | 'out'
   transfer_account_id?: string
   invoice_id?: string
   installments_total?: number

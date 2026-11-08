@@ -1,6 +1,6 @@
 {
-  "version": "0.0.62",
-  "buildTimestamp": 1794114720439,
-  "releaseDate": "2026-11-08T05:12:00.439Z",
-  "description": "Opcao de salvar lancamento individual na frente de cada linha e salvar tudo apos reclassificacao com cache v15."
+  "version": "0.0.63",
+  "buildTimestamp": 1794115620488,
+  "releaseDate": "2026-11-08T05:27:00.488Z",
+  "description": "Passo 1 de escolha de conta previa com sugestao automatica e transferencia entrada origem vs saida destino com cache v16."
 }

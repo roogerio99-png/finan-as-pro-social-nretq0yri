@@ -76,6 +76,7 @@ export const ReconciliationPage: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState<boolean>(false)
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
   const [savingLineId, setSavingLineId] = useState<string | null>(null)
+  const [suggestedAccountMessage, setSuggestedAccountMessage] = useState<string | null>(null)
 
   // Modal/Form de Nova Regra De-Para
   const [newPattern, setNewPattern] = useState<string>('')
@@ -191,6 +192,7 @@ export const ReconciliationPage: React.FC = () => {
     bankName: string | undefined,
     docType: 'invoice' | 'statement' | undefined,
     acctId: string | undefined,
+    fileName?: string,
   ): string | undefined => {
     const active = accounts.filter((a) => a.status !== 'archived')
     if (active.length === 0) return undefined
@@ -216,31 +218,50 @@ export const ReconciliationPage: React.FC = () => {
       }
     }
 
-    // 3. Por nome do banco
-    if (bankName) {
-      const bankLower = bankName.toLowerCase()
+    // 3. Por nome do banco ou nome do arquivo
+    const searchTarget = `${bankName || ''} ${fileName || ''}`.toLowerCase()
+    if (searchTarget.trim()) {
       const match = active.find((a) => {
         const nameLower = a.name.toLowerCase()
-        if (bankLower.includes('nubank') || bankLower.includes('nu pagamentos')) {
+        if (searchTarget.includes('nubank') || searchTarget.includes('nu_') || searchTarget.includes('nu pagamentos')) {
           return nameLower.includes('nubank') || nameLower.includes('nu')
         }
-        if (bankLower.includes('banco do brasil') || bankLower.includes('bco do brasil')) {
+        if (searchTarget.includes('banco do brasil') || searchTarget.includes('bco do brasil') || searchTarget.includes('bb')) {
           return nameLower.includes('brasil') || nameLower.includes('bb')
         }
-        if (bankLower.includes('mercado pago')) {
+        if (searchTarget.includes('mercado pago')) {
           return nameLower.includes('mercado pago') || nameLower.includes('mp')
         }
-        if (bankLower.includes('santander')) return nameLower.includes('santander')
-        if (bankLower.includes('itaú') || bankLower.includes('itau')) return nameLower.includes('itau')
-        if (bankLower.includes('bradesco')) return nameLower.includes('bradesco')
-        if (bankLower.includes('inter')) return nameLower.includes('inter')
-        if (bankLower.includes('c6')) return nameLower.includes('c6')
-        return nameLower.includes(bankLower)
+        if (searchTarget.includes('santander')) return nameLower.includes('santander')
+        if (searchTarget.includes('itaú') || searchTarget.includes('itau')) return nameLower.includes('itau')
+        if (searchTarget.includes('bradesco')) return nameLower.includes('bradesco')
+        if (searchTarget.includes('inter')) return nameLower.includes('inter')
+        if (searchTarget.includes('c6')) return nameLower.includes('c6')
+        return bankName ? nameLower.includes(bankName.toLowerCase()) : false
       })
       if (match) return match.id
     }
 
     return undefined
+  }
+
+  const applyAccountMatch = (
+    result: { bank?: string; document_type?: 'invoice' | 'statement'; acctId?: string; badge?: string },
+    fileName?: string,
+  ) => {
+    const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId, fileName)
+    if (matchedAccId) {
+      setSelectedAccountId(matchedAccId)
+      const matched = accounts.find((a) => a.id === matchedAccId)
+      if (matched) {
+        const msg = `Extrato identificado: "${result.bank || result.badge || 'banco'}" • Conta vinculada: "${matched.name}"`
+        setSuggestedAccountMessage(msg)
+        toast({
+          title: 'Conta identificada automaticamente!',
+          description: `Identificamos os dados do banco no extrato e selecionamos a conta "${matched.name}". Você pode trocá-la se desejar.`,
+        })
+      }
+    }
   }
 
   // Processamento genérico e multi-formato de arquivo (OFX, CSV, PDF, TXT)
@@ -270,10 +291,7 @@ export const ReconciliationPage: React.FC = () => {
               count: result.count,
             })
 
-            const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
-            if (matchedAccId) {
-              setSelectedAccountId(matchedAccId)
-            }
+            applyAccountMatch(result, file.name)
 
             processExtractedLines(result.transactions)
             toast({
@@ -319,10 +337,7 @@ export const ReconciliationPage: React.FC = () => {
               count: result.count,
             })
 
-            const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
-            if (matchedAccId) {
-              setSelectedAccountId(matchedAccId)
-            }
+            applyAccountMatch(result, file.name)
 
             processExtractedLines(result.transactions)
             toast({
@@ -369,10 +384,7 @@ export const ReconciliationPage: React.FC = () => {
           count: result.count,
         })
 
-        const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
-        if (matchedAccId) {
-          setSelectedAccountId(matchedAccId)
-        }
+        applyAccountMatch(result, file.name)
 
         processExtractedLines(result.transactions)
         toast({
@@ -410,10 +422,7 @@ export const ReconciliationPage: React.FC = () => {
             count: result.count,
           })
 
-          const matchedAccId = findMatchingAccountId(result.bank, result.document_type, result.acctId)
-          if (matchedAccId) {
-            setSelectedAccountId(matchedAccId)
-          }
+          applyAccountMatch(result, file.name)
 
           processExtractedLines(result.transactions)
           toast({
@@ -475,15 +484,35 @@ export const ReconciliationPage: React.FC = () => {
           const card = accounts.find((a) => a.type === 'credit_card' && a.status !== 'archived')
           if (card) transferId = card.id
         }
+        const newDirection = newType === 'income' ? 'in' : newType === 'expense' ? 'out' : item.direction || 'out'
         return {
           ...item,
           type: newType,
+          direction: newDirection,
           transfer_account_id: transferId,
-          // se virou transferência ou quitação de fatura, remove obrigatoriedade de categoria
           selected_category_id:
             newType === 'transfer' || newType === 'invoice_payment'
               ? ''
               : item.selected_category_id || item.suggested_category_id || '',
+        }
+      }),
+    )
+  }
+
+  const handleToggleLineDirection = (lineId: string) => {
+    setImportLines((prev) =>
+      prev.map((item) => {
+        if (item.id !== lineId) return item
+        const nextDir = item.direction === 'in' ? 'out' : 'in'
+        return {
+          ...item,
+          direction: nextDir,
+          type:
+            item.type === 'transfer' || item.type === 'invoice_payment'
+              ? item.type
+              : nextDir === 'in'
+              ? 'income'
+              : 'expense',
         }
       }),
     )
@@ -507,6 +536,7 @@ export const ReconciliationPage: React.FC = () => {
       seen.add(key)
 
       // Detecção inteligente de Pagamento de Fatura ou Transferência
+      let initialDirection: 'in' | 'out' = item.direction || (item.type === 'income' ? 'in' : 'out')
       const descLower = item.desc.toLowerCase()
       let initialType: TransactionType = item.type
       let initialTransferAccId: string | undefined = undefined
@@ -552,6 +582,7 @@ export const ReconciliationPage: React.FC = () => {
         amount: item.amount,
         type: initialType,
         transfer_account_id: initialTransferAccId,
+        direction: initialDirection,
         installments_total: item.installments_total,
         installment_index: item.installment_index,
         suggested_category_id: suggestedCatId,
@@ -598,9 +629,12 @@ export const ReconciliationPage: React.FC = () => {
     }
 
     if (line.type === 'transfer' && !line.transfer_account_id) {
+      const isIncoming = line.direction === 'in'
       toast({
-        title: 'Selecione a Conta Destino',
-        description: 'Para transferências, escolha para qual conta o saldo foi transferido.',
+        title: isIncoming ? 'Selecione a Conta de Origem' : 'Selecione a Conta de Destino',
+        description: isIncoming
+          ? 'Para transferências de entrada, escolha de qual conta o dinheiro veio.'
+          : 'Para transferências de saída, escolha para qual conta o dinheiro foi transferido.',
         variant: 'destructive',
       })
       return
@@ -620,14 +654,18 @@ export const ReconciliationPage: React.FC = () => {
       const batchId = `single-${Date.now()}`
 
       if (line.type === 'transfer') {
+        const isIncoming = line.direction === 'in'
+        const sourceId = isIncoming ? line.transfer_account_id! : selectedAccountId
+        const targetId = isIncoming ? selectedAccountId : line.transfer_account_id!
+
         if (line.transfer_account_id) {
           try {
             await transactionsService.transfer({
-              sourceAccountId: selectedAccountId,
-              targetAccountId: line.transfer_account_id,
+              sourceAccountId: sourceId,
+              targetAccountId: targetId,
               amount: line.amount,
               date: line.date,
-              description: line.description || 'Transferência entre contas',
+              description: line.description || (isIncoming ? 'Transferência recebida' : 'Transferência enviada'),
             })
           } catch {
             await transactionsService.create({
@@ -737,15 +775,18 @@ export const ReconciliationPage: React.FC = () => {
 
       for (const line of validLines) {
         if (line.type === 'transfer') {
-          // Transferência entre contas
+          const isIncoming = line.direction === 'in'
+          const sourceId = isIncoming ? (line.transfer_account_id || selectedAccountId) : selectedAccountId
+          const targetId = isIncoming ? selectedAccountId : (line.transfer_account_id || selectedAccountId)
+
           if (line.transfer_account_id) {
             try {
               await transactionsService.transfer({
-                sourceAccountId: selectedAccountId,
-                targetAccountId: line.transfer_account_id,
+                sourceAccountId: sourceId,
+                targetAccountId: targetId,
                 amount: line.amount,
                 date: line.date,
-                description: line.description || 'Transferência entre contas',
+                description: line.description || (isIncoming ? 'Transferência recebida' : 'Transferência enviada'),
               })
             } catch {
               await transactionsService.create({
@@ -897,17 +938,8 @@ export const ReconciliationPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6 sm:space-y-8">
-      {/* Top Header & Drop Zone */}
-      <div
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        className={`flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl border transition-all ${
-          isDragOver
-            ? 'border-emerald-500 bg-emerald-50/40 ring-4 ring-emerald-100 shadow-md'
-            : 'border-slate-200 shadow-xs'
-        }`}
-      >
+      {/* Cabeçalho da Página */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -933,8 +965,7 @@ export const ReconciliationPage: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
             Importe <strong>Extratos Bancários</strong> ou <strong>Faturas de Cartão</strong> nos
             formatos <strong>OFX</strong>, <strong>PDF</strong>, <strong>Excel (XLSX)</strong> ou <strong>CSV</strong> (Nubank, Banco
-            do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.). Detecção automática do banco,
-            parcelas, identificadores e bloqueio de duplicatas.
+            do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.).
           </p>
         </div>
 
@@ -954,7 +985,7 @@ export const ReconciliationPage: React.FC = () => {
               window.location.reload()
             }}
             title="Limpar cache do navegador e carregar a versão mais recente publicada"
-            className="text-xs text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 gap-1 rounded-xl h-11 px-3 border border-indigo-200 font-semibold transition-all shadow-xs"
+            className="text-xs text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 hover:text-indigo-900 gap-1 rounded-xl h-10 px-3 border border-indigo-200 font-semibold transition-all shadow-xs"
           >
             <RefreshCw className="w-3.5 h-3.5 text-indigo-600 animate-spin-hover" />
             Atualizar App
@@ -964,33 +995,113 @@ export const ReconciliationPage: React.FC = () => {
             variant="outline"
             onClick={handleLoadSampleStatement}
             disabled={parsingPdf}
-            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5 h-11 px-3"
+            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5 h-10 px-3"
           >
             <Sparkles className="w-4 h-4 text-emerald-600" />
             Carregar Exemplo
           </Button>
-
-          <label className={`cursor-pointer ${parsingPdf ? 'pointer-events-none opacity-60' : ''}`}>
-            <input
-              type="file"
-              accept=".ofx,.csv,.tsv,.txt,.pdf,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={parsingPdf}
-            />
-            <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors h-11 cursor-pointer">
-              {parsingPdf ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Lendo documento...
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4" /> Importar OFX / PDF / Excel / CSV
-                </>
-              )}
-            </div>
-          </label>
         </div>
+      </div>
+
+      {/* PASSO 1: Escolha da Conta Bancária ou Cartão */}
+      <Card className="border-slate-200 shadow-xs rounded-2xl bg-white p-5 space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 mt-0.5">
+              1
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold text-slate-900">
+                  Escolha a Conta Bancária ou Cartão deste Extrato
+                </h2>
+                {selectedAccountId && (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Conta Ativa
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Primeiro, escolha de qual conta se refere o extrato. Se o arquivo contiver dados do banco ou agência/conta, faremos a sugestão automática.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <select
+              id="topAccountSelect"
+              value={selectedAccountId}
+              onChange={(e) => {
+                setSelectedAccountId(e.target.value)
+                setSuggestedAccountMessage(null)
+              }}
+              className="h-10 text-xs font-bold bg-slate-50 border border-slate-300 hover:border-emerald-500 text-slate-900 rounded-xl px-3.5 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none min-w-[240px] transition-all cursor-pointer"
+            >
+              <option value="" disabled>-- Selecione a conta --</option>
+              {accounts
+                .filter((a) => a.status !== 'archived')
+                .map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name} {acc.type === 'credit_card' ? '(Cartão de Crédito)' : acc.type === 'savings' ? '(Poupança)' : '(Conta Corrente)'}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
+        {suggestedAccountMessage && (
+          <div className="flex items-center gap-2 text-xs text-emerald-800 font-semibold bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+            <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{suggestedAccountMessage}</span>
+          </div>
+        )}
+      </Card>
+
+      {/* PASSO 2: Envie o Arquivo do Extrato ou Fatura */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        className={`flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-5 rounded-2xl border transition-all ${
+          isDragOver
+            ? 'border-emerald-500 bg-emerald-50/40 ring-4 ring-emerald-100 shadow-md'
+            : 'border-slate-200 shadow-xs'
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-xl bg-slate-800 text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0 mt-0.5">
+            2
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">
+              Envie o Extrato ou Fatura
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Arraste e solte o arquivo aqui ou clique no botão para selecionar (OFX, PDF, XLSX ou CSV).
+            </p>
+          </div>
+        </div>
+
+        <label className={`cursor-pointer shrink-0 ${parsingPdf ? 'pointer-events-none opacity-60' : ''}`}>
+          <input
+            type="file"
+            accept=".ofx,.csv,.tsv,.txt,.pdf,.xlsx,.xls"
+            onChange={handleFileUpload}
+            className="hidden"
+            disabled={parsingPdf}
+          />
+          <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors h-11 cursor-pointer">
+            {parsingPdf ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Lendo documento...
+              </>
+            ) : (
+              <>
+                <FileText className="w-4 h-4" /> Importar OFX / PDF / Excel / CSV
+              </>
+            )}
+          </div>
+        </label>
       </div>
 
       {/* Resumo Consolidado do Arquivo Importado */}
@@ -1236,12 +1347,40 @@ export const ReconciliationPage: React.FC = () => {
 
                     {line.type === 'transfer' ? (
                       <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-bold text-blue-700 flex items-center gap-1">
+                            {line.direction === 'in' ? (
+                              <>
+                                <ArrowDownRight className="w-3 h-3 text-emerald-600" />
+                                Conta de Origem (De onde veio):
+                              </>
+                            ) : (
+                              <>
+                                <ArrowUpRight className="w-3 h-3 text-blue-600" />
+                                Conta de Destino (Para onde foi):
+                              </>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleLineDirection(line.id)}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 underline font-semibold"
+                          >
+                            {line.direction === 'in' ? 'Mudar p/ Saída' : 'Mudar p/ Entrada'}
+                          </button>
+                        </div>
                         <Select
                           value={line.transfer_account_id || ''}
                           onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
                         >
                           <SelectTrigger className="h-8 text-xs font-medium border-blue-200 bg-blue-50/70 text-blue-900 rounded-lg w-full">
-                            <SelectValue placeholder="Selecione conta destino..." />
+                            <SelectValue
+                              placeholder={
+                                line.direction === 'in'
+                                  ? 'Selecione conta de origem...'
+                                  : 'Selecione conta de destino...'
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {accounts
@@ -1254,7 +1393,17 @@ export const ReconciliationPage: React.FC = () => {
                           </SelectContent>
                         </Select>
                         <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                          <ArrowRightLeft className="w-2.5 h-2.5" /> Movimentação neutra de saldo
+                          {line.direction === 'in' ? (
+                            <>
+                              <ArrowDownRight className="w-2.5 h-2.5 text-emerald-600" />
+                              Entrando em: <strong>{accounts.find(a => a.id === selectedAccountId)?.name || 'Conta do Extrato'}</strong>
+                            </>
+                          ) : (
+                            <>
+                              <ArrowUpRight className="w-2.5 h-2.5 text-blue-600" />
+                              Saindo de: <strong>{accounts.find(a => a.id === selectedAccountId)?.name || 'Conta do Extrato'}</strong>
+                            </>
+                          )}
                         </span>
                       </div>
                     ) : line.type === 'invoice_payment' ? (
@@ -1461,12 +1610,41 @@ export const ReconciliationPage: React.FC = () => {
                     <td className="py-2.5 px-3">
                       {line.type === 'transfer' ? (
                         <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-bold text-blue-700 flex items-center gap-1">
+                              {line.direction === 'in' ? (
+                                <>
+                                  <ArrowDownRight className="w-3 h-3 text-emerald-600" />
+                                  Origem (De onde veio):
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowUpRight className="w-3 h-3 text-blue-600" />
+                                  Destino (Para onde foi):
+                                </>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLineDirection(line.id)}
+                              className="text-[10px] text-blue-600 hover:text-blue-800 underline font-semibold"
+                              title="Alternar sentido da transferência"
+                            >
+                              {line.direction === 'in' ? 'Mudar p/ Saída' : 'Mudar p/ Entrada'}
+                            </button>
+                          </div>
                           <Select
                             value={line.transfer_account_id || ''}
                             onValueChange={(val) => handleUpdateLineTransferAccount(line.id, val)}
                           >
-                            <SelectTrigger className="h-8 text-xs font-medium border-blue-200 bg-blue-50/70 text-blue-900 rounded-lg max-w-[220px]">
-                              <SelectValue placeholder="Selecione conta destino..." />
+                            <SelectTrigger className="h-8 text-xs font-medium border-blue-200 bg-blue-50/70 text-blue-900 rounded-lg max-w-[230px]">
+                              <SelectValue
+                                placeholder={
+                                  line.direction === 'in'
+                                    ? 'Selecione conta de origem...'
+                                    : 'Selecione conta destino...'
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {accounts
@@ -1478,8 +1656,18 @@ export const ReconciliationPage: React.FC = () => {
                                 ))}
                             </SelectContent>
                           </Select>
-                          <p className="text-[10px] text-blue-600 font-semibold flex items-center gap-1">
-                            <ArrowRightLeft className="w-2.5 h-2.5" /> Movimentação neutra de saldo
+                          <p className="text-[10px] text-blue-600 font-medium flex items-center gap-1">
+                            {line.direction === 'in' ? (
+                              <>
+                                <ArrowDownRight className="w-2.5 h-2.5 text-emerald-600" />
+                                Entrando em <strong>{accounts.find(a => a.id === selectedAccountId)?.name || 'Conta do Extrato'}</strong>
+                              </>
+                            ) : (
+                              <>
+                                <ArrowUpRight className="w-2.5 h-2.5 text-blue-600" />
+                                Saindo de <strong>{accounts.find(a => a.id === selectedAccountId)?.name || 'Conta do Extrato'}</strong>
+                              </>
+                            )}
                           </p>
                         </div>
                       ) : line.type === 'invoice_payment' ? (
