@@ -1,6 +1,6 @@
 {
-  "version": "0.2.1",
-  "buildTimestamp": 1794161200000,
-  "releaseDate": "2026-11-08T18:06:00.000Z",
-  "description": "SimplaFin v0.2.1 - Correção nos campos numéricos/orçamento no mobile (sem zero residual), garantia de soma 100% nos percentuais e cabeçalho compacto."
+  "version": "0.2.2",
+  "buildTimestamp": 1794163200000,
+  "releaseDate": "2026-11-08T18:41:00.000Z",
+  "description": "SimplaFin v0.2.2 - Segregação dos menus 'Importador de Extratos' e 'Automatizar De-Para' com simulador de regras em tempo real."
 }

@@ -13,6 +13,7 @@ import { WelcomePage } from './pages/WelcomePage'
 import { DashboardPage } from './pages/DashboardPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { ReconciliationPage } from './pages/ReconciliationPage'
+import { AutomateDeparaPage } from './pages/AutomateDeparaPage'
 import { BudgetPage } from './pages/BudgetPage'
 import { DebtsPage } from './pages/DebtsPage'
 import { DreamsPage } from './pages/DreamsPage'
@@ -49,7 +50,10 @@ const App = () => (
                 <Route path="/painel" element={<DashboardPage />} />
                 <Route path="/lancamentos" element={<TransactionsPage />} />
                 <Route path="/faturas" element={<InvoicesPage />} />
+                <Route path="/importador-extratos" element={<ReconciliationPage />} />
                 <Route path="/conciliacao" element={<ReconciliationPage />} />
+                <Route path="/automatizar-de-para" element={<AutomateDeparaPage />} />
+                <Route path="/de-para" element={<AutomateDeparaPage />} />
                 <Route path="/orcamento" element={<BudgetPage />} />
                 <Route path="/dividas" element={<DebtsPage />} />
                 <Route path="/sonhos" element={<DreamsPage />} />

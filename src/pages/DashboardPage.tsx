@@ -303,10 +303,10 @@ export const DashboardPage: React.FC = () => {
           </div>
           <Button
             size="sm"
-            onClick={() => navigate('/conciliacao')}
+            onClick={() => navigate('/importador-extratos')}
             className="bg-amber-600 hover:bg-amber-700 text-white text-xs gap-1.5 rounded-xl flex-shrink-0"
           >
-            <FileSpreadsheet className="w-4 h-4" /> Conciliar Agora
+            <FileSpreadsheet className="w-4 h-4" /> Importar Extrato
           </Button>
         </div>
       )}

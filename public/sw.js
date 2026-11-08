@@ -6,7 +6,7 @@
 // 4. Cache-First para ativos imutáveis com hash (/assets/*) e Network-First para HTML/metadados
 
 const CACHE_PREFIX = 'gestio-financas-shell-'
-const CACHE_NAME = `${CACHE_PREFIX}v24`
+const CACHE_NAME = `${CACHE_PREFIX}v25`
 
 const PRECACHE_ASSETS = [
   '/',

@@ -20,6 +20,7 @@ import {
   LogOut,
   ChevronRight,
   Smartphone,
+  ArrowRightLeft,
 } from 'lucide-react'
 import {
   Sheet,
@@ -83,11 +84,18 @@ export const MobileBottomNav: React.FC = () => {
       title: 'Movimentações & Bancos',
       items: [
         {
-          to: '/conciliacao',
-          label: 'Conciliação Bancária',
-          desc: 'Conferência de extratos e de-para',
+          to: '/importador-extratos',
+          label: 'Importador de Extratos',
+          desc: 'Importação de extratos OFX, PDF, Excel e CSV',
           icon: FileSpreadsheet,
           color: 'text-amber-600 bg-amber-50',
+        },
+        {
+          to: '/automatizar-de-para',
+          label: 'Automatizar De-Para',
+          desc: 'Regras inteligentes para classificação automática',
+          icon: ArrowRightLeft,
+          color: 'text-emerald-600 bg-emerald-50',
         },
       ],
     },

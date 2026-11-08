@@ -34,8 +34,13 @@ function hasActiveUserWorkInProgress(): boolean {
     return true
   }
 
-  // Se estiver na tela de conciliação/importação de extrato
-  if (typeof window !== 'undefined' && window.location.pathname.includes('conciliacao')) {
+  // Se estiver na tela de conciliação/importação de extrato ou automação de-para
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.pathname.includes('conciliacao') ||
+      window.location.pathname.includes('extratos') ||
+      window.location.pathname.includes('de-para'))
+  ) {
     return true
   }
 

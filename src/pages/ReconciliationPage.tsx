@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { deparaService } from '@/services/depara'
 import { categoriesService } from '@/services/categories'
 import { accountsService } from '@/services/accounts'
@@ -54,6 +55,7 @@ import { CategoryCascadeSelect } from '@/components/transactions/CategoryCascade
 
 export const ReconciliationPage: React.FC = () => {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [accounts, setAccounts] = useState<AccountRecord[]>([])
   const [rules, setRules] = useState<DeparaRuleRecord[]>([])
@@ -77,17 +79,6 @@ export const ReconciliationPage: React.FC = () => {
   const [savingBatch, setSavingBatch] = useState<boolean>(false)
   const [savingLineId, setSavingLineId] = useState<string | null>(null)
   const [suggestedAccountMessage, setSuggestedAccountMessage] = useState<string | null>(null)
-
-  // Modal/Form de Nova Regra De-Para
-  const [newPattern, setNewPattern] = useState<string>('')
-  const [newCategoryTarget, setNewCategoryTarget] = useState<string>('')
-
-  // Edição de Regra De-Para
-  const [editingRule, setEditingRule] = useState<DeparaRuleRecord | null>(null)
-  const [editPattern, setEditPattern] = useState<string>('')
-  const [editCategoryId, setEditCategoryId] = useState<string>('')
-  const [editRuleDialogOpen, setEditRuleDialogOpen] = useState<boolean>(false)
-  const [savingEditRule, setSavingEditRule] = useState<boolean>(false)
 
   const loadData = async () => {
     setLoading(true)
@@ -611,20 +602,6 @@ export const ReconciliationPage: React.FC = () => {
     setImportLines(processed)
   }
 
-  const handleCreateRule = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newPattern || !newCategoryTarget) return
-
-    try {
-      const rule = await deparaService.create(newPattern, newCategoryTarget)
-      setRules((prev) => [rule, ...prev])
-      setNewPattern('')
-      toast({ title: 'Regra De-Para aprendida com sucesso!' })
-    } catch (err: any) {
-      toast({ title: 'Erro ao criar regra', description: err.message, variant: 'destructive' })
-    }
-  }
-
   const handleSaveSingleLine = async (line: StatementImportLine) => {
     if (line.is_duplicate) {
       toast({
@@ -950,7 +927,7 @@ export const ReconciliationPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Conciliação & De-Para
+              Importador de Extratos
             </h1>
             {detectedBadge && (
               <span
@@ -972,11 +949,21 @@ export const ReconciliationPage: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
             Importe <strong>Extratos Bancários</strong> ou <strong>Faturas de Cartão</strong> nos
             formatos <strong>OFX</strong>, <strong>PDF</strong>, <strong>Excel (XLSX)</strong> ou <strong>CSV</strong> (Nubank, Banco
-            do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.).
+            do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.) com classificação automática.
           </p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/automatizar-de-para')}
+            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5 h-10 px-3.5 rounded-xl font-bold shadow-xs transition-all"
+            title="Gerenciar e cadastrar regras inteligentes de classificação automática"
+          >
+            <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
+            Automatizar De-Para
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -1002,9 +989,9 @@ export const ReconciliationPage: React.FC = () => {
             variant="outline"
             onClick={handleLoadSampleStatement}
             disabled={parsingPdf}
-            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5 h-10 px-3"
+            className="text-xs text-slate-700 border-slate-200 bg-white hover:bg-slate-50 gap-1.5 h-10 px-3 rounded-xl font-semibold shadow-xs"
           >
-            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <Sparkles className="w-4 h-4 text-amber-500" />
             Carregar Exemplo
           </Button>
         </div>
@@ -1835,215 +1822,41 @@ export const ReconciliationPage: React.FC = () => {
         </Card>
       )}
 
-      {/* Regras de De-Para Aprendidas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1 border-slate-200 shadow-xs rounded-2xl bg-white p-5 space-y-4">
-          <CardHeader className="p-0">
-            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              Nova Regra De-Para
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500">
-              Associe um termo frequente do extrato a uma categoria para automatizar importações
-              futuras.
-            </CardDescription>
-          </CardHeader>
-
-          <form onSubmit={handleCreateRule} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="pattern" className="text-xs">
-                Termo no Histórico (Ex: IFOOD, POSTO, UBER)
-              </Label>
-              <Input
-                id="pattern"
-                value={newPattern}
-                onChange={(e) => setNewPattern(e.target.value)}
-                placeholder="Ex: CARREFOUR"
-                required
-              />
+      {/* Central de Automação De-Para */}
+      <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50/80 via-white to-indigo-50/50 shadow-xs rounded-2xl p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <ArrowRightLeft className="w-5 h-5" />
             </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="targetCat" className="text-xs">
-                Categoria Correspondente
-              </Label>
-              <select
-                id="targetCat"
-                value={newCategoryTarget}
-                onChange={(e) => setNewCategoryTarget(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800"
-                required
-              >
-                <option value="">Selecione a categoria...</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {categoryOptionLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5 rounded-xl"
-            >
-              <Plus className="w-4 h-4" /> Criar Regra De-Para
-            </Button>
-          </form>
-        </Card>
-
-        {/* Lista de Regras Existentes */}
-        <Card className="lg:col-span-2 border-slate-200 shadow-xs rounded-2xl bg-white p-5 space-y-4">
-          <CardHeader className="p-0">
-            <CardTitle className="text-base font-bold text-slate-900 flex items-center justify-between">
-              <span>Regras De-Para Ativas ({rules.length})</span>
-              <span className="text-xs font-normal text-slate-400">
-                Classificação inteligente automática
-              </span>
-            </CardTitle>
-          </CardHeader>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto pr-1">
-            {rules.length === 0 ? (
-              <div className="col-span-2 text-center text-slate-400 text-xs py-8">
-                Nenhuma regra De-Para cadastrada ainda.
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Regras Inteligentes De-Para
+                </h3>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  {rules.length} regra{rules.length !== 1 ? 's' : ''} ativa{rules.length !== 1 ? 's' : ''}
+                </span>
               </div>
-            ) : (
-              rules.map((r) => {
-                const cat = r.expand?.category_id || categories.find((c) => c.id === r.category_id)
-                return (
-                  <div
-                    key={r.id}
-                    className="p-3 rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-between"
-                  >
-                    <div>
-                      <span className="text-xs font-black text-slate-900 tracking-wide font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                        {r.pattern}
-                      </span>
-                      <div className="text-xs text-emerald-800 font-semibold mt-1">
-                        &rarr; {cat?.name || 'Categoria'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        usada {r.usage_count ?? 0}x
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          setEditingRule(r)
-                          setEditPattern(r.pattern)
-                          setEditCategoryId(r.category_id)
-                          setEditRuleDialogOpen(true)
-                        }}
-                        className="text-slate-400 hover:text-slate-800 p-1 rounded"
-                        title="Alterar regra"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Deseja excluir a regra "${r.pattern}"?`)) return
-                          await deparaService.delete(r.id)
-                          setRules((prev) => prev.filter((item) => item.id !== r.id))
-                          toast({ title: 'Regra removida.' })
-                        }}
-                        className="text-slate-400 hover:text-rose-600 p-1 rounded"
-                        title="Excluir regra"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })
-            )}
+              <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
+                O SimplaFin utiliza regras automáticas para pré-classificar o texto de cada linha deste extrato instantaneamente.
+              </p>
+            </div>
           </div>
-        </Card>
-      </div>
 
-      {/* Modal de Edição de Regra De-Para */}
-      <Dialog open={editRuleDialogOpen} onOpenChange={setEditRuleDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Pencil className="w-5 h-5 text-emerald-600" />
-              Alterar Regra De-Para
-            </DialogTitle>
-            <DialogDescription>
-              Modifique o padrão de texto ou a categoria de destino desta regra.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault()
-              if (!editingRule || !editPattern || !editCategoryId) return
-              setSavingEditRule(true)
-              try {
-                const updated = await deparaService.update(editingRule.id, {
-                  pattern: editPattern,
-                  category_id: editCategoryId,
-                })
-                setRules((prev) =>
-                  prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
-                )
-                toast({ title: 'Regra atualizada com sucesso!' })
-                setEditRuleDialogOpen(false)
-                loadData()
-              } catch (err: any) {
-                toast({
-                  title: 'Erro ao atualizar regra',
-                  description: err.message,
-                  variant: 'destructive',
-                })
-              } finally {
-                setSavingEditRule(false)
-              }
-            }}
-            className="space-y-4 pt-2"
+          <Button
+            type="button"
+            onClick={() => navigate('/automatizar-de-para')}
+            className="text-xs font-bold text-emerald-800 border border-emerald-300 bg-white hover:bg-emerald-50 rounded-xl h-10 px-4 shrink-0 shadow-2xs gap-1.5 transition-all"
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="edPat">Termo no Extrato / Fatura</Label>
-              <Input
-                id="edPat"
-                value={editPattern}
-                onChange={(e) => setEditPattern(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edCat">Categoria Destino</Label>
-              <select
-                id="edCat"
-                value={editCategoryId}
-                onChange={(e) => setEditCategoryId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800"
-                required
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {categoryOptionLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end space-x-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditRuleDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={savingEditRule}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-              >
-                {savingEditRule ? 'Salvando...' : 'Salvar Alteração'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <span>Gerenciar Automatizar De-Para</span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
+          </Button>
+        </div>
+      </Card>
     </div>
   )
 }
+
+export const StatementImporterPage = ReconciliationPage
+

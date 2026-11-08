@@ -26,6 +26,7 @@ import {
   BarChart3,
   Eye,
   EyeOff,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -76,7 +77,8 @@ export const Navbar: React.FC<NavbarProps> = ({ licenseConfig, onUpdateLicense }
     { to: '/lancamentos', label: 'Lançamentos', icon: Receipt },
     { to: '/faturas', label: 'Faturas', icon: CreditCard },
     { to: '/orcamento', label: 'Orçamento', icon: Target },
-    { to: '/conciliacao', label: 'Conciliação', icon: FileSpreadsheet },
+    { to: '/importador-extratos', label: 'Importador de Extratos', icon: FileSpreadsheet },
+    { to: '/automatizar-de-para', label: 'Automatizar De-Para', icon: ArrowRightLeft },
     { to: '/copiloto', label: 'Copiloto IA', icon: Sparkles, highlight: true },
   ]
 
