@@ -223,6 +223,7 @@ export const ReconciliationPage: React.FC = () => {
   // Processamento genérico e multi-formato de arquivo (OFX, CSV, PDF, TXT)
   const processIncomingFile = async (file: File) => {
     const fileName = file.name.toLowerCase()
+    console.log('[Conciliação] Processando arquivo:', file.name, 'Tamanho:', file.size, 'Tipo:', file.type)
     setDetectedBadge(null)
     setDetectedDocType(null)
     setStatementSummary(null)
@@ -402,7 +403,7 @@ export const ReconciliationPage: React.FC = () => {
         } else {
           toast({
             title: 'Formato não reconhecido',
-            description: 'Não foi possível identificar linhas com data e valor no arquivo enviado. Você pode exportar em formato OFX ou Excel.',
+            description: `Não foi possível identificar lançamentos no arquivo "${file.name}". Baixe no app do seu banco no formato OFX, Excel (.xlsx) ou CSV.`,
             variant: 'destructive',
           })
         }
@@ -646,18 +647,39 @@ export const ReconciliationPage: React.FC = () => {
           </div>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
             Importe <strong>Extratos Bancários</strong> ou <strong>Faturas de Cartão</strong> nos
-            formatos <strong>OFX</strong>, <strong>CSV</strong> ou <strong>PDF</strong> (Nubank, Banco
+            formatos <strong>OFX</strong>, <strong>Excel (XLSX)</strong> ou <strong>CSV</strong> (Nubank, Banco
             do Brasil, Mercado Pago, Itaú, Santander, Bradesco, etc.). Detecção automática do banco,
             parcelas, identificadores e bloqueio de duplicatas.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (typeof window !== 'undefined' && 'caches' in window) {
+                try {
+                  const keys = await caches.keys()
+                  await Promise.all(keys.map((k) => caches.delete(k)))
+                } catch {
+                  // ignore
+                }
+              }
+              window.location.reload()
+            }}
+            title="Limpar cache do navegador e carregar a versão mais recente publicada"
+            className="text-xs text-slate-500 hover:text-slate-800 gap-1 rounded-xl h-11 px-3 border border-slate-200 hover:bg-slate-50"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            Atualizar App
+          </Button>
+
           <Button
             variant="outline"
             onClick={handleLoadSampleStatement}
             disabled={parsingPdf}
-            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5"
+            className="text-xs text-emerald-800 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 gap-1.5 h-11 px-3"
           >
             <Sparkles className="w-4 h-4 text-emerald-600" />
             Carregar Exemplo
@@ -671,14 +693,14 @@ export const ReconciliationPage: React.FC = () => {
               className="hidden"
               disabled={parsingPdf}
             />
-            <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors">
+            <div className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xs flex items-center gap-2 transition-colors h-11 cursor-pointer">
               {parsingPdf ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" /> Lendo documento...
                 </>
               ) : (
                 <>
-                  <FileText className="w-4 h-4" /> Importar OFX / CSV / PDF
+                  <FileText className="w-4 h-4" /> Importar OFX / Excel / CSV
                 </>
               )}
             </div>

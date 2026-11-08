@@ -60,6 +60,16 @@ export const useAutoUpdate = () => {
           'Nova melhoria de tela publicada. Sincronizando parâmetros locais...',
       })
 
+      // Limpa os caches locais do navegador para garantir que o bundle novo seja carregado imediatamente
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          const keys = await caches.keys()
+          await Promise.all(keys.map((k) => caches.delete(k)))
+        } catch {
+          // ignore
+        }
+      }
+
       // Atualiza caches do Service Worker caso disponível
       if ('serviceWorker' in navigator) {
         try {
