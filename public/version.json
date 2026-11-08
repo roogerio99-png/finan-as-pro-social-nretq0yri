@@ -1,6 +1,6 @@
 {
-  "version": "0.2.4",
-  "buildTimestamp": 1794164900000,
-  "releaseDate": "2026-11-08T19:08:00.000Z",
-  "description": "SimplaFin v0.2.4 - Correção das fórmulas de simulação: suporte robusto a formatos numéricos brasileiros, seletor de prazo em meses/anos, momento do aporte (início/fim do mês) e precisão na Regra dos 72."
+  "version": "0.2.5",
+  "buildTimestamp": 1794167000000,
+  "releaseDate": "2026-11-08T19:43:00.000Z",
+  "description": "SimplaFin v0.2.5 - Reorganização da interface de Simulações: 1. Cálculo, 2. Demonstração por mês e 3. Como o cálculo é feito no final."
 }

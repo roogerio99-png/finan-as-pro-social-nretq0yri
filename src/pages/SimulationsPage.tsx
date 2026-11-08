@@ -105,46 +105,7 @@ const CompoundCalculator: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <FormulaBlock
-        intro={
-          <span>
-            Os juros são calculados sobre o saldo acumulado do mês anterior (o chamado{' '}
-            <span className="font-semibold text-emerald-800">“juros sobre juros”</span>),
-            garantindo crescimento exponencial. Você pode escolher aportes no início do mês
-            (antecipado) ou no fim do mês (postecipado).
-          </span>
-        }
-        formulas={[
-          { text: 'M = C · (1 + i)^t', desc: 'Montante acumulado sem aportes regulares' },
-          {
-            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i]',
-            desc: 'Aportes no FIM do mês (Postecipado)',
-          },
-          {
-            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i] · (1 + i)',
-            desc: 'Aportes no INÍCIO do mês (Antecipado)',
-          },
-          { text: 'J = M − Total Investido', desc: 'Total de juros gerados' },
-        ]}
-        legend={[
-          { symbol: 'M (Montante)', meaning: 'valor total acumulado ao final do período' },
-          { symbol: 'C (Capital)', meaning: 'depósito inicial' },
-          { symbol: 'Aporte', meaning: 'valor depositado periodicamente a cada mês' },
-          {
-            symbol: 'i (Taxa)',
-            meaning: 'taxa decimal ao mês (ex.: 1% a.m. = 0,01). Taxas anuais são convertidas por equivalência: (1 + i_a)^(1/12) − 1',
-          },
-          {
-            symbol: 't (Prazo)',
-            meaning: 'tempo total em meses (se informado em anos, é multiplicado por 12)',
-          },
-        ]}
-        notes={[
-          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
-          'Taxa anual é convertida rigorosamente para a taxa mensal equivalente pela fórmula de juros compostos.',
-        ]}
-      />
-
+      {/* 1. Primeiro: Painel de Parâmetros e Entradas do Cálculo */}
       <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Valor Inicial */}
@@ -241,7 +202,7 @@ const CompoundCalculator: React.FC = () => {
         </div>
       </Card>
 
-      {/* Cards de Resultados */}
+      {/* Cards de Resultados do Cálculo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="p-4 bg-emerald-50/80 border-emerald-200 rounded-2xl shadow-xs">
           <div className="flex items-center gap-2 text-emerald-800">
@@ -285,7 +246,7 @@ const CompoundCalculator: React.FC = () => {
         </Card>
       </div>
 
-      {/* Gráfico de Evolução */}
+      {/* 2. Segundo: Demonstração e Evolução Mês a Mês */}
       <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
           <div>
@@ -367,6 +328,47 @@ const CompoundCalculator: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* 3. Terceiro: Como o Cálculo é Feito (Fórmulas e Metodologia) */}
+      <FormulaBlock
+        intro={
+          <span>
+            Os juros são calculados sobre o saldo acumulado do mês anterior (o chamado{' '}
+            <span className="font-semibold text-emerald-800">“juros sobre juros”</span>),
+            garantindo crescimento exponencial. Você pode escolher aportes no início do mês
+            (antecipado) ou no fim do mês (postecipado).
+          </span>
+        }
+        formulas={[
+          { text: 'M = C · (1 + i)^t', desc: 'Montante acumulado sem aportes regulares' },
+          {
+            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i]',
+            desc: 'Aportes no FIM do mês (Postecipado)',
+          },
+          {
+            text: 'M = C · (1 + i)^t + Aporte · [((1 + i)^t − 1) / i] · (1 + i)',
+            desc: 'Aportes no INÍCIO do mês (Antecipado)',
+          },
+          { text: 'J = M − Total Investido', desc: 'Total de juros gerados' },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor total acumulado ao final do período' },
+          { symbol: 'C (Capital)', meaning: 'depósito inicial' },
+          { symbol: 'Aporte', meaning: 'valor depositado periodicamente a cada mês' },
+          {
+            symbol: 'i (Taxa)',
+            meaning: 'taxa decimal ao mês (ex.: 1% a.m. = 0,01). Taxas anuais são convertidas por equivalência: (1 + i_a)^(1/12) − 1',
+          },
+          {
+            symbol: 't (Prazo)',
+            meaning: 'tempo total em meses (se informado em anos, é multiplicado por 12)',
+          },
+        ]}
+        notes={[
+          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
+          'Taxa anual é convertida rigorosamente para a taxa mensal equivalente pela fórmula de juros compostos.',
+        ]}
+      />
     </div>
   )
 }
@@ -424,43 +426,7 @@ const SimpleCalculator: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <FormulaBlock
-        intro={
-          <span>
-            No regime de juros simples, o rendimento é calculado exclusivamente sobre o capital
-            inicial e{' '}
-            <span className="font-semibold text-amber-800">
-              não rende juros sobre juros acumulados
-            </span>
-            . O crescimento do montante é estritamente linear ao longo do tempo.
-          </span>
-        }
-        formulas={[
-          { text: 'J = C · i · t', desc: 'Total de juros gerados no regime simples' },
-          { text: 'M = C + J = C · (1 + i · t)', desc: 'Montante final acumulado' },
-          {
-            text: 'M_composto = C · (1 + i)^t',
-            desc: 'Comparativo: o que renderia em juros compostos',
-          },
-        ]}
-        legend={[
-          { symbol: 'M (Montante)', meaning: 'valor final acumulado' },
-          { symbol: 'C (Capital)', meaning: 'capital inicial aplicado' },
-          {
-            symbol: 'i (Taxa)',
-            meaning: 'taxa de juros mensal em formato decimal (ex.: 1% = 0,01). Taxas anuais dividem-se linearmente por 12.',
-          },
-          {
-            symbol: 't (Prazo)',
-            meaning: 'tempo em meses (se informado em anos, é multiplicado por 12)',
-          },
-        ]}
-        notes={[
-          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
-          'No regime simples, taxa anual é dividida proporcionalmente por 12 (linear).',
-        ]}
-      />
-
+      {/* 1. Primeiro: Parâmetros do Cálculo */}
       <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
@@ -528,6 +494,7 @@ const SimpleCalculator: React.FC = () => {
         </div>
       </Card>
 
+      {/* Cards de Resultados do Cálculo */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card className="p-4 bg-amber-50/80 border-amber-200 rounded-2xl shadow-xs">
           <div className="flex items-center gap-2 text-amber-800">
@@ -575,6 +542,7 @@ const SimpleCalculator: React.FC = () => {
         </Card>
       </div>
 
+      {/* 2. Segundo: Demonstração e Evolução Mês a Mês */}
       <Card className="p-4 sm:p-5 border-slate-200 shadow-xs rounded-2xl bg-white">
         <h3 className="text-sm font-bold text-slate-900">
           Comparativo Visual: Juros Simples vs. Juros Compostos
@@ -641,6 +609,44 @@ const SimpleCalculator: React.FC = () => {
           </LineChart>
         </ChartContainer>
       </Card>
+
+      {/* 3. Terceiro: Como o Cálculo é Feito (Fórmulas e Metodologia) */}
+      <FormulaBlock
+        intro={
+          <span>
+            No regime de juros simples, o rendimento é calculado exclusivamente sobre o capital
+            inicial e{' '}
+            <span className="font-semibold text-amber-800">
+              não rende juros sobre juros acumulados
+            </span>
+            . O crescimento do montante é estritamente linear ao longo do tempo.
+          </span>
+        }
+        formulas={[
+          { text: 'J = C · i · t', desc: 'Total de juros gerados no regime simples' },
+          { text: 'M = C + J = C · (1 + i · t)', desc: 'Montante final acumulado' },
+          {
+            text: 'M_composto = C · (1 + i)^t',
+            desc: 'Comparativo: o que renderia em juros compostos',
+          },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor final acumulado' },
+          { symbol: 'C (Capital)', meaning: 'capital inicial aplicado' },
+          {
+            symbol: 'i (Taxa)',
+            meaning: 'taxa de juros mensal em formato decimal (ex.: 1% = 0,01). Taxas anuais dividem-se linearmente por 12.',
+          },
+          {
+            symbol: 't (Prazo)',
+            meaning: 'tempo em meses (se informado em anos, é multiplicado por 12)',
+          },
+        ]}
+        notes={[
+          'Suporta qualquer formato de número (ex.: 1000, 1.000 ou 1.000,00).',
+          'No regime simples, taxa anual é dividida proporcionalmente por 12 (linear).',
+        ]}
+      />
     </div>
   )
 }

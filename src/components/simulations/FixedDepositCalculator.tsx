@@ -137,40 +137,7 @@ export const FixedDepositCalculator: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <FormulaBlock
-        intro={
-          <span>
-            Esta calculadora segue a Calculadora do Cidadão do Banco Central. Cada depósito é feito{' '}
-            <span className="font-semibold">no início do mês</span> e rende desde já — por isso o
-            saldo cresce mês a mês como saldo = (saldo + depósito) × (1 + i). Ela precisa de{' '}
-            <span className="font-semibold">três dos quatro dados</span>; o quarto é calculado.
-          </span>
-        }
-        formulas={[
-          { text: 'M = D · [((1 + i)^t − 1) / i] · (1 + i)', desc: 'Valor obtido ao final' },
-          { text: 'D = M · i / [(1 + i) · ((1 + i)^t − 1)]', desc: 'Valor do depósito regular' },
-          {
-            text: 'i = taxa que faz M bater com os dados (busca numérica)',
-            desc: 'Taxa de juros mensal',
-          },
-          {
-            text: 't = ln(M · i / (D · (1 + i)) + 1) / ln(1 + i)',
-            desc: 'Número de meses (i = 0: t = M / D)',
-          },
-        ]}
-        legend={[
-          { symbol: 'M (Montante)', meaning: 'valor obtido ao final' },
-          { symbol: 'D (Depósito)', meaning: 'valor do depósito regular (início do mês)' },
-          { symbol: 'i (Taxa)', meaning: 'taxa de juros mensal, em decimal (1% = 0,01)' },
-          { symbol: 't (Tempo)', meaning: 'número de meses' },
-        ]}
-        notes={[
-          'Ex.: 1% a.m. = 0,01. O tempo deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses).',
-          'Como o depósito é feito no início do mês, o resultado é maior que o da série comum (depósito no fim do mês): M = D · [((1 + i)^t − 1) / i] · (1 + i).',
-          'Nada é salvo: o cálculo acontece somente no seu navegador.',
-        ]}
-      />
-
+      {/* 1. Primeiro: Parâmetros e Execução do Cálculo */}
       <Card className="p-4 sm:p-5">
         <div className="mx-auto max-w-md space-y-3">
           {FIXED_DEPOSIT_FIELDS.map((key) => (
@@ -214,6 +181,7 @@ export const FixedDepositCalculator: React.FC = () => {
         </div>
       </Card>
 
+      {/* Resultados */}
       {outcome?.ok === false && (
         <div
           role="alert"
@@ -238,6 +206,7 @@ export const FixedDepositCalculator: React.FC = () => {
         </Card>
       )}
 
+      {/* 2. Segundo: Demonstração Mês a Mês */}
       {chartSeries && (
         <Card className="p-4 sm:p-5">
           <div className="flex items-center gap-2 text-slate-700">
@@ -314,6 +283,41 @@ export const FixedDepositCalculator: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* 3. Terceiro: Como o cálculo é feito */}
+      <FormulaBlock
+        intro={
+          <span>
+            Esta calculadora segue a Calculadora do Cidadão do Banco Central. Cada depósito é feito{' '}
+            <span className="font-semibold">no início do mês</span> e rende desde já — por isso o
+            saldo cresce mês a mês como saldo = (saldo + depósito) × (1 + i). Ela precisa de{' '}
+            <span className="font-semibold">três dos quatro dados</span>; o quarto é calculado.
+          </span>
+        }
+        formulas={[
+          { text: 'M = D · [((1 + i)^t − 1) / i] · (1 + i)', desc: 'Valor obtido ao final' },
+          { text: 'D = M · i / [(1 + i) · ((1 + i)^t − 1)]', desc: 'Valor do depósito regular' },
+          {
+            text: 'i = taxa que faz M bater com os dados (busca numérica)',
+            desc: 'Taxa de juros mensal',
+          },
+          {
+            text: 't = ln(M · i / (D · (1 + i)) + 1) / ln(1 + i)',
+            desc: 'Número de meses (i = 0: t = M / D)',
+          },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor obtido ao final' },
+          { symbol: 'D (Depósito)', meaning: 'valor do depósito regular (início do mês)' },
+          { symbol: 'i (Taxa)', meaning: 'taxa de juros mensal, em decimal (1% = 0,01)' },
+          { symbol: 't (Tempo)', meaning: 'número de meses' },
+        ]}
+        notes={[
+          'Ex.: 1% a.m. = 0,01. O tempo deve estar na mesma unidade da taxa (se a taxa é ao mês, o tempo em meses).',
+          'Como o depósito é feito no início do mês, o resultado é maior que o da série comum (depósito no fim do mês): M = D · [((1 + i)^t − 1) / i] · (1 + i).',
+          'Nada é salvo: o cálculo acontece somente no seu navegador.',
+        ]}
+      />
     </div>
   )
 }

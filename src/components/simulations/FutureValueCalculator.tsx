@@ -130,29 +130,7 @@ export const FutureValueCalculator: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <FormulaBlock
-        intro={
-          <span>
-            Esta calculadora segue a Calculadora do Cidadão do Banco Central. Ela usa os juros
-            compostos e precisa de <span className="font-semibold">três dos quatro dados</span>; o
-            quarto é calculado. Capital atual é o depósito feito no início do mês.
-          </span>
-        }
-        formulas={[
-          { text: 'M = C · (1 + i)^t', desc: 'Valor obtido ao final' },
-          { text: 'C = M / (1 + i)^t', desc: 'Capital atual' },
-          { text: 'i = (M / C)^(1/t) − 1', desc: 'Taxa de juros mensal' },
-          { text: 't = ln(M / C) / ln(1 + i)', desc: 'Número de meses' },
-        ]}
-        legend={[
-          { symbol: 'M (Montante)', meaning: 'valor obtido ao final' },
-          { symbol: 'C (Capital)', meaning: 'capital atual (depósito no início do mês)' },
-          { symbol: 'i (Taxa)', meaning: 'taxa de juros mensal, em decimal (1% = 0,01)' },
-          { symbol: 't (Tempo)', meaning: 'número de meses' },
-        ]}
-        notes={['Nada é salvo: o cálculo acontece somente no seu navegador.']}
-      />
-
+      {/* 1. Primeiro: Parâmetros e Execução do Cálculo */}
       <Card className="p-4 sm:p-5">
         <div className="mx-auto max-w-md space-y-3">
           {(['months', 'rate', 'capital', 'final'] as FutureValueField[]).map((key) => (
@@ -191,6 +169,7 @@ export const FutureValueCalculator: React.FC = () => {
         </div>
       </Card>
 
+      {/* Resultados */}
       {outcome?.ok === false && (
         <div
           role="alert"
@@ -215,6 +194,7 @@ export const FutureValueCalculator: React.FC = () => {
         </Card>
       )}
 
+      {/* 2. Segundo: Demonstração Mês a Mês */}
       {chartSeries && (
         <Card className="p-4 sm:p-5">
           <div className="flex items-center gap-2 text-slate-700">
@@ -281,6 +261,30 @@ export const FutureValueCalculator: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* 3. Terceiro: Como o cálculo é feito */}
+      <FormulaBlock
+        intro={
+          <span>
+            Esta calculadora segue a Calculadora do Cidadão do Banco Central. Ela usa os juros
+            compostos e precisa de <span className="font-semibold">três dos quatro dados</span>; o
+            quarto é calculado. Capital atual é o depósito feito no início do mês.
+          </span>
+        }
+        formulas={[
+          { text: 'M = C · (1 + i)^t', desc: 'Valor obtido ao final' },
+          { text: 'C = M / (1 + i)^t', desc: 'Capital atual' },
+          { text: 'i = (M / C)^(1/t) − 1', desc: 'Taxa de juros mensal' },
+          { text: 't = ln(M / C) / ln(1 + i)', desc: 'Número de meses' },
+        ]}
+        legend={[
+          { symbol: 'M (Montante)', meaning: 'valor obtido ao final' },
+          { symbol: 'C (Capital)', meaning: 'capital atual (depósito no início do mês)' },
+          { symbol: 'i (Taxa)', meaning: 'taxa de juros mensal, em decimal (1% = 0,01)' },
+          { symbol: 't (Tempo)', meaning: 'número de meses' },
+        ]}
+        notes={['Nada é salvo: o cálculo acontece somente no seu navegador.']}
+      />
     </div>
   )
 }
