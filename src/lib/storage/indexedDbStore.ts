@@ -69,6 +69,10 @@ class LocalIndexedDbStore {
     }
   }
 
+  public onBroadcast(cb: (msg: VaultSyncMessage) => void): () => void {
+    return this.onSyncMessage(cb)
+  }
+
   public broadcast(msg: Omit<VaultSyncMessage, 'timestamp'>): void {
     const fullMsg: VaultSyncMessage = { ...msg, timestamp: Date.now() }
     try {

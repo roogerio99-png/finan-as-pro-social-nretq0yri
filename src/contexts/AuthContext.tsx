@@ -54,13 +54,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
 
     // Coordenação entre abas abertas: se uma aba bloquear o cofre, todas as demais bloqueiam imediatamente
-    const unsubBroadcast = indexedDbStore.onBroadcast((event) => {
-      if (event.type === 'VAULT_LOCKED' && mounted) {
-        authService.logout()
-        setUser(null)
-        refreshSavedAccounts()
-      }
-    })
+    const unsubBroadcast =
+      typeof indexedDbStore.onSyncMessage === 'function'
+        ? indexedDbStore.onSyncMessage((event) => {
+            if (event.type === 'VAULT_LOCKED' && mounted) {
+              authService.logout()
+              setUser(null)
+              refreshSavedAccounts()
+            }
+          })
+        : () => {}
 
     const handleStorageEvent = (e: StorageEvent) => {
       if (e.key === 'gestio_local_auth_v1' && !e.newValue && mounted) {

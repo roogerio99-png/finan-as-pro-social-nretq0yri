@@ -33,7 +33,7 @@ console.log(`${colors.bold}=====================================================
 
 // 1. Checagem Estática de Tipos e Imports (TypeScript)
 logStep(1, 5, 'Verificação Estática de Tipos & Imports (TypeScript)');
-runCheck('npx tsc --noEmit', 'Tipagem e Imports (Previne "useRef is not defined", etc.)');
+runCheck('npx tsc -p tsconfig.app.json --noEmit', 'Tipagem e Imports (Previne "useRef is not defined", etc.)');
 
 // 2. Auditoria contra Colisões com Web APIs Nativas do DOM (Previne "Illegal constructor")
 logStep(2, 5, 'Auditoria de Construtores JSX vs Web APIs Nativas');

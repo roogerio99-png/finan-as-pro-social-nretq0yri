@@ -1,6 +1,6 @@
 {
-  "version": "0.1.0",
-  "buildTimestamp": 1794153000000,
-  "releaseDate": "2026-11-08T15:50:00.000Z",
-  "description": "Gestio Financas Pro v0.1.0 - Isolamento de cofre por perfil, precisao em centavos inteiros, backup criptografado obrigatorio e CSP restritiva."
+  "version": "0.1.1",
+  "buildTimestamp": 1794154250000,
+  "releaseDate": "2026-11-08T16:10:50.000Z",
+  "description": "Gestio Financas Pro v0.1.1 - Correcao de sincronizacao BroadcastChannel no AuthContext e isolamento de cofre por perfil."
 }

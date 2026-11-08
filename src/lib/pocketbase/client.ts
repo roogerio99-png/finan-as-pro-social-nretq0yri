@@ -1,12 +1,9 @@
 import { MockPocketBase } from './mockStore'
 
 /**
- * PocketBase Client — Modo 100% Local e Privado (Zero-Knowledge Privacy)
- * Garante que nenhum dado financeiro de terceiros ou testadores seja transmitido para servidores remotos.
- * Todos os registros (transações, contas, orçamentos, faturas, sonhos e dívidas) residem
- * exclusivamente no armazenamento local seguro (localStorage) do próprio aparelho do usuário.
+ * PocketBase Client — Modo 100% Local e Privado com Isolamento de Cofre por Perfil
  */
-const pb = new MockPocketBase() as any
+const pb = new MockPocketBase()
 pb.autoCancellation(false)
 
 export { pb }

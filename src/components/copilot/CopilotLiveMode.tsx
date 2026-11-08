@@ -16,8 +16,7 @@ import { copilotService } from '@/services/copilotService'
 import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
 import { categoriesService } from '@/services/categories'
-import { AccountRecord } from '@/types/finance'
-import { CategoryRecord } from '@/services/categories'
+import { AccountRecord, CategoryRecord } from '@/types/finance'
 
 interface CopilotLiveModeProps {
   isOpen: boolean

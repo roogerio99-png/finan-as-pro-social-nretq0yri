@@ -1334,6 +1334,9 @@ export class MockPocketBase {
         filter?: string
         sort?: string
         expand?: string
+        limit?: number
+        $autoCancel?: boolean
+        requestKey?: string | null
       }): Promise<R[]> => {
         const activeUserId = this.authStore.record?.id
         if (!activeUserId && name !== 'users') {
@@ -1526,12 +1529,15 @@ export class MockPocketBase {
         return true
       },
 
-      subscribe: async (topic: string, callback: (event: any) => void) => {
+      subscribe: async <R = T>(
+        topic: string,
+        callback: (event: { action: string; record: R }) => void,
+      ) => {
         const key = topic === '*' ? name : `${name}/${topic}`
         if (!this.subscriptions[key]) {
           this.subscriptions[key] = []
         }
-        this.subscriptions[key].push(callback)
+        this.subscriptions[key].push(callback as any)
         return async () => {
           this.subscriptions[key] = this.subscriptions[key].filter((fn) => fn !== callback)
         }

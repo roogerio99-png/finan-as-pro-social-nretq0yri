@@ -97,6 +97,7 @@ export interface TransactionRecord {
   cash_month: string // YYYY-MM
   installments_total?: number // total de parcelas (vazio/0/1 = à vista)
   installments_paid?: number // parcelas já pagas (informativo)
+  status?: 'completed' | 'pending'
   // Conta de destino da transferência entre contas (type = 'transfer').
   transfer_account_id?: string
   // Fatura quitada por este movimento (type = 'invoice_payment').

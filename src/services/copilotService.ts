@@ -1,11 +1,18 @@
 import { parseVoiceTransaction, VoiceParseResult } from '@/services/voiceParser'
-import { transactionsService, TransactionRecord } from '@/services/transactions'
+import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
-import { categoriesService, CategoryRecord } from '@/services/categories'
-import { budgetsService, BudgetRecord } from '@/services/budgets'
-import { debtsService, DebtRecord } from '@/services/debts'
-import { dreamsService, DreamRecord } from '@/services/dreams'
-import { AccountRecord } from '@/types/finance'
+import { categoriesService } from '@/services/categories'
+import { budgetsService } from '@/services/budgets'
+import { debtsService } from '@/services/debts'
+import { dreamsService } from '@/services/dreams'
+import {
+  AccountRecord,
+  TransactionRecord,
+  CategoryRecord,
+  BudgetRecord,
+  DebtRecord,
+  DreamRecord,
+} from '@/types/finance'
 
 export interface QuickTransactionSuggestion {
   parseResult: VoiceParseResult

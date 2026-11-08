@@ -315,10 +315,9 @@ export const GoogleLoginPage: React.FC = () => {
                         <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
                           <span>{acc.name}</span>
                           {acc.hasPin && (
-                            <Lock
-                              className="w-3 h-3 text-amber-400 flex-shrink-0"
-                              title="Protegido por PIN local"
-                            />
+                            <span title="Protegido por PIN local">
+                              <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                            </span>
                           )}
                         </div>
                         <div className="text-[11px] text-slate-400 truncate">{acc.email}</div>

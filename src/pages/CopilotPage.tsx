@@ -58,8 +58,7 @@ import {
 import { transactionsService } from '@/services/transactions'
 import { accountsService } from '@/services/accounts'
 import { categoriesService } from '@/services/categories'
-import { AccountRecord } from '@/types/finance'
-import { CategoryRecord } from '@/services/categories'
+import { AccountRecord, CategoryRecord } from '@/types/finance'
 
 export const CopilotPage: React.FC = () => {
   const { toast } = useToast()
@@ -169,7 +168,7 @@ export const CopilotPage: React.FC = () => {
 
       const [diag, invs, rules] = await Promise.all([
         copilotService.getDiagnostic().catch(() => null),
-        invoicesService.getAll().catch(() => []),
+        invoicesService.list().catch(() => []),
         deparaService.getAll().catch(() => []),
       ])
       if (diag) {
